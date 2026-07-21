@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Supported VNA hardware for USB_DEVICE_ATTACHED auto-launch.
+
+    NanoVNA-H4 and LiteVNA64 both enumerate as the STMicroelectronics USB
+    CDC virtual COM port: VID 0x0483 (1155) / PID 0x5740 (22336).
+
+    vendor-id / product-id are DECIMAL values (Android parses them as base-10).
+    Verify against real hardware on the Device Connections screen; adjust or
+    add entries if a unit reports different IDs.
+-->
+<resources>
+    <!-- STMicro USB CDC (NanoVNA-H4 / LiteVNA64) -->
+    <usb-device vendor-id="1155" product-id="22336" />
+</resources>
