@@ -597,6 +597,26 @@ fun SweepCsvPreviewPanel(
                 instrumentDivider = instrumentDivider
             )
 
+            SharedInstrumentMutedText(
+                text = String.format(
+                    "# range=%.3f-%.3f MHz  step=%.3f  points=%d/%d  complete=%b",
+                    result.startFrequencyMHz,
+                    result.endFrequencyMHz,
+                    result.stepMHz,
+                    result.actualPointCount,
+                    result.requestedPointCount,
+                    result.isComplete
+                ),
+                instrumentTextSecondary = instrumentTextSecondary
+            )
+
+            if (result.points.size > 40) {
+                SharedInstrumentMutedText(
+                    text = "# preview truncated to first 40 of ${result.points.size} rows",
+                    instrumentTextSecondary = instrumentTextSecondary
+                )
+            }
+
             SharedInstrumentValueText(
                 text = if (showS21Estimate) {
                     "frequencyMHz,swr,returnLossDb,resistance,reactance,estimatedS21Db"

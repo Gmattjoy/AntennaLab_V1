@@ -531,10 +531,22 @@ fun SweepSummaryCard(
 
             SharedTwoValueRow(
                 label = "Points Collected",
-                value = result.points.size.toString(),
+                value = if (result.isComplete) {
+                    result.actualPointCount.toString()
+                } else {
+                    "${result.actualPointCount} / ${result.requestedPointCount}"
+                },
                 instrumentTextPrimary = instrumentTextPrimary,
                 instrumentTextSecondary = instrumentTextSecondary
             )
+
+            if (!result.isComplete) {
+                SharedInstrumentValueText(
+                    text = "⚠ Incomplete sweep — measured ${result.actualPointCount} of " +
+                            "${result.requestedPointCount} points",
+                    instrumentTextPrimary = instrumentAccent
+                )
+            }
 
             if (measurementCapabilities.supportsTDR) {
                 SharedInstrumentSubHeader(
