@@ -1,0 +1,259 @@
+########################################################################
+ANTENNALAB V1 CODE EDITING PROTOCOL
+########################################################################
+
+PROJECT
+AntennaLab V1
+
+PURPOSE
+Defines the mandatory code editing rules for AI-assisted development.
+
+These rules exist to:
+
+• reduce manual editing errors
+• keep file operations predictable
+• preserve architecture control
+• prevent AI drift
+• support safe partial edits
+• maintain readable engineering code
+
+########################################################################
+PATHWAY RULE
+########################################################################
+
+All pathways must follow the Android view directory structure.
+
+Correct format:
+
+Pathway —
+com.example.antennalab_v1
+> features
+> workspace
+> DesignWorkspaceScreen.kt
+
+Rules:
+
+• start from package root
+• use ">" separators
+• never include module prefixes like:
+  app > kotlin+java
+
+Always match the visible Android project tree.
+
+########################################################################
+EDIT SECTION STRUCTURE STANDARD
+########################################################################
+
+All active development files must use the numbered edit section system.
+
+Required format:
+
+------------------------------------------------------------
+EDIT SECTION ####
+------------------------------------------------------------
+
+Section numbers must be sequential.
+
+Example numbering pattern:
+
+1000  File header
+1001  Top level composable
+1002  UI state
+1003  Layout
+1004  Actions
+2000+ Subcomponents
+3000+ Helpers
+
+########################################################################
+FILE HEADER STRUCTURE
+########################################################################
+
+Every file begins with EDIT SECTION 1000.
+
+Example:
+
+------------------------------------------------------------
+EDIT SECTION 1000
+FILE: ExampleFile.kt
+PACKAGE: com.example.antennalab_v1.example
+LAYER: UI / Example
+
+SYSTEM ROLE
+Explain what the file does.
+
+CURRENT DEVELOPMENT ROLE
+Explain why it currently exists in the project.
+
+SAFE EDIT AREA
+- list safe modifications
+------------------------------------------------------------
+
+########################################################################
+FUNCTION / SECTION BLOCK STRUCTURE
+########################################################################
+
+Every major functional block must have its own edit section.
+
+Example:
+
+------------------------------------------------------------
+EDIT SECTION 1001
+SCREEN LAYOUT
+----------------------
+PURPOSE
+Describe what this section does.
+
+SAFE EDIT AREA
+- safe modifications
+------------------------------------------------------------
+
+@Composable
+fun ExampleScreen() { }
+
+########################################################################
+INLINE EDIT MARKERS
+########################################################################
+
+Sub-sections inside a function may also include markers.
+
+Example:
+
+------------------------------------------------------------
+HOME SCREEN EDIT SECTION 1002
+------------------------------------------------------------
+
+or
+
+------------------------------------------------------------
+LOAD PROJECT EDIT SECTION 1004
+------------------------------------------------------------
+
+These markers help identify exact edit targets later.
+
+########################################################################
+END OF FILE MARKER
+########################################################################
+
+Every file must end with:
+
+------------------------------------------------------------
+END EDIT SECTIONS ####
+------------------------------------------------------------
+
+Where #### is the next logical number.
+
+Example:
+
+END EDIT SECTIONS 1005
+
+########################################################################
+PARTIAL EDIT RULE
+########################################################################
+
+Partial edits are allowed only when edit markers exist.
+
+Format:
+
+Pathway —
+[file path]
+
+File —
+[file name]
+
+Replace code between
+
+EDIT SECTION ####
+and
+EDIT SECTION ####
+
+[paste ready code]
+
+########################################################################
+COMBINED EDIT RULE
+########################################################################
+
+If multiple nearby sections must be edited:
+
+Combine them into a single edit.
+
+Example:
+
+Replace code between
+
+EDIT SECTION 4001
+and
+EDIT SECTION 4003
+
+Goal:
+
+• fewer copy operations
+• fewer editing mistakes
+
+########################################################################
+FULL FILE REPLACEMENT RULE
+########################################################################
+
+Full file replacements are allowed when:
+
+• a file has no edit sections
+• a file requires structural upgrade
+• adding edit sections to legacy files
+• repair after manual damage
+
+When replacing a file without edit sections:
+
+AI must upgrade the file to the edit section structure.
+
+########################################################################
+FILE TREE RULE
+########################################################################
+
+AI must follow the **actual Android project tree**.
+
+Never assume files exist because they are referenced.
+
+If unsure:
+
+• request the file
+• request the directory screenshot
+
+########################################################################
+SESSION FILE TRACKING
+########################################################################
+
+AI must track:
+
+1. Edited files
+2. Created files
+3. Confirmed file tree
+
+This prevents editing non-existent files.
+
+########################################################################
+CHAT LENGTH RULE
+########################################################################
+
+Long chats slow the interface.
+
+When chats grow large:
+
+Start a new session and include:
+
+• project state
+• edited file list
+• confirmed file tree
+
+########################################################################
+CONTROL RULE
+########################################################################
+
+AI must never:
+
+• invent missing files
+• assume directory structure
+• remove edit markers
+• break section numbering
+
+Goal:
+
+Controlled development of a professional engineering application.

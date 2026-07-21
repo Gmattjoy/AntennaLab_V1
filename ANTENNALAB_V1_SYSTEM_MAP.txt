@@ -1,0 +1,365 @@
+########################################################################
+ANTENNALAB V1 SYSTEM MAP
+########################################################################
+
+PROJECT
+AntennaLab V1
+
+FILE ROLE
+This document is a live architectural map of the AntennaLab V1
+codebase.
+
+Its purpose is to allow future AI sessions and developers to quickly
+understand:
+
+• system structure
+• major modules
+• data flow
+• feature responsibilities
+• where systems live in the codebase
+
+This file should be updated whenever major systems are added.
+
+########################################################################
+ROOT PROJECT STRUCTURE
+########################################################################
+
+AntennaLab_V1
+│
+├── app
+│
+├── ANTENNALAB_V1_PROJECT_MASTER_CONTEXT.txt
+│
+├── ANTENNALAB_V1_CODE_EDITING_PROTOCOL.txt
+│
+├── ANTENNALAB_V1_SYSTEM_MAP.txt
+│
+├── build.gradle.kts
+├── settings.gradle.kts
+
+########################################################################
+ANDROID APPLICATION STRUCTURE
+########################################################################
+
+app
+└── src
+    └── main
+        ├── java
+        │
+        │   com.example.antennalab_v1
+        │   │
+        │   ├── domain
+        │   │
+        │   ├── features
+        │   │
+        │   ├── model
+        │   │
+        │   ├── project
+        │   │
+        │   ├── storage
+        │   │
+        │   └── ui.theme
+        │
+        └── res
+
+########################################################################
+MODEL LAYER
+########################################################################
+
+Location
+
+model/
+
+Purpose
+
+Stores pure data models.
+
+Model layer must NOT contain:
+
+• UI logic
+• Android framework references
+• calculation logic
+
+Primary model:
+
+ProjectData
+
+ProjectData acts as the single source of truth for the entire
+application.
+
+########################################################################
+PROJECTDATA MODEL STRUCTURE
+########################################################################
+
+ProjectData
+
+contains:
+
+meta
+
+designInput
+
+materialConfig
+
+calculatedDesign
+
+testData
+
+uiState
+
+versionInfo
+
+buildCostProfile
+
+availablePartsProfile
+
+testHardwareProfile
+
+ProjectData also exposes helper accessors for:
+
+predicted performance
+
+hardware capability profile
+
+########################################################################
+DOMAIN LAYER
+########################################################################
+
+Location
+
+domain/
+
+Purpose
+
+Contains non-UI operational logic such as:
+
+calculation engine
+
+testing tools
+
+analysis helpers
+
+Examples
+
+CalculationEngine
+
+SweepController
+
+SweepAnalyzer
+
+These components operate on models and return structured results.
+
+########################################################################
+FEATURES LAYER
+########################################################################
+
+Location
+
+features/
+
+Purpose
+
+Contains user interface screens and feature workflows.
+
+Major areas include:
+
+wizard
+
+testing
+
+project screens
+
+Feature screens should:
+
+read models
+
+call domain logic
+
+render results
+
+They should not contain core engineering algorithms.
+
+########################################################################
+PROJECT WORKSPACE LAYER
+########################################################################
+
+Location
+
+project/
+
+Purpose
+
+Contains the project workspace screens used once a project has been
+created.
+
+Primary screen
+
+ProjectPageScreen
+
+Responsibilities
+
+project overview
+
+hardware selection
+
+testing entry
+
+save / load
+
+navigation to workspace tools
+
+########################################################################
+TESTING SYSTEM
+########################################################################
+
+Location
+
+features/testing/
+
+Primary UI
+
+SweepGraphScreen
+
+Purpose
+
+Displays antenna sweep results and measurement previews.
+
+Current capabilities
+
+SWR graph
+
+return loss graph
+
+resistance graph
+
+reactance graph
+
+Smith chart preview
+
+impedance locus view
+
+S21 estimate preview
+
+marker A and marker B
+
+delta measurement readout
+
+resonance detection
+
+cable fault / TDR preview estimate
+
+CSV preview
+
+########################################################################
+SWEEP DATA FLOW
+########################################################################
+
+SweepController
+        ↓
+SweepResult
+        ↓
+SweepGraphScreen
+
+SweepAnalyzer provides interpretation functions such as:
+
+resonance detection
+
+sweep summary metrics
+
+########################################################################
+HARDWARE SYSTEM
+########################################################################
+
+Hardware support currently includes:
+
+NanoVNA-H4
+
+LiteVNA64 v0.3.3
+
+Hardware is selected through:
+
+ProjectData.testHardwareProfile
+
+This resolves to a capability profile which controls UI features.
+
+Capability profile determines availability of:
+
+Smith chart
+
+S21 estimate
+
+marker system
+
+delta markers
+
+CSV export
+
+TDR preview
+
+frequency limits
+
+########################################################################
+PREDICTION SYSTEM
+########################################################################
+
+Prediction system integrates environmental modelling with antenna
+design.
+
+Components include:
+
+Environmental model
+
+Prediction engine
+
+Prediction UI display
+
+Predicted data is stored in:
+
+CalculatedDesign.predictedPerformance
+
+Safe helper accessors allow UI systems to read predictions without
+null checks.
+
+########################################################################
+WORKFLOW SUMMARY
+########################################################################
+
+Wizard
+        ↓
+ProjectData created
+        ↓
+CalculationEngine
+        ↓
+CalculatedDesign
+        ↓
+ProjectPageScreen
+        ↓
+Testing Tools
+        ↓
+Storage
+
+########################################################################
+FUTURE SYSTEM EXPANSION
+########################################################################
+
+Expected future expansion areas include:
+
+expanded VNA hardware support
+
+hardware auto-detection
+
+calibration workflows
+
+engineering dashboard layout
+
+tuning assistant improvements
+
+unknown antenna discovery mode
+
+companion device measurement mode
+
+tablet UI expansion
+
+########################################################################
+END OF FILE
+########################################################################

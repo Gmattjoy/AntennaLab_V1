@@ -1,0 +1,449 @@
+########################################################################
+ANTENNALAB V1 PROJECT MASTER CONTEXT
+########################################################################
+
+PROJECT
+AntennaLab V1
+
+PROJECT ROLE
+AntennaLab V1 is an Android-based antenna design, analysis, testing,
+and project-management application.
+
+The application supports both novice antenna builders and more advanced
+radio operators by combining guided antenna design with engineering-style
+analysis and measurement tools.
+
+The system integrates:
+
+• antenna design wizard
+• calculation engine
+• project workspace
+• measurement tools
+• antenna testing workflows
+• tuning assistance
+• hardware-aware measurement systems
+
+The project is currently being built for Android phones and tablets,
+with architectural consideration for larger-screen layouts and possible
+future desktop-style workflows.
+
+This file acts as the **master project context document** and is intended
+to allow future AI sessions to understand the project quickly and safely.
+
+########################################################################
+PROJECT STATUS
+########################################################################
+
+CURRENT BUILD STATUS
+Stable build
+
+CURRENT DEVELOPMENT PHASE
+Testing system expansion and hardware capability integration.
+
+RECENT SYSTEM INTEGRATIONS
+
+• Prediction Engine
+• Environmental Model
+• Prediction UI display
+• CalculationEngine integration
+• Safe prediction accessors
+• SWR Sweep System
+• Sweep graph
+• Marker system
+• Return loss / R / X display
+• Hardware-aware sweep sizing
+• Project hardware selection UI
+
+########################################################################
+CURRENT SUPPORTED TEST HARDWARE
+########################################################################
+
+NanoVNA-H4
+
+LiteVNA64 v0.3.3
+
+These hardware devices are currently supported through a hardware
+profile selection system and a capability mapping layer.
+
+Future hardware support will expand through the capability profile
+system.
+
+########################################################################
+HARDWARE CAPABILITY ARCHITECTURE
+########################################################################
+
+The application uses a capability-based hardware system.
+
+Hardware selection stored in ProjectData:
+
+testHardwareProfile
+
+This resolves to a structured capability profile which controls:
+
+• measurement types available
+• graph display availability
+• marker system availability
+• delta marker capability
+• Smith chart support
+• S21 estimate support
+• cable fault / TDR preview support
+• CSV export support
+• sweep frequency limits
+
+This approach prevents UI code from hardcoding hardware behaviour.
+
+Instead:
+
+Hardware Profile
+        ↓
+Capability Profile
+        ↓
+Testing UI features
+
+This architecture allows easy support for additional hardware later.
+
+########################################################################
+CORE APPLICATION ARCHITECTURE
+########################################################################
+
+The central model of the entire application is:
+
+ProjectData
+
+ProjectData acts as the single source of truth for the entire project.
+
+Primary architecture flow:
+
+Wizard Screens
+        ↓
+ProjectData
+        ↓
+Calculation Engine
+        ↓
+CalculatedDesign
+        ↓
+Project Workspace
+        ↓
+Testing Tools
+        ↓
+Storage / Save / Load
+
+ProjectData connects all major systems.
+
+########################################################################
+PROJECTDATA MODEL STRUCTURE
+########################################################################
+
+ProjectData currently contains:
+
+meta
+
+designInput
+
+materialConfig
+
+calculatedDesign
+
+testData
+
+uiState
+
+versionInfo
+
+buildCostProfile
+
+availablePartsProfile
+
+testHardwareProfile
+
+ProjectData also contains safe helper accessors for:
+
+predicted performance
+
+hardware capability access
+
+########################################################################
+CURRENT USER INTERFACE STRUCTURE
+########################################################################
+
+ProjectPageScreen acts as the main project workspace hub.
+
+It currently supports:
+
+workspace tabs
+
+project overview
+
+hardware selection
+
+save / load
+
+home navigation
+
+testing entry
+
+sweep launch
+
+########################################################################
+CURRENT SWEEP TESTING SYSTEM
+########################################################################
+
+SweepGraphScreen provides the first unified measurement interface.
+
+Current capabilities include:
+
+• SWR graph
+• return loss graph
+• resistance graph
+• reactance graph
+• Smith chart preview
+• impedance locus display
+• S21 estimate preview
+• marker A and marker B
+• delta measurement readout
+• resonance detection
+• cable fault / TDR preview estimate
+• CSV export preview
+
+These functions operate on the SweepResult model.
+
+########################################################################
+SWEEP TESTING DATA FLOW
+########################################################################
+
+SweepController
+        ↓
+SweepResult
+        ↓
+SweepGraphScreen
+
+SweepAnalyzer is used for measurement interpretation such as:
+
+• resonance detection
+• sweep summary data
+
+########################################################################
+PROJECT DEVELOPMENT PROTOCOL
+########################################################################
+
+This project uses controlled AI-assisted development.
+
+Rules:
+
+• full file replacements only
+• instruction section separated from file content
+• use visible Android Studio tree exactly
+• preserve code comment structure
+• do not introduce architectural drift
+• avoid incomplete refactor states
+• provide follow-up edits when compile issues are expected
+• prioritize architecture stability over rapid changes
+
+The human operator performs file creation and pasting.
+The AI provides structured instructions.
+
+########################################################################
+FILE COMMENT RULES
+########################################################################
+
+All Kotlin files should contain structured comment blocks describing:
+
+• file role
+• architecture position
+• editing safety areas
+
+When files are edited in the future, they should gradually be upgraded
+to include edit navigation anchors.
+
+Edit anchor format:
+
+EDIT FROM LINE 001
+EDIT FROM LINE 201
+EDIT FROM LINE 401
+EDIT FROM LINE 601
+
+These anchors allow controlled partial rewriting of large files
+without requiring full file replacements.
+
+########################################################################
+PROJECT FOUNDATION RULE
+########################################################################
+
+The project should focus on building the application while also
+laying a foundation for more advanced engineering software later.
+
+Guidelines:
+
+• avoid large refactors during active feature development
+• improve structure gradually when files are already being edited
+• prefer reusable domain logic over screen-bound logic
+• preserve architecture boundaries
+• treat source code as a long-term engineering asset
+
+Goal:
+
+Build the working application while preparing the architecture
+for future professional antenna engineering capabilities.
+
+########################################################################
+NOVICE WORKFLOW DESIGN
+########################################################################
+
+The application should support a guided novice workflow.
+
+The novice path should not end at a simple preview.
+
+Intended flow:
+
+guided antenna type selection
+
+guided narrowing questions
+
+final recommendation stage
+
+workspace-style guided build explanation
+
+saved project creation
+
+future editing through project load.
+
+########################################################################
+FUTURE PLATFORM DIRECTION
+########################################################################
+
+The application must consider usability on:
+
+Android phones
+
+Android tablets
+
+Future larger-screen environments.
+
+Layouts should remain scalable and adaptable.
+
+The architecture should allow eventual migration toward
+desktop-style workflows if required.
+
+########################################################################
+COMPANION MODE DIRECTION
+########################################################################
+
+A future companion mode will allow:
+
+a second Android device to act as a remote terminal
+
+for the Android device connected directly to measurement hardware.
+
+This will enable easier field measurement setups.
+
+########################################################################
+UNKNOWN ANTENNA DISCOVERY MODE
+########################################################################
+
+The system should eventually support testing and diagnosing
+unknown antennas.
+
+When a user connects an unknown antenna the system may:
+
+enter discovery mode
+
+collect sweep measurements
+
+ask a few descriptive questions
+
+analyze antenna behaviour
+
+produce a diagnostic summary
+
+store the data in ProjectData.
+
+########################################################################
+PLANNED SYSTEM EXPANSION
+########################################################################
+
+Future areas of expansion include:
+
+expanded hardware capability profiles
+
+additional VNA hardware support
+
+hardware auto-detection
+
+calibration workflow systems
+
+engineering dashboard layouts
+
+project storage improvements
+
+guided tuning assistant improvements
+
+tablet workflow refinement
+
+companion mode support
+
+unknown antenna discovery workflows
+
+########################################################################
+SESSION RESUME GUIDANCE
+########################################################################
+
+Future AI sessions should begin by reading this file.
+
+This file provides:
+
+project identity
+
+architecture direction
+
+protocol rules
+
+current system status
+
+development targets
+
+However AI must still verify the current contents of Kotlin files
+before making code changes.
+
+########################################################################
+PROJECT CONTROL FILES
+########################################################################
+
+This project uses two root-level control documents.
+
+1) PROJECT MASTER CONTEXT
+
+ANTENNALAB_V1_PROJECT_MASTER_CONTEXT.txt
+
+Purpose:
+Stores the overall project identity, architecture direction,
+current system state, supported hardware, and development targets.
+
+AI sessions should read this file first to understand the project.
+
+------------------------------------------------------------
+
+2) CODE EDITING PROTOCOL
+
+ANTENNALAB_V1_CODE_EDITING_PROTOCOL.txt
+
+Purpose:
+Stores the development workflow rules used for this project.
+
+This includes:
+
+• code editing protocol
+• instruction formatting rules
+• file creation rules
+• Android Studio path reference rules
+• comment architecture rules
+• edit section marker rules
+• rebuild workflow rules
+• AI/human interaction behaviour rules
+
+AI sessions must follow the rules in that file when performing code edits.
+
+########################################################################
+
+########################################################################
+END OF FILE
+########################################################################
