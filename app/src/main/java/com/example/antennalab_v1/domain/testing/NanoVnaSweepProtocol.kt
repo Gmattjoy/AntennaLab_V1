@@ -250,12 +250,23 @@ class NanoVnaSweepProtocol : UsbVnaSweepProtocol {
         the rest of the testing stack.
         ----------------------------------------------------------------
         */
+        // endFrequency and completeness reflect the ACTUAL measured data,
+        // never the requested stop/point-count. A short sweep is flagged
+        // (isComplete = false) but its data is preserved, not rejected.
+        val measuredEndFrequencyMHz =
+            acquisitionResult.points.lastOrNull()?.frequencyMHz
+                ?: (startFrequencyHz / 1_000_000.0)
+        val actualPointCount = acquisitionResult.points.size
+
         return SweepResult(
             startFrequencyMHz = startFrequencyHz / 1_000_000.0,
-            endFrequencyMHz = stopFrequencyHz / 1_000_000.0,
+            endFrequencyMHz = measuredEndFrequencyMHz,
             stepMHz = stepHz / 1_000_000.0,
             points = acquisitionResult.points,
-            sweepPointCount = acquisitionResult.points.size,
+            sweepPointCount = actualPointCount,
+            requestedPointCount = pointCount,
+            actualPointCount = actualPointCount,
+            isComplete = actualPointCount >= pointCount,
             hardwareProfile = "USB_NANOVNA_DRIVER",
             supportsS11 = true,
             supportsS11Phase = false,

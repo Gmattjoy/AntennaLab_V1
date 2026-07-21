@@ -86,6 +86,26 @@ data class SweepResult(
 
     /*
     --------------------------------------------------------------------
+    Sweep completeness metadata (flag, don't discard)
+    --------------------------------------------------------------------
+    PURPOSE
+    Make partial hardware sweeps self-describing without dropping any
+    measured data.
+      requestedPointCount = points the sweep was configured to request
+      actualPointCount    = points actually measured and retained
+      isComplete          = false when fewer points came back than were
+                            requested; the partial data is still kept
+
+    Defaults assume a complete sweep so existing/simulated callers are
+    unaffected. UI/CSV consumption of these fields is a later phase.
+    --------------------------------------------------------------------
+    */
+    val requestedPointCount: Int = points.size,
+    val actualPointCount: Int = points.size,
+    val isComplete: Boolean = true,
+
+    /*
+    --------------------------------------------------------------------
     Sweep duration in milliseconds
     EDIT SECTION 2007
     --------------------------------------------------------------------

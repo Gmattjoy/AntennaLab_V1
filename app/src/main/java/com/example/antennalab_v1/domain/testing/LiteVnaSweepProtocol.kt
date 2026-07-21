@@ -508,10 +508,17 @@ class LiteVnaSweepProtocol(
 
         return ParsedSweepOutcome(
             sweepResult = SweepResult(
+                // startFrequencyMHz/endFrequencyMHz/points already derive
+                // from the ACTUAL decoded points. A short sweep is flagged
+                // (isComplete = false) but its data is preserved, not rejected.
                 startFrequencyMHz = startFrequencyMHz,
                 endFrequencyMHz = endFrequencyMHz,
                 stepMHz = stepMHz,
-                points = validPoints
+                points = validPoints,
+                sweepPointCount = validPoints.size,
+                requestedPointCount = requestedPointCount,
+                actualPointCount = validPoints.size,
+                isComplete = validPoints.size >= requestedPointCount
             ),
             parsePathLabel = if (useSequentialFallback) "SEQUENTIAL_FALLBACK" else "DIRECT_INDEX",
             decodedRecordCount = records.size,
