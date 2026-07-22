@@ -13,7 +13,8 @@ Android app for antenna design, calculation, project management, and VNA-based s
 - Build debug: `./gradlew assembleDebug`
 - Unit tests: `./gradlew test`
 - Instrumented tests: `./gradlew connectedAndroidTest` (needs device/emulator)
-- Real unit tests: `OslCalibrationEngineTest`, `CalibrationCorrectorTest` (calibration math). Scaffolding only elsewhere (ExampleUnitTest / ExampleInstrumentedTest).
+- Real unit tests: `OslCalibrationEngineTest`, `CalibrationCorrectorTest` (plain JVM, calibration math); `ProjectStorageRoundTripTest` (Robolectric, save/load serialization). Scaffolding only elsewhere (ExampleUnitTest / ExampleInstrumentedTest).
+- Robolectric is set up (`testImplementation(libs.robolectric)`, `testOptions.unitTests.isIncludeAndroidResources = true`, emulated SDK pinned to 34 in `app/src/test/resources/robolectric.properties`). Use `@RunWith(RobolectricTestRunner::class)` for tests needing a real `Context` / Android framework classes (e.g. `org.json`); the first run downloads the SDK jar (needs network).
 - Windows: set `JAVA_HOME` to Android Studio's bundled JDK (e.g. `C:\Program Files\Android\Android Studio\jbr`) before running gradlew.
 
 ## Architecture
@@ -86,7 +87,7 @@ CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoeffici
 
 ## Known gaps / to verify
 - USB host support IS now declared: `<uses-feature android:name="android.hardware.usb.host" android:required="false">` + a `USB_DEVICE_ATTACHED` intent filter on `MainActivity`, filtered by `res/xml/device_filter.xml`. The filter currently matches VID `0x0483`/PID `0x5740` (ST CDC — NanoVNA-H4 / LiteVNA64); verify against real hardware and widen if a unit reports different IDs.
-- Test coverage is thin: the OSL calibration math is unit-tested (see above), but most of the app (UI, sweep pipeline, storage) has no automated coverage. `ProjectStorage` serialization can't be unit-tested without Robolectric (uses Android `org.json`).
+- Test coverage is still thin: OSL calibration math + `ProjectStorage` save/load serialization are covered, but most of the app (UI, sweep pipeline, wizard flow) has none. Robolectric is now available to cover Context-dependent code.
 - OSL calibration is verified by unit tests + the simulated debug path only — not yet against real NanoVNA-H4 / LiteVNA64 hardware.
 
 ##.Working style: One task at a time, auto-accept edits (no manual per-file approval), commit after each change, verify via build + in-app testing. Short direct answers.
