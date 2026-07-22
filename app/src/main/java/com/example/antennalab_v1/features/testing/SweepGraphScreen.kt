@@ -19,7 +19,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,6 +32,8 @@ import com.example.antennalab_v1.domain.analysis.AdjustmentEstimate
 import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassification
 import com.example.antennalab_v1.domain.analysis.TuningSuggestionReport
 import com.example.antennalab_v1.domain.analysis.TuningWorkflowReport
+import com.example.antennalab_v1.BuildConfig
+import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
@@ -234,6 +239,19 @@ fun SweepGraphScreen(
                 selectedSweepPathLabel = uiModel.selectedSweepPathLabel,
                 onOpenInstrumentDetails = onOpenInstrumentDetails
             )
+
+            if (BuildConfig.DEBUG) {
+                var forceIncompleteSweep by remember {
+                    mutableStateOf(SweepController.debugForceIncompleteSimulatedSweep)
+                }
+                SweepDebugToolsCard(
+                    forceIncompleteSweep = forceIncompleteSweep,
+                    onToggleForceIncompleteSweep = { enabled ->
+                        forceIncompleteSweep = enabled
+                        SweepController.debugForceIncompleteSimulatedSweep = enabled
+                    }
+                )
+            }
 
             activeSweepFailureText?.let { failureText ->
                 SweepOperatorWarningCard(
@@ -596,6 +614,28 @@ private fun SweepOperatorWarningCard(
             TextButton(onClick = onOpenInstrumentDetails) {
                 InstrumentValueText("Open Instrument Details")
             }
+        }
+    }
+}
+
+@Composable
+private fun SweepDebugToolsCard(
+    forceIncompleteSweep: Boolean,
+    onToggleForceIncompleteSweep: (Boolean) -> Unit
+) {
+    InstrumentCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            InstrumentSectionHeader("Debug Tools")
+            InstrumentMutedText(
+                "Debug builds only. Forces the next simulated sweep to return " +
+                    "fewer points than requested, so the incomplete-sweep banner, " +
+                    "save confirmation and history flag can be verified without hardware."
+            )
+            FilterChip(
+                selected = forceIncompleteSweep,
+                onClick = { onToggleForceIncompleteSweep(!forceIncompleteSweep) },
+                label = { Text("Force incomplete simulated sweep") }
+            )
         }
     }
 }

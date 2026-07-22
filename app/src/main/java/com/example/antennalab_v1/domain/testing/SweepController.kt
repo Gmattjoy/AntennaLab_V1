@@ -42,6 +42,14 @@ object SweepController {
     private var lastSuccessfulRealSweepSequence: Long = 0L
     private var sequenceCounter: Long = 0L
 
+    /*
+    DEBUG-ONLY: when true, the next simulated sweep is truncated so it returns
+    fewer points than requested (isComplete = false), letting the incomplete-
+    sweep UI/persistence path be exercised without real hardware. Toggled from
+    a debug-only control in the sweep workspace; never set in release builds.
+    */
+    var debugForceIncompleteSimulatedSweep: Boolean = false
+
     fun getLastExecutionError(): InstrumentError? {
         return lastExecutionError
     }
@@ -220,6 +228,33 @@ object SweepController {
         }
 
         val duration = System.currentTimeMillis() - startTime
+
+        // DEBUG: optionally return a partial sweep to exercise the incomplete
+        // path. Mirrors real hardware (Phase 1): the end frequency derives from
+        // the last measured point, while requestedPointCount keeps the full
+        // intended count so isComplete resolves to false.
+        val requestedPointCount = points.size
+        if (debugForceIncompleteSimulatedSweep && requestedPointCount >= 4) {
+            val keptPointCount = (requestedPointCount * 0.7).toInt().coerceAtLeast(2)
+            val partialPoints = points.take(keptPointCount)
+
+            return SweepResult(
+                startFrequencyMHz = startMHz,
+                endFrequencyMHz = partialPoints.last().frequencyMHz,
+                stepMHz = stepMHz,
+                points = partialPoints,
+                sweepPointCount = partialPoints.size,
+                requestedPointCount = requestedPointCount,
+                actualPointCount = partialPoints.size,
+                isComplete = false,
+                sweepDurationMs = duration,
+                hardwareProfile = "SIMULATED",
+                supportsS11 = true,
+                supportsS11Phase = true,
+                supportsS21 = false,
+                supportsS21Phase = false
+            )
+        }
 
         return SweepResult(
             startFrequencyMHz = startMHz,
