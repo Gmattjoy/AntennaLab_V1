@@ -907,7 +907,9 @@ fun TestingSection(
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         TestingFastPathCard(realSweepStatus = realSweepStatus, onOpenSystemDevices = onOpenSystemDevices)
         SystemConnectionStatusCard(project = project, realSweepStatus = realSweepStatus, onOpenSystemDevices = onOpenSystemDevices)
-        CalibrationStatusCard(calibrationSession = calibrationSession, onStartCalibration = onStartCalibration)
+        if (project.supportsOslCalibrationOrDefault) {
+            CalibrationStatusCard(calibrationSession = calibrationSession, onStartCalibration = onStartCalibration)
+        }
         MeasurementActionsCard(realSweepStatus = realSweepStatus, onRunDemoSweep = onRunDemoSweep, onRunRealSweep = onRunRealSweep)
         RecommendedWorkflowCard(realSweepStatus = realSweepStatus)
     }
@@ -959,6 +961,10 @@ private fun CalibrationStatusCard(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
         DataRow("Completion State", calibrationSession.completionState.name)
         DataRow("Completed Steps", "${calibrationSession.completedStepCount} / 3")
+        DataRow(
+            "Correction Data",
+            calibrationSession.correction?.let { "${it.pointCount} pts" } ?: "None"
+        )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
         DataRow("OPEN", if (calibrationSession.openCaptured) "Captured" else "Pending")
         DataRow("SHORT", if (calibrationSession.shortCaptured) "Captured" else "Pending")

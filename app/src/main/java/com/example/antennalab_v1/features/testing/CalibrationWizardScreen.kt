@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -23,14 +24,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.BuildConfig
+import com.example.antennalab_v1.domain.testing.DebugOslCalibrationSimulator
+import com.example.antennalab_v1.domain.testing.OslCalibrationEngine
+import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.model.testing.CalibrationStep
+import com.example.antennalab_v1.model.testing.SweepResult
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/** Fixed number of frequency points captured per OSL standard. */
+private const val CALIBRATION_POINT_COUNT = 101
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,10 +83,25 @@ fun CalibrationWizardScreen(
         currentStepIndex = findFirstIncompleteStepIndex(calibrationSession)
     }
 
+    // Raw captured sweep of each standard, used to compute error terms once all
+    // three are present.
+    var capturedStandards by remember(
+        calibrationSession.hardwareDisplayName,
+        calibrationSession.startFrequencyMHz,
+        calibrationSession.endFrequencyMHz
+    ) {
+        mutableStateOf(emptyMap<CalibrationStep, SweepResult>())
+    }
+
+    // Debug-only: synthesize O/S/L captures through a known error network so the
+    // wizard and OSL math can be exercised with no VNA connected.
+    var debugSimulateCapture by remember { mutableStateOf(false) }
+
     val currentStep = steps[currentStepIndex]
     val currentInstrumentState = UsbSessionManager.getLatestInstrumentSessionState()
     val sessionReadyForCapture =
         UsbSessionManager.hasOpenSession() && UsbSessionManager.isTransportReady()
+    val canCapture = sessionReadyForCapture || debugSimulateCapture
 
     Scaffold(
         topBar = {
@@ -119,35 +143,70 @@ fun CalibrationWizardScreen(
                 instrumentIdentityText = currentInstrumentState?.instrumentIdentityText ?: "Unknown"
             )
 
+            if (BuildConfig.DEBUG) {
+                CalibrationDebugCard(
+                    debugSimulateCapture = debugSimulateCapture,
+                    onToggle = { debugSimulateCapture = it }
+                )
+            }
+
             Button(
                 onClick = {
-                    val updatedSession = buildCapturedStepSession(
-                        existingSession = workingSession,
-                        currentStep = currentStep,
-                        selectedHardwareName = currentInstrumentState?.selectedHardwareName ?: workingSession.hardwareDisplayName,
-                        protocolFamily = currentInstrumentState?.protocolFamily,
-                        instrumentIdentityText = currentInstrumentState?.instrumentIdentityText
+                    val capturedSweep = captureStandardSweep(
+                        step = currentStep,
+                        startMHz = workingSession.startFrequencyMHz,
+                        endMHz = workingSession.endFrequencyMHz,
+                        useSimulatedCapture = debugSimulateCapture
                     )
 
-                    workingSession = updatedSession
-                    onSessionChange(updatedSession)
-                    UsbSessionManager.registerCalibrationSession(updatedSession)
+                    if (capturedSweep != null) {
+                        val newCapturedStandards =
+                            capturedStandards + (currentStep to capturedSweep)
+                        capturedStandards = newCapturedStandards
 
-                    currentStepIndex =
-                        if (updatedSession.loadCaptured) {
-                            steps.lastIndex
-                        } else {
-                            findFirstIncompleteStepIndex(updatedSession)
+                        var updatedSession = buildCapturedStepSession(
+                            existingSession = workingSession,
+                            currentStep = currentStep,
+                            selectedHardwareName = currentInstrumentState?.selectedHardwareName ?: workingSession.hardwareDisplayName,
+                            protocolFamily = currentInstrumentState?.protocolFamily,
+                            instrumentIdentityText = currentInstrumentState?.instrumentIdentityText
+                        )
+
+                        // Once all three standards are captured, compute the real
+                        // per-frequency error terms and attach them to the session.
+                        val openSweep = newCapturedStandards[CalibrationStep.OPEN]
+                        val shortSweep = newCapturedStandards[CalibrationStep.SHORT]
+                        val loadSweep = newCapturedStandards[CalibrationStep.LOAD]
+                        if (openSweep != null && shortSweep != null && loadSweep != null) {
+                            updatedSession = updatedSession.copy(
+                                correction = OslCalibrationEngine.computeCoefficients(
+                                    open = openSweep,
+                                    short = shortSweep,
+                                    load = loadSweep
+                                )
+                            )
                         }
 
-                    if (updatedSession.openCaptured &&
-                        updatedSession.shortCaptured &&
-                        updatedSession.loadCaptured
-                    ) {
-                        onFinish()
+                        workingSession = updatedSession
+                        onSessionChange(updatedSession)
+                        UsbSessionManager.registerCalibrationSession(updatedSession)
+
+                        currentStepIndex =
+                            if (updatedSession.loadCaptured) {
+                                steps.lastIndex
+                            } else {
+                                findFirstIncompleteStepIndex(updatedSession)
+                            }
+
+                        if (updatedSession.openCaptured &&
+                            updatedSession.shortCaptured &&
+                            updatedSession.loadCaptured
+                        ) {
+                            onFinish()
+                        }
                     }
                 },
-                enabled = sessionReadyForCapture,
+                enabled = canCapture,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -185,6 +244,43 @@ fun CalibrationWizardScreen(
             }
         }
     }
+}
+
+/**
+ * Captures one OSL standard as a sweep. In debug-simulated mode this synthesizes
+ * the standard through a known error network (no hardware); otherwise it runs a
+ * real sweep of whatever standard is physically connected. Returns null if a real
+ * capture fails.
+ */
+private fun captureStandardSweep(
+    step: CalibrationStep,
+    startMHz: Double,
+    endMHz: Double,
+    useSimulatedCapture: Boolean
+): SweepResult? {
+    if (useSimulatedCapture) {
+        return DebugOslCalibrationSimulator.simulateStandardCaptureSweep(
+            step = step,
+            startMHz = startMHz,
+            endMHz = endMHz,
+            pointCount = CALIBRATION_POINT_COUNT
+        )
+    }
+
+    val stepMHz =
+        if (CALIBRATION_POINT_COUNT > 1) {
+            (endMHz - startMHz) / (CALIBRATION_POINT_COUNT - 1)
+        } else {
+            0.0
+        }
+
+    return runCatching {
+        SweepController.runSweep(
+            startMHz = startMHz,
+            endMHz = endMHz,
+            stepMHz = stepMHz
+        )
+    }.getOrNull()
 }
 
 private fun findFirstIncompleteStepIndex(
@@ -225,6 +321,37 @@ private fun buildCapturedStepSession(
         CalibrationStep.OPEN -> baseSession.copy(openCaptured = true)
         CalibrationStep.SHORT -> baseSession.copy(shortCaptured = true)
         CalibrationStep.LOAD -> baseSession.copy(loadCaptured = true)
+    }
+}
+
+@Composable
+private fun CalibrationDebugCard(
+    debugSimulateCapture: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Debug Tools")
+
+            HorizontalDivider()
+
+            Text(
+                "Debug builds only. Synthesizes each O/S/L capture through a known " +
+                    "error network so the wizard and calibration math can be tested " +
+                    "with no VNA connected."
+            )
+
+            FilterChip(
+                selected = debugSimulateCapture,
+                onClick = { onToggle(!debugSimulateCapture) },
+                label = { Text("Simulate O/S/L capture (no hardware)") }
+            )
+        }
     }
 }
 
