@@ -835,7 +835,10 @@ object SweepWorkspaceController {
                 "Discovery classification: ${formatAntennaClassificationLabel(currentState.discoveryAntennaClassification)}"
             } else {
                 "Project-linked sweep"
-            }
+            },
+            isComplete = result.isComplete,
+            actualPointCount = result.actualPointCount,
+            requestedPointCount = result.requestedPointCount
         )
     }
 

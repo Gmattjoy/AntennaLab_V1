@@ -293,25 +293,28 @@ class SweepWorkspaceViewModel(
                 if (!project.isUnknownDiscoverySession) {
                     val historyEntry = updatedState.pendingProjectSweepHistoryEntry
                     if (historyEntry != null) {
-                        val savedProject = withContext(Dispatchers.IO) {
-                            runCatching {
-                                ProjectStorage.appendProjectSweepHistoryEntry(
-                                    context = context,
-                                    project = project,
-                                    historyEntry = historyEntry
-                                )
-                            }.getOrNull()
-                        }
-
                         committedState =
-                            if (savedProject != null) {
+                            if (historyEntry.isComplete) {
+                                val savedProject =
+                                    appendProjectHistoryEntry(context, project, historyEntry)
+                                if (savedProject != null) {
+                                    updatedState.copy(
+                                        pendingProjectSweepHistoryEntry = null,
+                                        workflowStatusMessage = "Project sweep added to Sweep History."
+                                    )
+                                } else {
+                                    updatedState.copy(
+                                        workflowStatusMessage = "Sweep completed, but project history could not be saved."
+                                    )
+                                }
+                            } else {
+                                // Incomplete sweep: hold the entry for operator
+                                // confirmation instead of auto-saving it. The sweep
+                                // data itself stays on screen either way.
                                 updatedState.copy(
                                     pendingProjectSweepHistoryEntry = null,
-                                    workflowStatusMessage = "Project sweep added to Sweep History."
-                                )
-                            } else {
-                                updatedState.copy(
-                                    workflowStatusMessage = "Sweep completed, but project history could not be saved."
+                                    pendingIncompleteSaveEntry = historyEntry,
+                                    workflowStatusMessage = "Partial sweep — confirm before saving to history."
                                 )
                             }
                     }
@@ -332,6 +335,60 @@ class SweepWorkspaceViewModel(
             }
 
             sweepRunInProgress = false
+        }
+    }
+
+    /*
+    ------------------------------------------------------------
+    INCOMPLETE-SWEEP SAVE CONFIRMATION
+    ------------------------------------------------------------
+    PURPOSE
+    A partial (incomplete) project sweep is not auto-saved. Its
+    history entry is held in state.pendingIncompleteSaveEntry and
+    the operator confirms or dismisses the save from the workspace.
+    ------------------------------------------------------------
+    */
+    fun confirmSaveIncompleteEntry(context: Context, project: ProjectData) {
+        val entry = workspaceState.pendingIncompleteSaveEntry ?: return
+
+        viewModelScope.launch {
+            val savedProject = appendProjectHistoryEntry(context, project, entry)
+            workspaceState =
+                if (savedProject != null) {
+                    workspaceState.copy(
+                        pendingIncompleteSaveEntry = null,
+                        workflowStatusMessage = "Partial sweep added to Sweep History."
+                    )
+                } else {
+                    // Keep the pending entry so the operator can retry.
+                    workspaceState.copy(
+                        workflowStatusMessage = "Partial sweep could not be saved to history."
+                    )
+                }
+        }
+    }
+
+    fun dismissSaveIncompleteEntry() {
+        if (workspaceState.pendingIncompleteSaveEntry == null) return
+        workspaceState = workspaceState.copy(
+            pendingIncompleteSaveEntry = null,
+            workflowStatusMessage = "Partial sweep not saved to history."
+        )
+    }
+
+    private suspend fun appendProjectHistoryEntry(
+        context: Context,
+        project: ProjectData,
+        historyEntry: ProjectSweepHistoryEntry
+    ): ProjectData? {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                ProjectStorage.appendProjectSweepHistoryEntry(
+                    context = context,
+                    project = project,
+                    historyEntry = historyEntry
+                )
+            }.getOrNull()
         }
     }
 

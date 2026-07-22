@@ -91,6 +91,19 @@ data class SweepWorkspaceState(
 
     /*
     ------------------------------------------------------------
+    INCOMPLETE-SWEEP SAVE CONFIRMATION
+    ------------------------------------------------------------
+    PURPOSE
+    When a project-linked sweep comes back incomplete, its history
+    entry is held here (instead of auto-saved) until the operator
+    confirms or dismisses the save. Null when there is nothing
+    awaiting confirmation.
+    ------------------------------------------------------------
+    */
+    val pendingIncompleteSaveEntry: ProjectSweepHistoryEntry? = null,
+
+    /*
+    ------------------------------------------------------------
     DISPLAY MODE
     ------------------------------------------------------------
     */

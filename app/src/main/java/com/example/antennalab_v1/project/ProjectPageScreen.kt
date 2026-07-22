@@ -770,6 +770,15 @@ private fun SweepHistoryEntryCard(entry: ProjectSweepHistoryEntry) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        if (entry.hasIncompleteData) {
+            Text(
+                text = "⚠ Incomplete sweep — measured ${entry.actualPointCount} of " +
+                        "${entry.requestedPointCount} points",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

@@ -44,5 +44,8 @@ Hardware is capability-based, not hardcoded:
 - USB host support IS now declared: `<uses-feature android:name="android.hardware.usb.host" android:required="false">` + a `USB_DEVICE_ATTACHED` intent filter on `MainActivity`, filtered by `res/xml/device_filter.xml`. The filter currently matches VID `0x0483`/PID `0x5740` (ST CDC — NanoVNA-H4 / LiteVNA64); verify against real hardware and widen if a unit reports different IDs.
 - No real test coverage yet (only scaffolding tests).
 
+##.Working style: One task at a time, auto-accept edits (no manual per-file approval), commit after each change, verify via build + in-app testing. Short direct answers.
+
+
 ## Legacy note
 Earlier development used a manual numbered "EDIT SECTION" marker protocol plus full-file-replacement-by-hand (see the three `ANTENNALAB_V1_*.txt` docs, now archived under `docs/legacy/` alongside `ArchitectureMap.kt`). That solved a problem Claude Code handles natively (direct edits, plan mode, git diffs). Recommend retiring the marker system for new work rather than maintaining it. Flag if you'd rather keep it.

@@ -830,6 +830,9 @@ object ProjectStorage {
             put("returnLossDb", returnLossDb)
             put("label", label)
             put("note", note)
+            put("isComplete", isComplete)
+            put("actualPointCount", actualPointCount)
+            put("requestedPointCount", requestedPointCount)
         }
     }
 
@@ -847,7 +850,11 @@ object ProjectStorage {
             bestSwr = optDouble("bestSwr", 0.0),
             returnLossDb = optNullableDouble("returnLossDb"),
             label = optString("label"),
-            note = optString("note")
+            note = optString("note"),
+            // Legacy saves have no completeness keys → default to complete.
+            isComplete = optBoolean("isComplete", true),
+            actualPointCount = optInt("actualPointCount", 0),
+            requestedPointCount = optInt("requestedPointCount", 0)
         )
     }
 

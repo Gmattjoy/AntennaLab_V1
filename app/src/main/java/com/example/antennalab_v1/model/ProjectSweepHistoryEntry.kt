@@ -43,11 +43,31 @@ data class ProjectSweepHistoryEntry(
     val bestSwr: Double = 0.0,
     val returnLossDb: Double? = null,
     val label: String = "",
-    val note: String = ""
+    val note: String = "",
+
+    /*
+    ------------------------------------------------------------
+    SWEEP COMPLETENESS (flag, don't discard)
+    ------------------------------------------------------------
+    PURPOSE
+    Carry the SweepResult completeness flag into persisted history
+    so a partial sweep stays flagged after save/reload instead of
+    silently reading as complete.
+
+    Defaults assume a complete sweep so legacy saved entries and
+    simulated callers are unaffected.
+    ------------------------------------------------------------
+    */
+    val isComplete: Boolean = true,
+    val actualPointCount: Int = 0,
+    val requestedPointCount: Int = 0
 ) {
     val hasReturnLoss: Boolean
         get() = returnLossDb != null
 
     val hasUsableSweepRange: Boolean
         get() = sweepEndMHz > sweepStartMHz
+
+    val hasIncompleteData: Boolean
+        get() = !isComplete
 }
