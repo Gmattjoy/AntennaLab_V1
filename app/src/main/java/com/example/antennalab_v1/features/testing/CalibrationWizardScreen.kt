@@ -189,7 +189,14 @@ fun CalibrationWizardScreen(
 
                         workingSession = updatedSession
                         onSessionChange(updatedSession)
-                        UsbSessionManager.registerCalibrationSession(updatedSession)
+                        // Debug-simulated captures have no live session; register
+                        // them through the debug path so they are treated as usable
+                        // (this runs after onSessionChange's registration and wins).
+                        if (debugSimulateCapture) {
+                            UsbSessionManager.registerSimulatedCalibrationSession(updatedSession)
+                        } else {
+                            UsbSessionManager.registerCalibrationSession(updatedSession)
+                        }
 
                         currentStepIndex =
                             if (updatedSession.loadCaptured) {

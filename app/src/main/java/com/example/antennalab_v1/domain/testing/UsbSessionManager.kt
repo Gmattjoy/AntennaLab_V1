@@ -453,6 +453,64 @@ object UsbSessionManager {
         }
     }
 
+    /**
+     * DEBUG-ONLY: registers a calibration captured through the simulated
+     * (no-hardware) wizard path. Unlike [registerCalibrationSession], this does
+     * not require a live USB session — it binds to a synthetic session key so a
+     * simulated capture is treated as usable (VALID when complete, IN_PROGRESS
+     * when partial) for exercising the project display and the correction
+     * pipeline without a VNA. The real capture path is unchanged and still
+     * invalidates captures taken with no active session.
+     */
+    fun registerSimulatedCalibrationSession(
+        calibrationSession: CalibrationSession
+    ) {
+        val simulatedSessionKey = "SIMULATED_CAL_SESSION"
+        val enrichedCalibrationSession =
+            calibrationSession.copy(
+                capturedSessionKey = calibrationSession.capturedSessionKey
+                    ?: simulatedSessionKey
+            )
+
+        latestInstrumentCalibrationState = when (enrichedCalibrationSession.completionState) {
+            CalibrationCompletionState.COMPLETE ->
+                InstrumentCalibrationState(
+                    readiness = CalibrationReadiness.VALID,
+                    calibrationSession = enrichedCalibrationSession,
+                    sessionKeyAtCapture = simulatedSessionKey,
+                    activeSessionKey = simulatedSessionKey,
+                    statusSummary = "Simulated calibration (debug build) is available.",
+                    operatorWarning = "Calibration is simulated (debug build), not captured from real hardware.",
+                    sweepAllowed = true,
+                    trustDowngraded = false
+                )
+
+            CalibrationCompletionState.PARTIAL ->
+                InstrumentCalibrationState(
+                    readiness = CalibrationReadiness.IN_PROGRESS,
+                    calibrationSession = enrichedCalibrationSession,
+                    sessionKeyAtCapture = simulatedSessionKey,
+                    activeSessionKey = simulatedSessionKey,
+                    statusSummary = "Simulated calibration (debug build) is partially captured.",
+                    operatorWarning = "Simulated calibration is incomplete (debug build).",
+                    sweepAllowed = true,
+                    trustDowngraded = true
+                )
+
+            CalibrationCompletionState.NOT_STARTED ->
+                InstrumentCalibrationState(
+                    readiness = CalibrationReadiness.NOT_STARTED,
+                    calibrationSession = enrichedCalibrationSession,
+                    sessionKeyAtCapture = simulatedSessionKey,
+                    activeSessionKey = simulatedSessionKey,
+                    statusSummary = "Simulated calibration workflow started (debug build).",
+                    operatorWarning = "Measurements are currently uncalibrated and should be treated with reduced trust.",
+                    sweepAllowed = true,
+                    trustDowngraded = true
+                )
+        }
+    }
+
     fun clearCalibrationState() {
         latestInstrumentCalibrationState = InstrumentCalibrationState()
     }
