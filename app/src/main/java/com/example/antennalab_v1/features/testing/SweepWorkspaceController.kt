@@ -838,7 +838,8 @@ object SweepWorkspaceController {
             },
             isComplete = result.isComplete,
             actualPointCount = result.actualPointCount,
-            requestedPointCount = result.requestedPointCount
+            requestedPointCount = result.requestedPointCount,
+            isCalibrated = result.isCalibrated
         )
     }
 

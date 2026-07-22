@@ -116,7 +116,15 @@ object SweepController {
         val calibrationState = UsbSessionManager.getLatestInstrumentCalibrationState()
         val coefficients = calibrationState.calibrationSession?.correction
 
-        if (calibrationState.readiness != CalibrationReadiness.VALID ||
+        // A stale calibration still has valid coefficients and is still applied
+        // (matching how these VNAs keep the last cal across sessions); the
+        // reduced-trust state is already surfaced separately. Only NOT_STARTED /
+        // IN_PROGRESS / INVALID skip correction.
+        val readinessAllowsCorrection =
+            calibrationState.readiness == CalibrationReadiness.VALID ||
+                    calibrationState.readiness == CalibrationReadiness.STALE
+
+        if (!readinessAllowsCorrection ||
             coefficients == null ||
             !coefficients.isUsable
         ) {

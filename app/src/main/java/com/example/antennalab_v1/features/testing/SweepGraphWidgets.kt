@@ -548,6 +548,25 @@ fun SweepSummaryCard(
                 )
             }
 
+            SharedTwoValueRow(
+                label = "Calibration",
+                value = if (result.isCalibrated) {
+                    result.calibrationLabel.ifBlank { "Applied" }
+                } else {
+                    "Not applied"
+                },
+                instrumentTextPrimary = instrumentTextPrimary,
+                instrumentTextSecondary = instrumentTextSecondary
+            )
+
+            if (!result.isCalibrated) {
+                SharedInstrumentValueText(
+                    text = "⚠ Uncalibrated sweep — no OSL correction applied; " +
+                            "treat impedance and SWR with reduced trust",
+                    instrumentTextPrimary = instrumentAccent
+                )
+            }
+
             if (measurementCapabilities.supportsTDR) {
                 SharedInstrumentSubHeader(
                     text = "Cable Fault / TDR Preview",

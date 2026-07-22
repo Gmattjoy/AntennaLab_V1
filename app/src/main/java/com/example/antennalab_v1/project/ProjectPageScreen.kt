@@ -779,6 +779,16 @@ private fun SweepHistoryEntryCard(entry: ProjectSweepHistoryEntry) {
                 color = MaterialTheme.colorScheme.error
             )
         }
+
+        DataRow("Calibration", if (entry.isCalibrated) "Calibrated (OSL)" else "Uncalibrated")
+
+        if (!entry.isCalibrated) {
+            Text(
+                text = "⚠ Uncalibrated — no OSL correction was applied to this sweep",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

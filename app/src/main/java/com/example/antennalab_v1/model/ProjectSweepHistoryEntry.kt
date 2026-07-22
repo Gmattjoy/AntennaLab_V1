@@ -60,7 +60,18 @@ data class ProjectSweepHistoryEntry(
     */
     val isComplete: Boolean = true,
     val actualPointCount: Int = 0,
-    val requestedPointCount: Int = 0
+    val requestedPointCount: Int = 0,
+
+    /*
+    ------------------------------------------------------------
+    CALIBRATION STATE (flag, don't discard)
+    ------------------------------------------------------------
+    Whether OSL correction was applied to the sweep this entry
+    summarizes. Defaults false so legacy entries read as
+    uncalibrated (which they were).
+    ------------------------------------------------------------
+    */
+    val isCalibrated: Boolean = false
 ) {
     val hasReturnLoss: Boolean
         get() = returnLossDb != null

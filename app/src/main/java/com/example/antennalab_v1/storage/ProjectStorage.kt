@@ -834,6 +834,7 @@ object ProjectStorage {
             put("isComplete", isComplete)
             put("actualPointCount", actualPointCount)
             put("requestedPointCount", requestedPointCount)
+            put("isCalibrated", isCalibrated)
         }
     }
 
@@ -855,7 +856,9 @@ object ProjectStorage {
             // Legacy saves have no completeness keys → default to complete.
             isComplete = optBoolean("isComplete", true),
             actualPointCount = optInt("actualPointCount", 0),
-            requestedPointCount = optInt("requestedPointCount", 0)
+            requestedPointCount = optInt("requestedPointCount", 0),
+            // Legacy saves predate calibration → default to uncalibrated.
+            isCalibrated = optBoolean("isCalibrated", false)
         )
     }
 
