@@ -137,11 +137,23 @@ object SweepController {
             return result
         }
 
+        // Prefer a real hardware name in the label; fall back to a generic
+        // "OSL (N pts)" (via CalibrationCorrector's default) when the name is
+        // blank or an "Unknown …" placeholder.
+        val hardwareName = calibrationState.calibrationSession?.hardwareDisplayName
+            ?.trim()
+            .orEmpty()
+        val calibrationLabel =
+            if (hardwareName.isBlank() || hardwareName.startsWith("Unknown", ignoreCase = true)) {
+                ""
+            } else {
+                "$hardwareName OSL"
+            }
+
         return CalibrationCorrector.apply(
             raw = result,
             coefficients = coefficients,
-            calibrationLabel = calibrationState.calibrationSession?.hardwareDisplayName
-                ?: "OSL"
+            calibrationLabel = calibrationLabel
         )
     }
 
