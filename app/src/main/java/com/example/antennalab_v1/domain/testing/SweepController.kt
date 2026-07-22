@@ -24,6 +24,7 @@ after a later live sweep succeeds.
 ########################################################################
 */
 
+import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.InstrumentError
 import com.example.antennalab_v1.model.testing.InstrumentErrorCategory
 import com.example.antennalab_v1.model.testing.SweepPoint
@@ -50,6 +51,14 @@ object SweepController {
     */
     var debugForceIncompleteSimulatedSweep: Boolean = false
 
+    /*
+    DEBUG-ONLY: when true, the simulated sweep passes its "true" response through
+    the same known error network the debug OSL simulator uses, so an active
+    simulated calibration can be applied and verified end-to-end (inject error ->
+    correct -> recover truth) without real hardware. Never set in release builds.
+    */
+    var debugInjectCalibrationError: Boolean = false
+
     fun getLastExecutionError(): InstrumentError? {
         return lastExecutionError
     }
@@ -71,21 +80,72 @@ object SweepController {
         )
 
         return if (shouldUseRealSweepSource()) {
-            runSelectedSweepSource(
+            val realResult = runSelectedSweepSource(
                 startMHz = normalizedRequest.startMHz,
                 endMHz = normalizedRequest.endMHz,
                 stepMHz = normalizedRequest.stepMHz
             )
+            applyCalibrationIfAvailable(realResult)
         } else {
             markFailure(
                 buildSimulatedFallbackError()
             )
-            runSimulatedSweep(
+            val simulatedResult = runSimulatedSweep(
                 startMHz = normalizedRequest.startMHz,
                 endMHz = normalizedRequest.endMHz,
                 stepMHz = normalizedRequest.stepMHz
             )
+            // A clean simulated sweep has no measurement error to remove, so it
+            // stays uncalibrated. Only when the debug error-injection path added
+            // error do we correct it (the round-trip test path).
+            if (debugInjectCalibrationError) {
+                applyCalibrationIfAvailable(simulatedResult)
+            } else {
+                simulatedResult
+            }
         }
+    }
+
+    /**
+     * Applies the active OSL calibration to a raw result when one is available,
+     * VALID, and covers the sweep range; otherwise returns the result unchanged
+     * (uncalibrated). Reads the same calibration state that drives the trust
+     * labels, so real hardware and the debug-simulated calibration both work.
+     */
+    private fun applyCalibrationIfAvailable(result: SweepResult): SweepResult {
+        val calibrationState = UsbSessionManager.getLatestInstrumentCalibrationState()
+        val coefficients = calibrationState.calibrationSession?.correction
+
+        if (calibrationState.readiness != CalibrationReadiness.VALID ||
+            coefficients == null ||
+            !coefficients.isUsable
+        ) {
+            return result
+        }
+
+        val startHz = (result.startFrequencyMHz * 1_000_000.0).toLong()
+        val endHz = (result.endFrequencyMHz * 1_000_000.0).toLong()
+        if (!coefficients.coversRange(startHz, endHz)) {
+            return result
+        }
+
+        return CalibrationCorrector.apply(
+            raw = result,
+            coefficients = coefficients,
+            calibrationLabel = calibrationState.calibrationSession?.hardwareDisplayName
+                ?: "OSL"
+        )
+    }
+
+    /**
+     * DEBUG-ONLY: replaces a clean simulated point with its measurement as seen
+     * through the known error network, so a matching simulated calibration can
+     * later correct it back to the original response.
+     */
+    private fun injectErrorNetwork(point: SweepPoint): SweepPoint {
+        val trueGamma = OslCalibrationEngine.gammaFromPoint(point)
+        val measuredGamma = DebugOslCalibrationSimulator.applyErrorNetwork(trueGamma)
+        return OslCalibrationEngine.sweepPointFromGamma(point.frequencyMHz, measuredGamma)
     }
 
     private fun shouldUseRealSweepSource(): Boolean {
@@ -208,18 +268,22 @@ object SweepController {
             val resistance = simulateResistance(frequencyMHz)
             val reactance = simulateReactance(frequencyMHz)
 
+            val basePoint = SweepPoint(
+                frequencyMHz = frequencyMHz,
+                swr = swr,
+                returnLossDb = returnLossDb,
+                resistance = resistance,
+                reactance = reactance,
+                s11MagnitudeDb = returnLossDb,
+                s11PhaseDegrees = reactance,
+                s21MagnitudeDb = 0.0,
+                s21PhaseDegrees = 0.0
+            )
+
+            // DEBUG: pass the true response through the known error network so an
+            // active simulated calibration can correct it back (round-trip test).
             points.add(
-                SweepPoint(
-                    frequencyMHz = frequencyMHz,
-                    swr = swr,
-                    returnLossDb = returnLossDb,
-                    resistance = resistance,
-                    reactance = reactance,
-                    s11MagnitudeDb = returnLossDb,
-                    s11PhaseDegrees = reactance,
-                    s21MagnitudeDb = 0.0,
-                    s21PhaseDegrees = 0.0
-                )
+                if (debugInjectCalibrationError) injectErrorNetwork(basePoint) else basePoint
             )
 
             if (frequencyMHz >= endMHz) {

@@ -244,11 +244,19 @@ fun SweepGraphScreen(
                 var forceIncompleteSweep by remember {
                     mutableStateOf(SweepController.debugForceIncompleteSimulatedSweep)
                 }
+                var injectCalibrationError by remember {
+                    mutableStateOf(SweepController.debugInjectCalibrationError)
+                }
                 SweepDebugToolsCard(
                     forceIncompleteSweep = forceIncompleteSweep,
                     onToggleForceIncompleteSweep = { enabled ->
                         forceIncompleteSweep = enabled
                         SweepController.debugForceIncompleteSimulatedSweep = enabled
+                    },
+                    injectCalibrationError = injectCalibrationError,
+                    onToggleInjectCalibrationError = { enabled ->
+                        injectCalibrationError = enabled
+                        SweepController.debugInjectCalibrationError = enabled
                     }
                 )
             }
@@ -621,7 +629,9 @@ private fun SweepOperatorWarningCard(
 @Composable
 private fun SweepDebugToolsCard(
     forceIncompleteSweep: Boolean,
-    onToggleForceIncompleteSweep: (Boolean) -> Unit
+    onToggleForceIncompleteSweep: (Boolean) -> Unit,
+    injectCalibrationError: Boolean,
+    onToggleInjectCalibrationError: (Boolean) -> Unit
 ) {
     InstrumentCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -635,6 +645,16 @@ private fun SweepDebugToolsCard(
                 selected = forceIncompleteSweep,
                 onClick = { onToggleForceIncompleteSweep(!forceIncompleteSweep) },
                 label = { Text("Force incomplete simulated sweep") }
+            )
+            InstrumentMutedText(
+                "Passes the simulated sweep through a known error network so an " +
+                    "active simulated OSL calibration can correct it back — run the " +
+                    "calibration wizard's simulated capture first, then a demo sweep."
+            )
+            FilterChip(
+                selected = injectCalibrationError,
+                onClick = { onToggleInjectCalibrationError(!injectCalibrationError) },
+                label = { Text("Inject calibration error (test correction)") }
             )
         }
     }
