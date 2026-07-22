@@ -46,6 +46,5 @@ Hardware is capability-based, not hardcoded:
 
 ##.Working style: One task at a time, auto-accept edits (no manual per-file approval), commit after each change, verify via build + in-app testing. Short direct answers.
 
+After completing any implementation phase, automatically stage and commit the change (code + any relevant control docs, e.g. ANTENNALAB_V1_* files) with a descriptive message. Do not wait for user confirmation to commit and do not present a "commit this" suggestion — just do it and move to the next step
 
-## Legacy note
-Earlier development used a manual numbered "EDIT SECTION" marker protocol plus full-file-replacement-by-hand (see the three `ANTENNALAB_V1_*.txt` docs, now archived under `docs/legacy/` alongside `ArchitectureMap.kt`). That solved a problem Claude Code handles natively (direct edits, plan mode, git diffs). Recommend retiring the marker system for new work rather than maintaining it. Flag if you'd rather keep it.

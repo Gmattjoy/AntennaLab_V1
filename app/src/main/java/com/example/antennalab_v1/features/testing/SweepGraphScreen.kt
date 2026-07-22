@@ -242,6 +242,13 @@ fun SweepGraphScreen(
                 )
             }
 
+            sweepResult?.takeIf { !it.isComplete }?.let { partialSweep ->
+                IncompleteSweepBanner(
+                    actualPointCount = partialSweep.actualPointCount,
+                    requestedPointCount = partialSweep.requestedPointCount
+                )
+            }
+
             if (discoveryUi.isDiscoveryMode) {
                 DiscoveryClassificationCard(
                     discoveryUi = discoveryUi,
@@ -589,6 +596,25 @@ private fun SweepOperatorWarningCard(
             TextButton(onClick = onOpenInstrumentDetails) {
                 InstrumentValueText("Open Instrument Details")
             }
+        }
+    }
+}
+
+@Composable
+private fun IncompleteSweepBanner(
+    actualPointCount: Int,
+    requestedPointCount: Int
+) {
+    InstrumentCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            InstrumentSectionHeader("⚠ Partial Sweep")
+            TwoValueRow("Sweep Status", "Incomplete")
+            TwoValueRow("Points Measured", "$actualPointCount / $requestedPointCount")
+            InstrumentMutedText(
+                "This sweep returned fewer points than requested. The data shown is " +
+                    "real but covers a narrower span than configured — resonance, bandwidth " +
+                    "and tuning figures may be based on incomplete data."
+            )
         }
     }
 }
