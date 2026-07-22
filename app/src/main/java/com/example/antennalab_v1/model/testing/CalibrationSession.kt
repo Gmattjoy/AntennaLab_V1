@@ -75,8 +75,23 @@ data class CalibrationSession(
     val captureSource: CalibrationCaptureSource = CalibrationCaptureSource.WIZARD,
     val capturedProtocolFamily: String? = null,
     val capturedInstrumentIdentityText: String? = null,
-    val capturedSessionKey: String? = null
+    val capturedSessionKey: String? = null,
+
+    /*
+    ----------------------------------------------------------------
+    REAL OSL CORRECTION DATA (nullable, additive)
+    ----------------------------------------------------------------
+    Per-frequency 3-term error model computed once all three OSL
+    standards are captured. Null until a full capture has been
+    computed (and for legacy sessions restored from older saves),
+    so this field never breaks existing progress-only sessions.
+    ----------------------------------------------------------------
+    */
+    val correction: OslCalibrationCoefficients? = null
 ) {
+    val hasCorrectionData: Boolean
+        get() = correction?.isUsable == true
+
     val completionState: CalibrationCompletionState
         get() = when {
             openCaptured && shortCaptured && loadCaptured ->

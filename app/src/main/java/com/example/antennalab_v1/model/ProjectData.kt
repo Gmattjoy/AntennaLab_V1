@@ -133,6 +133,9 @@ data class ProjectData(
     val supportsTdrPreviewOrDefault: Boolean
         get() = hardwareCapabilityProfile.supportsTdrPreview
 
+    val supportsOslCalibrationOrDefault: Boolean
+        get() = hardwareCapabilityProfile.supportsOslCalibration
+
     /*
     ####################################################################
     CALIBRATION ACCESS HELPERS
@@ -559,6 +562,7 @@ data class HardwareCapabilityProfile(
     val supportsMarkerSystem: Boolean = false,
     val supportsDeltaMarkers: Boolean = false,
     val supportsCsvPreview: Boolean = false,
+    val supportsOslCalibration: Boolean = false,
     val notes: String = ""
 )
 
@@ -595,6 +599,7 @@ fun TestHardwareProfile.toHardwareCapabilityProfile(): HardwareCapabilityProfile
                 supportsMarkerSystem = true,
                 supportsDeltaMarkers = true,
                 supportsCsvPreview = true,
+                supportsOslCalibration = true,
                 notes = "Compact handheld VNA profile with S11/S21 support."
             )
         }
@@ -617,6 +622,7 @@ fun TestHardwareProfile.toHardwareCapabilityProfile(): HardwareCapabilityProfile
                 supportsMarkerSystem = true,
                 supportsDeltaMarkers = true,
                 supportsCsvPreview = true,
+                supportsOslCalibration = true,
                 notes = "Extended-frequency handheld VNA profile with S11/S21 support."
             )
         }

@@ -68,6 +68,7 @@ import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.VersionInfo
 import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
 import com.example.antennalab_v1.model.testing.CalibrationSession
+import com.example.antennalab_v1.model.testing.OslCalibrationCoefficients
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -909,6 +910,7 @@ object ProjectStorage {
             put("capturedProtocolFamily", capturedProtocolFamily)
             put("capturedInstrumentIdentityText", capturedInstrumentIdentityText)
             put("capturedSessionKey", capturedSessionKey)
+            put("correction", correction?.toJson())
         }
     }
 
@@ -928,7 +930,32 @@ object ProjectStorage {
             ),
             capturedProtocolFamily = optOptionalString("capturedProtocolFamily"),
             capturedInstrumentIdentityText = optOptionalString("capturedInstrumentIdentityText"),
-            capturedSessionKey = optOptionalString("capturedSessionKey")
+            capturedSessionKey = optOptionalString("capturedSessionKey"),
+            correction = optJSONObject("correction")?.toOslCalibrationCoefficients()
+        )
+    }
+
+    private fun OslCalibrationCoefficients.toJson(): JSONObject {
+        return JSONObject().apply {
+            put("frequencyHz", JSONArray(frequencyHz))
+            put("directivityRe", JSONArray(directivityRe))
+            put("directivityIm", JSONArray(directivityIm))
+            put("sourceMatchRe", JSONArray(sourceMatchRe))
+            put("sourceMatchIm", JSONArray(sourceMatchIm))
+            put("reflectionTrackingRe", JSONArray(reflectionTrackingRe))
+            put("reflectionTrackingIm", JSONArray(reflectionTrackingIm))
+        }
+    }
+
+    private fun JSONObject.toOslCalibrationCoefficients(): OslCalibrationCoefficients {
+        return OslCalibrationCoefficients(
+            frequencyHz = optJSONArray("frequencyHz").toLongList(),
+            directivityRe = optJSONArray("directivityRe").toDoubleList(),
+            directivityIm = optJSONArray("directivityIm").toDoubleList(),
+            sourceMatchRe = optJSONArray("sourceMatchRe").toDoubleList(),
+            sourceMatchIm = optJSONArray("sourceMatchIm").toDoubleList(),
+            reflectionTrackingRe = optJSONArray("reflectionTrackingRe").toDoubleList(),
+            reflectionTrackingIm = optJSONArray("reflectionTrackingIm").toDoubleList()
         )
     }
 
@@ -1016,6 +1043,16 @@ object ProjectStorage {
             results.add(optString(i, ""))
         }
         return results.filter { it.isNotBlank() }
+    }
+
+    private fun JSONArray?.toLongList(): List<Long> {
+        if (this == null) return emptyList()
+
+        val results = mutableListOf<Long>()
+        for (i in 0 until length()) {
+            results.add(optLong(i, 0L))
+        }
+        return results
     }
 
     private fun JSONArray?.toSweepHistoryList(): List<ProjectSweepHistoryEntry> {

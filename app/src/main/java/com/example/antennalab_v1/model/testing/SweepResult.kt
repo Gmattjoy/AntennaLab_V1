@@ -140,5 +140,26 @@ data class SweepResult(
     val supportsS11: Boolean = true,
     val supportsS11Phase: Boolean = false,
     val supportsS21: Boolean = false,
-    val supportsS21Phase: Boolean = false
+    val supportsS21Phase: Boolean = false,
+
+    /*
+    --------------------------------------------------------------------
+    Calibration state (flag, don't discard)
+    --------------------------------------------------------------------
+    PURPOSE
+    Records whether OSL correction was applied to this sweep, mirroring
+    the isComplete convention above.
+      isCalibrated     = true when an active OSL calibration was applied
+                         to the raw measurement before this result was
+                         produced
+      calibrationLabel = short human description of the calibration used
+                         (e.g. hardware + capture timestamp); blank when
+                         uncalibrated
+
+    Defaults report uncalibrated so existing/simulated callers are
+    unaffected. Correction is applied in domain (CalibrationCorrector).
+    --------------------------------------------------------------------
+    */
+    val isCalibrated: Boolean = false,
+    val calibrationLabel: String = ""
 )
