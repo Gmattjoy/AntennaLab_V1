@@ -110,8 +110,9 @@ fun CreateAntennaWizardScreen(
             },
             onFrequencyChoiceMethodChange = { newMethod ->
                 frequencyChoiceMethod = newMethod
-                wizardState = wizardState.copy(
-                    frequencyChoiceMethodName = newMethod?.name ?: ""
+                wizardState = CreateAntennaWizardNavigator.applyFrequencyMethod(
+                    state = wizardState,
+                    method = newMethod
                 )
             },
             onCurrentStepChange = { newStep ->
@@ -151,28 +152,22 @@ private fun CreateAntennaWizardStepRouter(
             antennaType = wizardState.finalSelectedAntennaFamily,
             onAntennaTypeChange = { selectedFamily ->
                 onWizardStateChange(
-                    wizardState.copy(
-                        antennaType = selectedFamily,
-                        finalSelectedAntennaFamily = selectedFamily
-                    )
+                    CreateAntennaWizardNavigator.applyAntennaType(wizardState, selectedFamily)
                 )
             },
             onBack = onCancel,
-            onNext = { onCurrentStepChange(2) }
+            onNext = { onCurrentStepChange(CreateAntennaWizardNavigator.nextStep(currentStep)) }
         )
 
         2 -> CreateWizardStep2OverviewScreen(
             antennaType = wizardState.finalSelectedAntennaFamily,
             onAntennaTypeChange = { selectedFamily ->
                 onWizardStateChange(
-                    wizardState.copy(
-                        antennaType = selectedFamily,
-                        finalSelectedAntennaFamily = selectedFamily
-                    )
+                    CreateAntennaWizardNavigator.applyAntennaType(wizardState, selectedFamily)
                 )
             },
-            onBack = { onCurrentStepChange(1) },
-            onNext = { onCurrentStepChange(3) }
+            onBack = { onCurrentStepChange(CreateAntennaWizardNavigator.previousStep(currentStep)) },
+            onNext = { onCurrentStepChange(CreateAntennaWizardNavigator.nextStep(currentStep)) }
         )
 
         3 -> CreateWizardStep3Screen(
@@ -198,15 +193,15 @@ private fun CreateAntennaWizardStepRouter(
                     wizardState.copy(exactFrequency = newExactFrequency)
                 )
             },
-            onBack = { onCurrentStepChange(2) },
-            onNext = { onCurrentStepChange(4) }
+            onBack = { onCurrentStepChange(CreateAntennaWizardNavigator.previousStep(currentStep)) },
+            onNext = { onCurrentStepChange(CreateAntennaWizardNavigator.nextStep(currentStep)) }
         )
 
         4 -> Step4LiveDesignWorkspaceScreen(
             antennaType = wizardState.finalSelectedAntennaFamily,
             projectName = wizardState.projectName,
             exactFrequency = wizardState.exactFrequency,
-            onBack = { onCurrentStepChange(3) },
+            onBack = { onCurrentStepChange(CreateAntennaWizardNavigator.previousStep(currentStep)) },
             onFinish = { project ->
                 onFinishProject(project)
             }
