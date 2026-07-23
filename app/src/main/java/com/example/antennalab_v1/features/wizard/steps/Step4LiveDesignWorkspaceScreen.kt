@@ -68,11 +68,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.domain.calculator.CalculationEngineResult
-import com.example.antennalab_v1.domain.calculator.CalculationRequest
 import com.example.antennalab_v1.domain.calculator.ConductorForm
 import com.example.antennalab_v1.domain.calculator.calculateDesign
 import com.example.antennalab_v1.domain.calculator.parseFrequencyMHz
-import com.example.antennalab_v1.model.AntennaType
+import com.example.antennalab_v1.features.wizard.CreateAntennaWizardController
 import com.example.antennalab_v1.model.ConductorMaterial
 import com.example.antennalab_v1.model.PriorityMode
 import com.example.antennalab_v1.model.ProjectData
@@ -140,19 +139,14 @@ fun Step4LiveDesignWorkspaceScreen(
     */
     val parsedFrequency = parseFrequencyMHz(frequency)
 
-    val request =
-        if (parsedFrequency != null) {
-            CalculationRequest(
-                antennaType = antennaType.toModelAntennaType(),
-                targetFrequencyMHz = parsedFrequency,
-                conductorMaterial = conductorMaterial,
-                conductorForm = conductorForm,
-                conductorSizeMm = conductorSize.toDoubleOrNull() ?: 2.0,
-                priorityMode = priority
-            )
-        } else {
-            null
-        }
+    val request = CreateAntennaWizardController.buildCalculationRequest(
+        antennaTypeDisplay = antennaType,
+        frequencyText = frequency,
+        conductorSizeText = conductorSize,
+        conductorMaterial = conductorMaterial,
+        conductorForm = conductorForm,
+        priority = priority
+    )
 
     val result = request?.let { calculateDesign(it) }
 
@@ -167,7 +161,7 @@ fun Step4LiveDesignWorkspaceScreen(
     starter project.
     ####################################################################
     */
-    val readinessLines = buildWizardReadinessLines(
+    val readinessLines = CreateAntennaWizardController.buildReadinessLines(
         projectName = projectName,
         parsedFrequency = parsedFrequency,
         conductorSize = conductorSize,
@@ -739,7 +733,7 @@ private fun FinishButtons(
     onBack: () -> Unit,
     onFinish: (ProjectData) -> Unit
 ) {
-    val canFinish = frequency != null && result != null
+    val canFinish = CreateAntennaWizardController.canFinish(frequency, result)
 
     Column(
         modifier = Modifier
@@ -748,16 +742,11 @@ private fun FinishButtons(
     ) {
         Button(
             onClick = {
-                val project = ProjectData(
-                    meta = ProjectData().meta.copy(
-                        projectName = projectName.ifBlank { "Default" }
-                    ),
-                    designInput = ProjectData().designInput.copy(
-                        antennaType = antennaType.toModelAntennaType(),
-                        targetFrequencyMHz = frequency ?: 0.0
-                    ),
-                    calculatedDesign = result?.calculatedDesign
-                        ?: ProjectData().calculatedDesign
+                val project = CreateAntennaWizardController.buildStarterProject(
+                    projectName = projectName,
+                    antennaTypeDisplay = antennaType,
+                    frequency = frequency,
+                    result = result
                 )
 
                 onFinish(project)
@@ -784,74 +773,11 @@ private fun FinishButtons(
 /*
 ########################################################################
 EDIT SECTION 3001
-GUIDED STATUS HELPERS
+FLOW LOGIC
 ------------------------------------------------------------------------
-PURPOSE
-Builds user-facing readiness feedback for the final wizard step.
-
-This helps the final wizard stage behave like a guided assistant rather
-than only a passive preview.
-
-SAFE EDIT AREA
-- add more readiness checks here
-- add issue severity levels later
-- add recommended-action text later
+The guided readiness lines, antenna-type mapping, finish gating, and
+starter-project assembly now live in the pure, testable
+CreateAntennaWizardController (features/wizard). This screen delegates to
+it so the flow logic stays UI-free.
 ########################################################################
 */
-private fun buildWizardReadinessLines(
-    projectName: String,
-    parsedFrequency: Double?,
-    conductorSize: String,
-    result: CalculationEngineResult?
-): List<String> {
-    val lines = mutableListOf<String>()
-
-    if (projectName.isBlank()) {
-        lines += "Project name will default to Default."
-    } else {
-        lines += "Project name is ready."
-    }
-
-    if (parsedFrequency == null) {
-        lines += "Target frequency still needs a valid numeric value."
-    } else {
-        lines += "Target frequency is valid."
-    }
-
-    if (conductorSize.toDoubleOrNull() == null) {
-        lines += "Conductor size is not a valid number. Default calculation fallback is being used."
-    } else {
-        lines += "Conductor size is valid."
-    }
-
-    if (result == null) {
-        lines += "Live design result is not ready yet."
-    } else {
-        lines += "Live design result is ready to become a starter project."
-    }
-
-    return lines
-}
-
-/*
-########################################################################
-EDIT SECTION 3002
-TYPE CONVERSION HELPER
-------------------------------------------------------------------------
-PURPOSE
-Maps wizard display text into the model antenna type used by the core
-project state.
-
-SAFE EDIT AREA
-- extend antenna mapping when more antenna families are added
-########################################################################
-*/
-private fun String.toModelAntennaType(): AntennaType {
-    return when (this) {
-        "Dipole" -> AntennaType.DIPOLE
-        "Vertical" -> AntennaType.MONOPOLE
-        "Yagi" -> AntennaType.YAGI
-        "Loop" -> AntennaType.LOOP
-        else -> AntennaType.OTHER
-    }
-}
