@@ -7,13 +7,13 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 203 tests, 0 failures. Controllers extracted so far:
+Current baseline: 223 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
-CalibrationWizardController, SweepUiModelBuilder. Also covered:
-InstrumentStatusUiMapper (was already extracted; per-field mappers made `internal`
-and tested).
+CalibrationWizardController, SweepUiModelBuilder, Step1AntennaTypeController. Also
+covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
+`internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
@@ -62,9 +62,11 @@ High value:
       The VM delegates to it; side-effecting bits (resolveActiveFailureMessage,
       instrument-session/status-card build, sweep execution) stay in the VM.
       SweepUiModelBuilderTest, 22 tests.
-- [ ] Step1AntennaTypeScreen — recommendAntennaFamily engine + AntennaRecommendation
-      model (706-796) + completeness/gating predicates (173-193). Extract a wizard
-      recommendation controller/model.
+- [x] Step1AntennaTypeScreen — extracted the recommendAntennaFamily engine +
+      AntennaRecommendation model + completeness/gating predicates into a pure
+      `Step1AntennaTypeController` (recommendAntennaFamily, isFrequencySectionComplete,
+      isServiceSectionComplete, canProceed); the Composable delegates via thin
+      call sites. Step1AntennaTypeControllerTest, 20 tests (plain JVM).
 - [x] AppRootScreen — extracted to AppRootController + AppRootControllerTest
       (14 tests): project factories, template application, wizard finish
       normalization, calibration-wizard session build, and the stored-calibration
