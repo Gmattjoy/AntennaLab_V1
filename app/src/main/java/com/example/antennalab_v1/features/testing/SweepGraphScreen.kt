@@ -953,7 +953,7 @@ private fun DiscoveryClassificationCard(
                     selected = classification == discoveryUi.selectedAntennaClassification,
                     onClick = { onClassificationSelected(classification) },
                     label = {
-                        Text(formatAntennaClassificationLabel(classification))
+                        Text(SweepUiModelBuilder.formatAntennaClassificationLabel(classification))
                     }
                 )
             }
@@ -1013,16 +1013,6 @@ private fun DiscoveryHandoffCard(
             }
         }
     }
-}
-
-private fun formatAntennaClassificationLabel(
-
-    antennaClassification: AntennaClassification
-): String {
-    return antennaClassification.name
-        .lowercase()
-        .split("_")
-        .joinToString(" ") { token -> token.replaceFirstChar { it.uppercase() } }
 }
 
 private fun buildSweepScreenHardwareDisplayName(

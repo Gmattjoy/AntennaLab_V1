@@ -827,12 +827,12 @@ object SweepWorkspaceController {
             bestSwr = bestPoint?.swr ?: 0.0,
             returnLossDb = bestPoint?.returnLossDb,
             label = if (currentState.isDiscoveryMode) {
-                "Discovery ${formatAntennaClassificationLabel(currentState.discoveryAntennaClassification)}"
+                "Discovery ${SweepUiModelBuilder.formatAntennaClassificationLabel(currentState.discoveryAntennaClassification)}"
             } else {
                 "Project Sweep"
             },
             note = if (currentState.isDiscoveryMode) {
-                "Discovery classification: ${formatAntennaClassificationLabel(currentState.discoveryAntennaClassification)}"
+                "Discovery classification: ${SweepUiModelBuilder.formatAntennaClassificationLabel(currentState.discoveryAntennaClassification)}"
             } else {
                 "Project-linked sweep"
             },
@@ -866,16 +866,7 @@ object SweepWorkspaceController {
     private fun buildDiscoverySummaryLabel(
         antennaClassification: AntennaClassification
     ): String {
-        return "${formatAntennaClassificationLabel(antennaClassification)} discovery"
-    }
-
-    private fun formatAntennaClassificationLabel(
-        antennaClassification: AntennaClassification
-    ): String {
-        return antennaClassification.name
-            .lowercase()
-            .split("_")
-            .joinToString(" ") { token -> token.replaceFirstChar { it.uppercase() } }
+        return "${SweepUiModelBuilder.formatAntennaClassificationLabel(antennaClassification)} discovery"
     }
 
 private fun clampMarkerIndex(

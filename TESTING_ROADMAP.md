@@ -100,7 +100,11 @@ Cross-file duplication to fold in during the above:
   (S21 via estimateS21Db).
 - [x] estimateBandwidthAtOrBelowSwr (SweepGraphWidgets) vs ...Local (SweepToolsWidgets)
   — unified in SweepGraphMath.estimateBandwidthAtOrBelowSwr.
-- [ ] formatAntennaClassificationLabel (SweepGraphScreen vs SweepWorkspaceViewModel).
+- [x] formatAntennaClassificationLabel — folded into the shared
+      `SweepUiModelBuilder.formatAntennaClassificationLabel`. The audit found THREE
+      byte-identical copies (not two): the private ones in SweepGraphScreen and
+      SweepWorkspaceController now delegate to the shared public copy (the
+      SweepWorkspaceViewModel copy was already folded into SweepUiModelBuilder).
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
