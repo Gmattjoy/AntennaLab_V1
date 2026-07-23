@@ -24,9 +24,6 @@ import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.model.ProjectListItem
 import com.example.antennalab_v1.storage.ProjectIndexManager
 import com.example.antennalab_v1.storage.ProjectStorage
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,11 +35,10 @@ fun LoadProjectScreen(
     val context = LocalContext.current
     val displayedProjects = remember {
         mutableStateOf(
-            if (savedProjects.isNotEmpty()) {
-                savedProjects
-            } else {
-                ProjectIndexManager.getAllProjects(context)
-            }
+            LoadProjectController.resolveInitialProjects(
+                passedInProjects = savedProjects,
+                indexProjects = ProjectIndexManager.getAllProjects(context)
+            )
         )
     }
 
@@ -118,21 +114,15 @@ private fun SavedProjectCard(
     onDeleteProject: () -> Unit
 ) {
     val context = LocalContext.current
-    val frequencyMHz = savedProject.targetFrequencyHz.toDouble() / 1_000_000.0
-    val frequencyText = String.format(Locale.getDefault(), "%.3f", frequencyMHz)
-
-    val lastEditedText = SimpleDateFormat(
-        "d MMM yyyy  h:mm a",
-        Locale.getDefault()
-    ).format(Date(savedProject.lastEditedEpochMillis))
+    val frequencyText = LoadProjectController.formatTargetFrequencyMHz(savedProject.targetFrequencyHz)
+    val lastEditedText = LoadProjectController.formatLastEdited(savedProject.lastEditedEpochMillis)
 
     val loadedProject = remember(savedProject.projectId) {
         ProjectStorage.loadProjectById(context, savedProject.projectId)
     }
 
-    val hasStoredCalibration = loadedProject?.hasStoredCalibration == true
-    val calibrationCompletion =
-        loadedProject?.calibrationData?.storedCalibrationCompletionStateName ?: "NOT_STARTED"
+    val hasStoredCalibration = LoadProjectController.hasStoredCalibration(loadedProject)
+    val calibrationCompletion = LoadProjectController.storedCalibrationCompletion(loadedProject)
 
     Card(
         modifier = Modifier.fillMaxWidth()

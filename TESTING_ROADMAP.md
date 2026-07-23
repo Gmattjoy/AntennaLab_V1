@@ -7,15 +7,17 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 100 tests, 0 failures. Controllers extracted so far:
+Current baseline: 107 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
-ProjectWorkspaceController, DesignWorkspaceController.
+ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController.
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files.
 - [x] DesignWorkspaceScreen — extract to pure controller + tests (DesignWorkspaceController, 8 tests)
+- [x] Storage / save-load screen (LoadProjectScreen) — extract to pure controller
+      + tests (LoadProjectController, 7 tests)
 - [ ] Remaining large Compose screens holding logic: prediction display,
-      hardware-selection UI, storage/save-load screens — extract + test each
+      hardware-selection UI — extract + test each
 - [ ] Verify all UI files are thin (delegate-only) after extraction
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
