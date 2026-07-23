@@ -7,12 +7,12 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 164 tests, 0 failures. Controllers extracted so far:
+Current baseline: 168 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
-DeviceConnectionsController, AppRootController, CalibrationSessionFactory. Also
-covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
-`internal` and tested).
+DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
+CalibrationWizardController. Also covered: InstrumentStatusUiMapper (was already
+extracted; per-field mappers made `internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
@@ -42,10 +42,11 @@ Remaining non-UI logic still inline in Compose files. Do one at a time (extract 
 a pure controller/model + tests), same pattern.
 
 High value:
-- [ ] CalibrationWizardScreen — no controller yet; capture state machine + session
-      orchestration inline (button onClick 153-215, captureStandardSweep,
-      findFirstIncompleteStepIndex, buildCapturedStepSession). Extract a
-      CalibrationWizardController. (OSL math already in OslCalibrationEngine.)
+- [x] CalibrationWizardScreen — extracted the OSL capture state machine to
+      CalibrationWizardController (findFirstIncompleteStepIndex, sweepStepMHz,
+      buildCapturedStepSession with injected clock, applyCapturedStandard); side
+      effects (sweep run, session registration, callbacks) stay in the Composable.
+      CalibrationWizardControllerTest, 4 tests. (OSL math already in OslCalibrationEngine.)
 - [ ] SweepGraphWidgets §17-18 (lines ~1496-1802) — pure axis-bounds / bandwidth /
       cable-fault / display-value math sitting in a widget file (violates its own
       header). Move into SweepGraphMath + tests.
@@ -124,4 +125,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-29._
+_Last updated 2026-07-30._

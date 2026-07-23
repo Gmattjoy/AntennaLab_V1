@@ -26,20 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.DebugOslCalibrationSimulator
-import com.example.antennalab_v1.domain.testing.OslCalibrationEngine
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
-import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.model.testing.CalibrationStep
 import com.example.antennalab_v1.model.testing.SweepResult
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-/** Fixed number of frequency points captured per OSL standard. */
-private const val CALIBRATION_POINT_COUNT = 101
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,11 +41,7 @@ fun CalibrationWizardScreen(
     onFinish: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val steps = listOf(
-        CalibrationStep.OPEN,
-        CalibrationStep.SHORT,
-        CalibrationStep.LOAD
-    )
+    val steps = CalibrationWizardController.steps
 
     var workingSession by remember(
         calibrationSession.hardwareDisplayName,
@@ -75,12 +63,12 @@ fun CalibrationWizardScreen(
         calibrationSession.shortCaptured,
         calibrationSession.loadCaptured
     ) {
-        mutableIntStateOf(findFirstIncompleteStepIndex(calibrationSession))
+        mutableIntStateOf(CalibrationWizardController.findFirstIncompleteStepIndex(calibrationSession))
     }
 
     LaunchedEffect(calibrationSession) {
         workingSession = calibrationSession
-        currentStepIndex = findFirstIncompleteStepIndex(calibrationSession)
+        currentStepIndex = CalibrationWizardController.findFirstIncompleteStepIndex(calibrationSession)
     }
 
     // Raw captured sweep of each standard, used to compute error terms once all
@@ -160,55 +148,34 @@ fun CalibrationWizardScreen(
                     )
 
                     if (capturedSweep != null) {
-                        val newCapturedStandards =
-                            capturedStandards + (currentStep to capturedSweep)
-                        capturedStandards = newCapturedStandards
-
-                        var updatedSession = buildCapturedStepSession(
-                            existingSession = workingSession,
+                        // Pure state machine decides the new session/standards/step;
+                        // this Composable performs the side effects below.
+                        val result = CalibrationWizardController.applyCapturedStandard(
+                            currentSession = workingSession,
+                            capturedStandards = capturedStandards,
                             currentStep = currentStep,
+                            capturedSweep = capturedSweep,
                             selectedHardwareName = currentInstrumentState?.selectedHardwareName ?: workingSession.hardwareDisplayName,
                             protocolFamily = currentInstrumentState?.protocolFamily,
-                            instrumentIdentityText = currentInstrumentState?.instrumentIdentityText
+                            instrumentIdentityText = currentInstrumentState?.instrumentIdentityText,
+                            captureTimeMs = System.currentTimeMillis()
                         )
 
-                        // Once all three standards are captured, compute the real
-                        // per-frequency error terms and attach them to the session.
-                        val openSweep = newCapturedStandards[CalibrationStep.OPEN]
-                        val shortSweep = newCapturedStandards[CalibrationStep.SHORT]
-                        val loadSweep = newCapturedStandards[CalibrationStep.LOAD]
-                        if (openSweep != null && shortSweep != null && loadSweep != null) {
-                            updatedSession = updatedSession.copy(
-                                correction = OslCalibrationEngine.computeCoefficients(
-                                    open = openSweep,
-                                    short = shortSweep,
-                                    load = loadSweep
-                                )
-                            )
-                        }
-
-                        workingSession = updatedSession
-                        onSessionChange(updatedSession)
+                        capturedStandards = result.updatedCapturedStandards
+                        workingSession = result.updatedSession
+                        onSessionChange(result.updatedSession)
                         // Debug-simulated captures have no live session; register
                         // them through the debug path so they are treated as usable
                         // (this runs after onSessionChange's registration and wins).
                         if (debugSimulateCapture) {
-                            UsbSessionManager.registerSimulatedCalibrationSession(updatedSession)
+                            UsbSessionManager.registerSimulatedCalibrationSession(result.updatedSession)
                         } else {
-                            UsbSessionManager.registerCalibrationSession(updatedSession)
+                            UsbSessionManager.registerCalibrationSession(result.updatedSession)
                         }
 
-                        currentStepIndex =
-                            if (updatedSession.loadCaptured) {
-                                steps.lastIndex
-                            } else {
-                                findFirstIncompleteStepIndex(updatedSession)
-                            }
+                        currentStepIndex = result.nextStepIndex
 
-                        if (updatedSession.openCaptured &&
-                            updatedSession.shortCaptured &&
-                            updatedSession.loadCaptured
-                        ) {
+                        if (result.isComplete) {
                             onFinish()
                         }
                     }
@@ -270,65 +237,17 @@ private fun captureStandardSweep(
             step = step,
             startMHz = startMHz,
             endMHz = endMHz,
-            pointCount = CALIBRATION_POINT_COUNT
+            pointCount = CalibrationWizardController.CALIBRATION_POINT_COUNT
         )
     }
-
-    val stepMHz =
-        if (CALIBRATION_POINT_COUNT > 1) {
-            (endMHz - startMHz) / (CALIBRATION_POINT_COUNT - 1)
-        } else {
-            0.0
-        }
 
     return runCatching {
         SweepController.runSweep(
             startMHz = startMHz,
             endMHz = endMHz,
-            stepMHz = stepMHz
+            stepMHz = CalibrationWizardController.sweepStepMHz(startMHz, endMHz)
         )
     }.getOrNull()
-}
-
-private fun findFirstIncompleteStepIndex(
-    calibrationSession: CalibrationSession
-): Int {
-    return when {
-        !calibrationSession.openCaptured -> 0
-        !calibrationSession.shortCaptured -> 1
-        !calibrationSession.loadCaptured -> 2
-        else -> 2
-    }
-}
-
-private fun buildCapturedStepSession(
-    existingSession: CalibrationSession,
-    currentStep: CalibrationStep,
-    selectedHardwareName: String,
-    protocolFamily: String?,
-    instrumentIdentityText: String?
-): CalibrationSession {
-    val captureTimeMs = System.currentTimeMillis()
-
-    val timeLabel = SimpleDateFormat(
-        "dd/MM/yyyy HH:mm:ss",
-        Locale.getDefault()
-    ).format(Date(captureTimeMs))
-
-    val baseSession = existingSession.copy(
-        hardwareDisplayName = selectedHardwareName,
-        timestampLabel = "Captured $timeLabel",
-        capturedAtEpochMs = captureTimeMs,
-        captureSource = CalibrationCaptureSource.WIZARD,
-        capturedProtocolFamily = protocolFamily,
-        capturedInstrumentIdentityText = instrumentIdentityText
-    )
-
-    return when (currentStep) {
-        CalibrationStep.OPEN -> baseSession.copy(openCaptured = true)
-        CalibrationStep.SHORT -> baseSession.copy(shortCaptured = true)
-        CalibrationStep.LOAD -> baseSession.copy(loadCaptured = true)
-    }
 }
 
 @Composable
