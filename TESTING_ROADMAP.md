@@ -15,6 +15,17 @@ CalibrationWizardController, SweepUiModelBuilder, Step1AntennaTypeController. Al
 covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
 `internal` and tested).
 
+### ▶ Next up (2026-07-24)
+The LiteVNA hardware/sweep-pipeline saga is closed (Finding #8 + parts; interim
+shipped, force-101-on-v0.3.3 logged as a known limitation). Next focus:
+**Priority 3 — Save/load reliability** — it's the roadmap's flagged *highest
+real-world risk* (losing a user's project), is fully open, and is pure/JVM-testable
+by extending the existing `ProjectStorageRoundTripTest` pattern (no device needed).
+Quick-win alternative if a short task is wanted: **Priority 2 — CalculationEngine**
+(pure domain correctness tests across antenna types / frequency ranges). Then return
+to the Priority 1b medium-value UI extractions (Step2AntennaOverviewScreen, LabHomeScreen,
+SweepInstrumentUi, SweepToolsWidgets, SweepGraphScreen, ProjectPageScreen).
+
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
 found a straggler backlog — see Priority 1b.)
@@ -189,4 +200,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-23._
+_Last updated 2026-07-24._
