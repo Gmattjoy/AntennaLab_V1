@@ -1,9 +1,12 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.testing.DistinctInRangeAccumulator
+import com.example.antennalab_v1.domain.testing.LiteVnaFifoRecord
 import com.example.antennalab_v1.domain.testing.analyzeFreqIndices
 import com.example.antennalab_v1.domain.testing.parseLiteVnaFifoRecords
 import com.example.antennalab_v1.domain.testing.selectDirectRecords
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
@@ -61,5 +64,57 @@ class LiteVnaFifoParserTest {
         assertEquals(0, records.first().freqIndex)
         assertEquals(1, records[1].freqIndex)
         assertEquals(105, records[2].freqIndex) // the +104 jump to a later sweep pass
+    }
+
+    // ------------------------------------------------------------------
+    // DistinctInRangeAccumulator — the reconstruction seam
+    // ------------------------------------------------------------------
+
+    private fun rec(freqIndex: Int) = LiteVnaFifoRecord(0, 0, 0, 0, 0, 0, freqIndex)
+
+    @Test
+    fun accumulator_convergesToAllPointsFromStrideSampledInput() {
+        // Simulate the device dribbling scattered pairs (a coprime stride so every
+        // residue 0..100 eventually appears) plus out-of-range noise (150..199, ignored).
+        val acc = DistinctInRangeAccumulator(pointCount = 101)
+        var k = 0
+        var reads = 0
+        while (!acc.isComplete && reads < 2000) {
+            acc.addRecords(
+                listOf(rec((7 * k) % 101), rec((7 * k + 1) % 101), rec(150 + (k % 50)))
+            )
+            k += 1
+            reads += 1
+        }
+        assertTrue("must converge within the read cap", acc.isComplete)
+        assertEquals(101, acc.distinctInRangeCount)
+        assertTrue(acc.missingIndices().isEmpty())
+    }
+
+    @Test
+    fun accumulator_terminatesHonestlyWhenAnIndexIsStarved() {
+        // Every index except 50 is delivered, repeatedly — the accumulator must NOT
+        // report complete and must name the starved index.
+        val acc = DistinctInRangeAccumulator(pointCount = 101)
+        repeat(500) { k ->
+            val idx = k % 101
+            if (idx != 50) acc.addFreqIndex(idx)
+            acc.addFreqIndex(150 + (k % 40)) // out-of-range noise, ignored
+        }
+        assertFalse(acc.isComplete)
+        assertEquals(100, acc.distinctInRangeCount)
+        assertEquals(listOf(50), acc.missingIndices())
+    }
+
+    @Test
+    fun accumulator_singleRealDrainIsInsufficient() {
+        // The real captured payload (one drain of the free-running superset sweep) only
+        // covers 40 of the 101 target indices — which is exactly why the read loop must
+        // keep collecting distinct indices across many reads.
+        val acc = DistinctInRangeAccumulator(pointCount = 101)
+        acc.addRecords(parseLiteVnaFifoRecords(fixtureBytes()))
+        assertEquals(40, acc.distinctInRangeCount)
+        assertFalse(acc.isComplete)
+        assertEquals(61, acc.missingIndices().size)
     }
 }

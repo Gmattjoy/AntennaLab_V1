@@ -1,6 +1,7 @@
 package com.example.antennalab_v1.domain.testing
 
 import com.example.antennalab_v1.BuildConfig
+import kotlin.random.Random
 import kotlin.text.Charsets.UTF_8
 
 /*
@@ -111,6 +112,11 @@ class UsbVnaCommandChannel(
         // burst is detected fast and the next readFIFO is re-issued promptly; the
         // overall bound is the wall-clock budget.
         private const val FIFO_READ_TIMEOUT_MS = 120
+        // Jittered inter-read cadence for distinct-in-range collection. The base keeps
+        // re-issues brisk; the random jitter decorrelates our sampling phase from the
+        // device's free-running sweep so no target index is systematically starved.
+        private const val READ_CADENCE_BASE_MS = 8
+        private const val READ_CADENCE_JITTER_MS = 40
     }
 
     private var latestTransportHealthSnapshot = UsbVnaTransportHealthSnapshot()
@@ -297,32 +303,6 @@ class UsbVnaCommandChannel(
             )
         }
 
-        val clearFifo = executeLiteVnaBinaryCommand(
-            commandBytes = byteArrayOf(
-                LITEVNA_WRITE_COMMAND,
-                REG_VALUES_FIFO,
-                0x00
-            ),
-            expectedMinimumResponseBytes = 0,
-            wallClockTimeoutMs = 800L,
-            readTimeoutMs = 120,
-            maxReadPasses = 1,
-            postWriteDelayMs = 10
-        )
-
-        if (!clearFifo.success) {
-            return buildFailureResult(
-                summary = "LiteVNA configured sweep read failed while clearing stale FIFO data. ${clearFifo.summary}",
-                responseText = clearFifo.responseText,
-                rawResponseBytes = clearFifo.rawResponseBytes,
-                bytesTransferred = clearFifo.bytesTransferred,
-                readPassCount = clearFifo.readPassCount,
-                debugSummary = clearFifo.debugSummary,
-                lastReadSizeBytes = clearFifo.lastReadSizeBytes,
-                errorReason = clearFifo.lastErrorReason
-            )
-        }
-
         val sweepStartWrite = executeLiteVnaBinaryCommand(
             commandBytes = byteArrayOf(
                 LITEVNA_WRITE8_COMMAND,
@@ -423,70 +403,102 @@ class UsbVnaCommandChannel(
             )
         }
 
+        // DEBUG: read back sweepPoints low byte to confirm the config landed
+        // (expect 0x65 = 101 for a 101-point sweep; 0xC9 = 201 means the default
+        // is still in effect).
+        if (BuildConfig.DEBUG) {
+            val pointsReadBack = readLiteVnaRegisterByteForBringUp(REG_SWEEP_POINTS.toInt() and 0xFF)
+            android.util.Log.i(
+                "LiteVnaFifo",
+                "sweepPointsReadBack requested=$validatedPointCount lowByte=0x${
+                    pointsReadBack.rawResponseBytes.firstOrNull()?.toUByte()?.toString(16)?.uppercase()?.padStart(2, '0') ?: "??"
+                } success=${pointsReadBack.success}"
+            )
+        }
+
+        // Clear the valuesFIFO AFTER the sweep config writes. Per the NanoVNA-V2
+        // protocol, writing 0 to the valuesFIFO register restarts the sweep at point
+        // 0 with the CURRENT config — so it must come after sweepStart/Step/Points/
+        // valuesPerFrequency, not before. (Previously this ran before the config, so
+        // the restart used the old/default 201-point config and freqIndex ran 0..200.)
+        val clearFifo = executeLiteVnaBinaryCommand(
+            commandBytes = byteArrayOf(
+                LITEVNA_WRITE_COMMAND,
+                REG_VALUES_FIFO,
+                0x00
+            ),
+            expectedMinimumResponseBytes = 0,
+            wallClockTimeoutMs = 800L,
+            readTimeoutMs = 120,
+            maxReadPasses = 1,
+            postWriteDelayMs = 10
+        )
+
+        if (!clearFifo.success) {
+            return buildFailureResult(
+                summary = "LiteVNA configured sweep read failed while clearing FIFO to restart the sweep. ${clearFifo.summary}",
+                responseText = clearFifo.responseText,
+                rawResponseBytes = clearFifo.rawResponseBytes,
+                bytesTransferred = clearFifo.bytesTransferred,
+                readPassCount = clearFifo.readPassCount,
+                debugSummary = clearFifo.debugSummary,
+                lastReadSizeBytes = clearFifo.lastReadSizeBytes,
+                errorReason = clearFifo.lastErrorReason
+            )
+        }
+
         applyDelay(
             delayMs = calculateSweepSettleDelayMs(
                 pointCount = validatedPointCount
             )
         )
 
-        // Count-driven, wall-clock-bounded FIFO drain. The read is governed by the
-        // EXPECTED record count (validatedPointCount) and a hard wall-clock deadline,
-        // NOT by a fixed number of USB read passes — the old fixed maxReadPasses=10 ×
-        // 64-byte packets capped every read at 20 records, so a 101-point sweep only
-        // ever returned ~20. maxReadPasses is now sized as a generous backstop.
+        // DISTINCT-IN-RANGE reconstruction. The LiteVNA v0.3.3 ignores the USB
+        // sweepPoints register and free-runs a superset sweep (~201 pts), so any single
+        // drain yields only a scattered subset of the target 0..(pointCount-1) indices
+        // (each is a real point at the correct frequency; the high indices are the extra
+        // half and are filtered out). We reconstruct the sweep by collecting DISTINCT
+        // in-range freqIndex across many small reads, completing when every target index
+        // has been seen OR the wall-clock expires (then we report the honest partial
+        // count — never hang, never claim false-complete). A small jittered read cadence
+        // decorrelates our sampling phase from the free-running sweep so no index is
+        // systematically starved (aliasing).
         val readPacketSize =
             sessionManager.getActiveTransportChannel()?.maxReadPacketSize?.coerceAtLeast(64) ?: 64
-        val overallBudget = computeFifoReadBudget(
+        val perCallBudget = computeFifoReadBudget(
             expectedRecordCount = validatedPointCount,
             packetSizeBytes = readPacketSize
         )
-        val deadlineMs = System.currentTimeMillis() + overallBudget.wallClockBudgetMs
+        val deadlineMs = System.currentTimeMillis() +
+                computeDistinctCollectionBudgetMs(validatedPointCount)
 
+        val accumulator = DistinctInRangeAccumulator(validatedPointCount)
         val accumulatedBytes = mutableListOf<Byte>()
         val accumulatedDebug = mutableListOf<String>()
         var accumulatedReadPassCount = 0
         var lastReadSizeBytes = 0
         var attemptIndex = 0
-        var stallAttemptCount = 0
-        var previousByteCount = 0
         var lastFailure: UsbVnaCommandResult? = null
 
-        // Attempt cap is only a runaway backstop; the real stop conditions are
-        // "all expected records" or "wall-clock exhausted" (shouldContinueFifoAccumulation).
         while (
             attemptIndex < MAX_FIFO_ACCUMULATION_ATTEMPTS &&
-            shouldContinueFifoAccumulation(
-                completeRecordCount = fifoRecordCount(accumulatedBytes.size),
-                expectedRecordCount = validatedPointCount,
-                nowMs = System.currentTimeMillis(),
-                deadlineMs = deadlineMs
-            )
+            !accumulator.isComplete &&
+            System.currentTimeMillis() < deadlineMs
         ) {
             attemptIndex += 1
 
-            val currentCompleteRecordCount = fifoRecordCount(accumulatedBytes.size)
-
-            val remainingRecordCount =
-                (validatedPointCount - currentCompleteRecordCount)
-                    .coerceAtLeast(1)
-                    .coerceAtMost(validatedPointCount)
-
             val remainingMs = (deadlineMs - System.currentTimeMillis()).coerceAtLeast(0)
-            val attemptBudget = computeFifoReadBudget(
-                expectedRecordCount = remainingRecordCount,
-                packetSizeBytes = readPacketSize
-            )
 
             val fifoRead = executeLiteVnaFifoRead(
                 commandBytes = byteArrayOf(
                     LITEVNA_READFIFO_COMMAND,
                     REG_VALUES_FIFO,
-                    remainingRecordCount.toByte()
+                    validatedPointCount.toByte()
                 ),
-                expectedBytes = remainingRecordCount * LITEVNA_FIFO_RECORD_SIZE_BYTES,
-                maxReadPasses = attemptBudget.maxReadPasses,
+                expectedBytes = validatedPointCount * LITEVNA_FIFO_RECORD_SIZE_BYTES,
+                maxReadPasses = perCallBudget.maxReadPasses,
                 readTimeoutMs = FIFO_READ_TIMEOUT_MS,
-                maxConsecutiveIdleReads = overallBudget.maxConsecutiveIdleReads,
+                maxConsecutiveIdleReads = perCallBudget.maxConsecutiveIdleReads,
                 wallClockBudgetMs = remainingMs,
                 postWriteDelayMs = 10
             )
@@ -495,12 +507,11 @@ class UsbVnaCommandChannel(
                 lastFailure = fifoRead
 
                 if (accumulatedBytes.isNotEmpty()) {
-                    // Partial already in hand: keep trying within the wall-clock budget
-                    // (the loop guard enforces the deadline); never early-break on stall.
+                    // Partial already in hand: keep trying within the wall-clock budget.
                     accumulatedDebug.add(
-                        "attempt=$attemptIndex chunkFailure=true accumulatedBytes=${accumulatedBytes.size}"
+                        "attempt=$attemptIndex chunkFailure=true distinct=${accumulator.distinctInRangeCount}"
                     )
-                    applyDelay(55)
+                    applyDelay(READ_CADENCE_BASE_MS + Random.nextInt(READ_CADENCE_JITTER_MS + 1))
                     continue
                 }
 
@@ -523,28 +534,24 @@ class UsbVnaCommandChannel(
                 accumulatedBytes.add(byte)
             }
 
-            val completeRecordCount = fifoRecordCount(accumulatedBytes.size)
+            val chunkRecords = parseLiteVnaFifoRecords(fifoRead.rawResponseBytes)
+            accumulator.addRecords(chunkRecords)
 
             val attemptLine =
-                "attempt=$attemptIndex requestedRemaining=$remainingRecordCount chunkBytes=${fifoRead.rawResponseBytes.size} accumulatedBytes=${accumulatedBytes.size} completeRecords=$completeRecordCount expected=$validatedPointCount"
+                "attempt=$attemptIndex chunkBytes=${fifoRead.rawResponseBytes.size} chunkRecords=${chunkRecords.size} distinctInRange=${accumulator.distinctInRangeCount}/$validatedPointCount missing=${accumulator.missingIndices().size}"
             accumulatedDebug.add(attemptLine)
             if (BuildConfig.DEBUG) {
                 android.util.Log.i("LiteVnaFifo", attemptLine)
             }
 
-            if (accumulatedBytes.size > previousByteCount) {
-                stallAttemptCount = 0
-                previousByteCount = accumulatedBytes.size
-            } else {
-                // No progress this attempt: give the device a moment to fill the FIFO,
-                // then continue. We do NOT break — completion is count/wall-clock-driven.
-                stallAttemptCount += 1
-                applyDelay(55)
-            }
+            // Jittered cadence between reads to avoid phase-locking to the sweep.
+            applyDelay(READ_CADENCE_BASE_MS + Random.nextInt(READ_CADENCE_JITTER_MS + 1))
         }
 
         val finalBytes = accumulatedBytes.toByteArray()
-        val completeRecordCount = fifoRecordCount(finalBytes.size)
+        val distinctCount = accumulator.distinctInRangeCount
+        val sweepComplete = accumulator.isComplete
+        val missingIndices = accumulator.missingIndices()
 
         if (finalBytes.isEmpty()) {
             val lastFailureSummary = lastFailure?.summary ?: "No FIFO bytes were accumulated."
@@ -561,9 +568,23 @@ class UsbVnaCommandChannel(
             )
         }
 
+        if (BuildConfig.DEBUG) {
+            android.util.Log.i(
+                "LiteVnaFifo",
+                "sweepReconstruct distinct=$distinctCount/$validatedPointCount complete=$sweepComplete " +
+                    "attempts=$attemptIndex rawRecords=${fifoRecordCount(finalBytes.size)} " +
+                    "missing=${missingIndices.take(16)}${if (missingIndices.size > 16) "..." else ""}"
+            )
+        }
+
+        // Return the full accumulated payload; the parser dedupes by freqIndex and flags
+        // isComplete when validPoints.size >= requestedPointCount. A partial (timed-out)
+        // sweep is preserved and honestly flagged, never claimed complete.
         return buildSuccessResult(
             summary =
-                "LiteVNA configured sweep read succeeded. Requested $validatedPointCount point(s); received ${finalBytes.size} byte(s) / $completeRecordCount complete 32-byte record(s).",
+                "LiteVNA configured sweep read ${if (sweepComplete) "completed" else "timed out"}: " +
+                    "collected $distinctCount/$validatedPointCount distinct in-range point(s) " +
+                    "from ${fifoRecordCount(finalBytes.size)} raw record(s).",
             responseText = rawBytePreview(finalBytes),
             rawResponseBytes = finalBytes,
             bytesTransferred = finalBytes.size,
@@ -575,8 +596,9 @@ class UsbVnaCommandChannel(
                     "stepHz=${request.stepFrequencyHz}",
                     "pointCount=$validatedPointCount",
                     "valuesPerFrequency=$validatedValuesPerFrequency",
-                    "completeRecordCount=$completeRecordCount",
-                    "stallAttemptCount=$stallAttemptCount"
+                    "distinctInRange=$distinctCount",
+                    "complete=$sweepComplete",
+                    "missingCount=${missingIndices.size}"
                 ).plus(accumulatedDebug).joinToString(separator = " | "),
             lastReadSizeBytes = lastReadSizeBytes
         )

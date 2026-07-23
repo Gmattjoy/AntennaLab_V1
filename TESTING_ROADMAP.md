@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 277 tests, 0 failures. Controllers extracted so far:
+Current baseline: 281 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -156,17 +156,22 @@ ProjectStorageRoundTripTest pattern.
       budget, 250-attempt backstop); verified on real hardware draining 3→101 in
       ~15 s (per-attempt `LiteVnaFifo` logcat, DEBUG-gated). USB IO stays device-only;
       only the read-budget arithmetic is unit-tested.
-- [ ] LiteVNA parser filtering (Finding #8 part 2, IN PROGRESS): the FIFO read now
-      delivers 101/101 raw records, but `LiteVnaSweepProtocol` keeps only ~40 valid
-      SweepPoints. DIAGNOSED (not a decode/filter bug): the freqIndex decode @0x18 is
-      correct, but the device free-runs ~201 points (freqIndex scatters 0..193, in
-      consecutive n,n+1 pairs) because the configured 101-point sweep is not landing,
-      so slow reads sample across >1 pass and the 0..100 filter keeps ~40. Instrumented
-      + reproduced in pure JVM: pure `LiteVnaFifoParser` + `LiteVnaFifoParserTest` over a
-      real captured payload fixture, plus DEBUG `LiteVnaFifo` (reason breakdown) /
-      `LiteVnaFifoRaw` (Base64 payload) logcat. Root fix pending: make the device honor
-      the sweep-points config (REG_SWEEP_POINTS 0x20) so one pass = 0..100 — NOT a
-      collect-by-distinct-freqIndex band-aid.
+- [x] LiteVNA parser filtering (Finding #8 part 2, RESOLVED as interim + known limit):
+      the FIFO read delivers 101/101 raw records, but the LiteVNA64 v0.3.3 free-runs its
+      native ~201-point sweep and IGNORES the USB sweepPoints register (register
+      read-back = 101, yet freqIndex scatters 0..200). Root-caused against DiSlord
+      firmware: valuesFIFO write-0 only flushes the queue (does NOT restart the sweep),
+      sweeps free-run on hardware timers, and there is no single-shot/pause command; the
+      device returns ~2-3 records/readFIFO (~28 rec/s) vs ~330 pts/s production, so we
+      cannot drain one coherent pass (aggressive back-to-back reads still stride ~30
+      across 0..200, not sequential). Shipped the correct interim: reconstruct the sweep
+      by collecting DISTINCT in-range freqIndex across many jittered reads
+      (`DistinctInRangeAccumulator`, completion via `computeDistinctCollectionBudgetMs`),
+      completing on all-present OR wall-clock, then honestly reporting the partial count
+      (~77/101 in ~44 s) — real, correctly-frequenced, lower-res, flagged incomplete.
+      Force-101-on-v0.3.3 is a documented known limitation (see CLAUDE.md). Pure helpers
+      unit-tested (LiteVnaFifoParserTest convergence/starvation + LiteVnaFifoReadBudgetTest
+      budget); DEBUG `LiteVnaFifo` logcat reports distinct-count / missing indices.
 
 ## Priority 5 — Feature work (after the safety net is solid)
 - [ ] Guided tuning assistant

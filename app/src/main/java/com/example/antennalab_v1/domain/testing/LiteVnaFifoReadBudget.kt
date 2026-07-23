@@ -71,6 +71,23 @@ internal fun computeFifoReadBudget(
     )
 }
 
+/*
+Wall-clock budget for the DISTINCT-in-range collection mode. Because the LiteVNA
+free-runs a superset sweep and we only get ~2 records per read, gathering every
+target index is a coupon-collector problem — it needs many more reads than the
+record count. Sized generously (per-target cost) and hard-capped so a starved index
+fails cleanly with an honest partial count instead of hanging.
+*/
+internal fun computeDistinctCollectionBudgetMs(
+    pointCount: Int,
+    baseMs: Long = 4000,
+    perPointMs: Long = 400,
+    maxMs: Long = 45000
+): Long {
+    val points = pointCount.coerceAtLeast(1)
+    return (baseMs + points * perPointMs).coerceAtMost(maxMs)
+}
+
 // Number of COMPLETE fixed-size records in a byte buffer (a trailing partial record
 // is not counted).
 internal fun fifoRecordCount(

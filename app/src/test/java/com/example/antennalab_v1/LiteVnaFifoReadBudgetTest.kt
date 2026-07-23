@@ -1,5 +1,6 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.testing.computeDistinctCollectionBudgetMs
 import com.example.antennalab_v1.domain.testing.computeFifoReadBudget
 import com.example.antennalab_v1.domain.testing.fifoRecordCount
 import com.example.antennalab_v1.domain.testing.shouldContinueFifoAccumulation
@@ -62,6 +63,22 @@ class LiteVnaFifoReadBudgetTest {
         val zeroPacket = computeFifoReadBudget(expectedRecordCount = 101, packetSizeBytes = 0)
         // packet coerced to 1 → passes = 3232 + 8 margin
         assertEquals(3240, zeroPacket.maxReadPasses)
+    }
+
+    // ------------------------------------------------------------------
+    // computeDistinctCollectionBudgetMs
+    // ------------------------------------------------------------------
+
+    @Test
+    fun distinctCollectionBudget_scalesPerPointAndCaps() {
+        // 101 points → 4000 + 101×400 = 44400 (< 45000 cap).
+        assertEquals(44400L, computeDistinctCollectionBudgetMs(101))
+        // 8-point probe → 4000 + 8×400 = 7200.
+        assertEquals(7200L, computeDistinctCollectionBudgetMs(8))
+        // Huge count caps at 45000.
+        assertEquals(45000L, computeDistinctCollectionBudgetMs(1000))
+        // Non-positive coerced to 1 → 4400.
+        assertEquals(4400L, computeDistinctCollectionBudgetMs(0))
     }
 
     // ------------------------------------------------------------------

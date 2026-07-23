@@ -107,6 +107,42 @@ internal fun analyzeFreqIndices(
     )
 }
 
+/*
+Accumulate/dedup/complete state for the sweep read. The LiteVNA v0.3.3 ignores the
+USB sweepPoints register and free-runs ~201 points, so a single drain gets only a
+scattered subset of the target 0..(pointCount-1) indices. We therefore reconstruct
+the sweep by collecting DISTINCT in-range freqIndex across many small reads: the read
+loop keeps going until every 0..(pointCount-1) index has been seen (complete) or the
+wall-clock expires (honest partial — report the actual count, never claim complete).
+
+Pure and deterministic: the read cadence/jitter and wall-clock live in the caller;
+this only tracks which target indices have been observed.
+*/
+internal class DistinctInRangeAccumulator(
+    val pointCount: Int
+) {
+    private val seenInRange = HashSet<Int>()
+
+    fun addFreqIndex(freqIndex: Int) {
+        if (freqIndex in 0 until pointCount) {
+            seenInRange.add(freqIndex)
+        }
+    }
+
+    fun addRecords(records: List<LiteVnaFifoRecord>) {
+        records.forEach { addFreqIndex(it.freqIndex) }
+    }
+
+    val distinctInRangeCount: Int
+        get() = seenInRange.size
+
+    val isComplete: Boolean
+        get() = seenInRange.size >= pointCount
+
+    // Target indices not yet observed (the "starved" indices when a sweep times out).
+    fun missingIndices(): List<Int> = (0 until pointCount).filter { it !in seenInRange }
+}
+
 internal fun decodeLittleEndianInt32(bytes: ByteArray, startIndex: Int): Int {
     if (startIndex + 3 >= bytes.size) return 0
     val b0 = bytes[startIndex].toUByte().toInt()
