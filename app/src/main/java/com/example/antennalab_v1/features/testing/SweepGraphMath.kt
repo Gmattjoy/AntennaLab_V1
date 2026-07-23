@@ -1,5 +1,13 @@
 package com.example.antennalab_v1.features.testing
 
+import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
+import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.testing.SweepPoint
+import com.example.antennalab_v1.model.testing.SweepResult
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+
 /*
 ########################################################################
 FILE: SweepGraphMath.kt
@@ -264,4 +272,349 @@ internal fun midpointDouble(
     second: Double
 ): Double {
     return (first + second) / 2.0
+}
+
+/*
+########################################################################
+SECTION 7
+TRACE VALUES
+########################################################################
+PURPOSE
+Per-point display value selection (moved from SweepGraphWidgets) plus the
+current-vs-reference difference series. Single source of truth for the
+value shown per SweepDisplayMode.
+########################################################################
+*/
+
+internal fun getDisplayValue(
+    point: SweepPoint,
+    mode: SweepDisplayMode
+): Double =
+    when (mode) {
+        SweepDisplayMode.SWR,
+        SweepDisplayMode.ANALOG_SWR,
+        SweepDisplayMode.WATERFALL -> point.swr
+
+        SweepDisplayMode.RETURN_LOSS,
+        SweepDisplayMode.ANALOG_RETURN_LOSS -> point.returnLossDb
+
+        SweepDisplayMode.RESISTANCE,
+        SweepDisplayMode.ANALOG_RESISTANCE -> point.resistance
+
+        SweepDisplayMode.REACTANCE,
+        SweepDisplayMode.ANALOG_REACTANCE -> point.reactance
+
+        SweepDisplayMode.S21_ESTIMATE -> estimateS21Db(point)
+        SweepDisplayMode.SMITH -> point.swr
+        SweepDisplayMode.IMPEDANCE_LOCUS -> point.swr
+    }
+
+internal fun estimateS21Db(
+    point: SweepPoint
+): Double {
+    return -abs(point.returnLossDb * 0.35)
+}
+
+internal fun buildDifferenceValues(
+    currentValues: List<Double>,
+    referenceValues: List<Double>
+): List<Double> {
+    if (currentValues.isEmpty()) {
+        return emptyList()
+    }
+
+    if (referenceValues.isEmpty()) {
+        return currentValues
+    }
+
+    val sharedSize = min(currentValues.size, referenceValues.size)
+    if (sharedSize <= 0) {
+        return currentValues
+    }
+
+    return List(sharedSize) { index ->
+        currentValues[index] - referenceValues[index]
+    }
+}
+
+/*
+########################################################################
+SECTION 8
+AXIS BOUNDS AND SCALE
+########################################################################
+PURPOSE
+Per-mode trace axis bounds and the instrument-style scale rounding used
+to size the graph's Y axis.
+########################################################################
+*/
+
+internal data class TraceAxisBounds(
+    val minimum: Double,
+    val maximum: Double,
+    val range: Double
+)
+
+internal fun buildTraceAxisBounds(
+    mode: SweepDisplayMode,
+    traceCompareMode: TraceCompareMode,
+    currentValues: List<Double>,
+    referenceValues: List<Double>,
+    differenceValues: List<Double>
+): TraceAxisBounds {
+    val sourceValues =
+        when (traceCompareMode) {
+            TraceCompareMode.CURRENT_ONLY -> currentValues
+            TraceCompareMode.CURRENT_PLUS_REFERENCE ->
+                if (referenceValues.isNotEmpty()) currentValues + referenceValues else currentValues
+            TraceCompareMode.DIFFERENCE ->
+                if (differenceValues.isNotEmpty()) differenceValues else currentValues
+        }
+
+    if (sourceValues.isEmpty()) {
+        return TraceAxisBounds(0.0, 1.0, 1.0)
+    }
+
+    return when (traceCompareMode) {
+        TraceCompareMode.DIFFERENCE -> {
+            val peakAbs = sourceValues.maxOf { abs(it) }.coerceAtLeast(0.1)
+            val roundedPeak = roundUpForInstrumentScale(peakAbs)
+            TraceAxisBounds(
+                minimum = -roundedPeak,
+                maximum = roundedPeak,
+                range = (roundedPeak * 2.0).coerceAtLeast(0.0001)
+            )
+        }
+
+        else -> {
+            when (mode) {
+                SweepDisplayMode.SWR -> {
+                    val maxValue = roundUpForInstrumentScale(
+                        max(2.0, sourceValues.maxOrNull() ?: 2.0)
+                    )
+                    TraceAxisBounds(
+                        minimum = 1.0,
+                        maximum = maxValue,
+                        range = (maxValue - 1.0).coerceAtLeast(0.0001)
+                    )
+                }
+
+                SweepDisplayMode.RETURN_LOSS,
+                SweepDisplayMode.S21_ESTIMATE -> {
+                    val maxValue = roundUpForInstrumentScale(
+                        max(5.0, sourceValues.maxOrNull() ?: 5.0)
+                    )
+                    val minValue = min(0.0, sourceValues.minOrNull() ?: 0.0)
+                    TraceAxisBounds(
+                        minimum = minValue,
+                        maximum = maxValue,
+                        range = (maxValue - minValue).coerceAtLeast(0.0001)
+                    )
+                }
+
+                SweepDisplayMode.RESISTANCE -> {
+                    val maxValue = roundUpForInstrumentScale(
+                        max(50.0, sourceValues.maxOrNull() ?: 50.0)
+                    )
+                    TraceAxisBounds(
+                        minimum = 0.0,
+                        maximum = maxValue,
+                        range = maxValue.coerceAtLeast(0.0001)
+                    )
+                }
+
+                SweepDisplayMode.REACTANCE -> {
+                    val peakAbs = sourceValues.maxOf { abs(it) }.coerceAtLeast(10.0)
+                    val roundedPeak = roundUpForInstrumentScale(peakAbs)
+                    TraceAxisBounds(
+                        minimum = -roundedPeak,
+                        maximum = roundedPeak,
+                        range = (roundedPeak * 2.0).coerceAtLeast(0.0001)
+                    )
+                }
+
+                else -> {
+                    val maxValue = roundUpForInstrumentScale(sourceValues.maxOrNull() ?: 1.0)
+                    val minValue = sourceValues.minOrNull() ?: 0.0
+                    TraceAxisBounds(
+                        minimum = minValue,
+                        maximum = maxValue,
+                        range = (maxValue - minValue).coerceAtLeast(0.0001)
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun roundUpForInstrumentScale(
+    value: Double
+): Double {
+    return when {
+        value <= 1.0 -> 1.0
+        value <= 2.0 -> 2.0
+        value <= 5.0 -> 5.0
+        value <= 10.0 -> 10.0
+        value <= 20.0 -> 20.0
+        value <= 50.0 -> 50.0
+        value <= 100.0 -> 100.0
+        value <= 200.0 -> 200.0
+        else -> {
+            ((value / 100.0).toInt() + 1) * 100.0
+        }
+    }
+}
+
+/*
+########################################################################
+SECTION 9
+AXIS LABELS, TICKS, AND TITLES
+########################################################################
+PURPOSE
+Formatting of Y-axis labels, X-axis frequency ticks, and the trace
+axis title / compare-mode summary strings.
+########################################################################
+*/
+
+internal fun buildAxisLabels(
+    maxValue: Double,
+    minValue: Double,
+    count: Int
+): List<String> {
+    if (count <= 1) {
+        return listOf(formatAxisLabel(maxValue))
+    }
+
+    return List(count) { index ->
+        val fraction = index.toDouble() / (count - 1).toDouble()
+        val value = maxValue - ((maxValue - minValue) * fraction)
+        formatAxisLabel(value)
+    }
+}
+
+internal fun formatAxisLabel(
+    value: Double
+): String {
+    return when {
+        abs(value) >= 100.0 -> String.format("%.0f", value)
+        abs(value) >= 10.0 -> String.format("%.1f", value)
+        else -> String.format("%.2f", value)
+    }
+}
+
+internal fun buildFrequencyTicks(
+    startMHz: Double,
+    endMHz: Double
+): List<String> {
+    val span = endMHz - startMHz
+    return listOf(
+        String.format("%.2f", startMHz),
+        String.format("%.2f", startMHz + (span * 0.25)),
+        String.format("%.2f", startMHz + (span * 0.50)),
+        String.format("%.2f", startMHz + (span * 0.75)),
+        String.format("%.2f", endMHz)
+    )
+}
+
+internal fun getTraceAxisTitle(
+    mode: SweepDisplayMode,
+    traceCompareMode: TraceCompareMode
+): String {
+    return when (traceCompareMode) {
+        TraceCompareMode.DIFFERENCE -> {
+            when (mode) {
+                SweepDisplayMode.SWR -> "Δ SWR"
+                SweepDisplayMode.RETURN_LOSS -> "Δ Return Loss (dB)"
+                SweepDisplayMode.RESISTANCE -> "Δ Resistance (Ω)"
+                SweepDisplayMode.REACTANCE -> "Δ Reactance (Ω)"
+                SweepDisplayMode.S21_ESTIMATE -> "Δ S21 Estimate (dB)"
+                else -> "Δ Trace"
+            }
+        }
+
+        else -> {
+            when (mode) {
+                SweepDisplayMode.SWR -> "SWR"
+                SweepDisplayMode.RETURN_LOSS -> "Return Loss (dB)"
+                SweepDisplayMode.RESISTANCE -> "Resistance (Ω)"
+                SweepDisplayMode.REACTANCE -> "Reactance (Ω)"
+                SweepDisplayMode.S21_ESTIMATE -> "S21 Estimate (dB)"
+                else -> "Trace"
+            }
+        }
+    }
+}
+
+internal fun getTraceModeSummary(
+    traceCompareMode: TraceCompareMode
+): String {
+    return when (traceCompareMode) {
+        TraceCompareMode.CURRENT_ONLY -> "Current"
+        TraceCompareMode.CURRENT_PLUS_REFERENCE -> "Overlay"
+        TraceCompareMode.DIFFERENCE -> "Difference"
+    }
+}
+
+/*
+########################################################################
+SECTION 10
+SUMMARY ANALYSIS
+########################################################################
+PURPOSE
+Pure sweep-summary derivations (moved from SweepGraphWidgets): usable
+bandwidth at/below an SWR threshold and the TDR cable-fault preview text.
+########################################################################
+*/
+
+internal fun estimateBandwidthAtOrBelowSwr(
+    result: SweepResult,
+    threshold: Double
+): Double? {
+    val pointsInBand = result.points.filter { it.swr <= threshold }
+    if (pointsInBand.isEmpty()) {
+        return null
+    }
+
+    val start = pointsInBand.minOf { it.frequencyMHz }
+    val end = pointsInBand.maxOf { it.frequencyMHz }
+    return end - start
+}
+
+internal fun buildCableFaultPreview(
+    result: SweepResult,
+    measurementCapabilities: HardwareMeasurementCapabilities,
+    hardware: TestHardwareProfile
+): String {
+    if (!measurementCapabilities.supportsTDR) {
+        return "TDR preview not supported by this hardware."
+    }
+
+    if (result.points.size < 3) {
+        return "Not enough sweep points for preview estimate."
+    }
+
+    val strongestReactance = result.points.maxByOrNull { abs(it.reactance) }
+        ?: return "Preview estimate unavailable."
+
+    val velocityFactor =
+        if (hardware == TestHardwareProfile.LITEVNA64_V0_3_3) {
+            0.82
+        } else {
+            0.66
+        }
+
+    val sweepSpanHz =
+        (result.endFrequencyMHz - result.startFrequencyMHz) * 1_000_000.0
+
+    if (sweepSpanHz <= 0.0) {
+        return "Preview estimate unavailable."
+    }
+
+    val estimatedMeters =
+        (300_000_000.0 * velocityFactor) / (2.0 * sweepSpanHz)
+
+    return String.format(
+        "Preview only. Strongest discontinuity clue near %.3f MHz. Estimated distance scale %.2f m.",
+        strongestReactance.frequencyMHz,
+        estimatedMeters
+    )
 }

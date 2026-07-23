@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 168 tests, 0 failures. Controllers extracted so far:
+Current baseline: 181 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -47,9 +47,12 @@ High value:
       buildCapturedStepSession with injected clock, applyCapturedStandard); side
       effects (sweep run, session registration, callbacks) stay in the Composable.
       CalibrationWizardControllerTest, 4 tests. (OSL math already in OslCalibrationEngine.)
-- [ ] SweepGraphWidgets §17-18 (lines ~1496-1802) — pure axis-bounds / bandwidth /
-      cable-fault / display-value math sitting in a widget file (violates its own
-      header). Move into SweepGraphMath + tests.
+- [x] SweepGraphWidgets §17-18 — moved the pure axis-bounds / bandwidth /
+      cable-fault / display-value math into SweepGraphMath (now `internal`, single
+      source), widgets left as thin renderers. Also folded the three duplicate copies
+      (SweepInstrumentUi.gaugeDisplayValue, SweepToolsWidgets.estimateBandwidthAtOrBelowSwrLocal,
+      SweepWorkspaceController's private getDisplayValue) into the shared math.
+      SweepGraphMathTest, 13 tests.
 - [ ] SweepWorkspaceViewModel buildUiModel path — run-contract decision engine
       (buildSweepRunContract 741-817), failure-message classifier
       (buildOperatorSweepFailureMessage), diagnostics/label/discovery formatting.
@@ -85,10 +88,12 @@ Medium value:
       totalConductorLength sum, per-numeric sweep-history formatting.
 
 Cross-file duplication to fold in during the above:
-- getDisplayValue (SweepGraphWidgets) vs gaugeDisplayValue (SweepInstrumentUi) + the
-  inlined S21 formula.
-- estimateBandwidthAtOrBelowSwr (SweepGraphWidgets) vs ...Local (SweepToolsWidgets).
-- formatAntennaClassificationLabel (SweepGraphScreen vs SweepWorkspaceViewModel).
+- [x] getDisplayValue (SweepGraphWidgets) vs gaugeDisplayValue (SweepInstrumentUi) vs
+  SweepWorkspaceController's private copy — unified in SweepGraphMath.getDisplayValue
+  (S21 via estimateS21Db).
+- [x] estimateBandwidthAtOrBelowSwr (SweepGraphWidgets) vs ...Local (SweepToolsWidgets)
+  — unified in SweepGraphMath.estimateBandwidthAtOrBelowSwr.
+- [ ] formatAntennaClassificationLabel (SweepGraphScreen vs SweepWorkspaceViewModel).
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
@@ -125,4 +130,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-30._
+_Last updated 2026-07-31._

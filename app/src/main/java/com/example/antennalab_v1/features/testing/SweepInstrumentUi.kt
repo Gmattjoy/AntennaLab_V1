@@ -86,7 +86,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -511,7 +510,7 @@ fun SweepAnalogGauge(
         ?: result.points.minByOrNull { it.swr }
         ?: return
 
-    val displayValue = gaugeDisplayValue(selectedPoint, mode)
+    val displayValue = getDisplayValue(selectedPoint, mode)
     val gaugeTitle = gaugeTitle(mode)
     val gaugeUnit = gaugeUnit(mode)
     val gaugeMin = gaugeMin(mode)
@@ -779,29 +778,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSweepMeterDial(
         center = center
     )
 }
-
-private fun gaugeDisplayValue(
-    point: SweepPoint,
-    mode: SweepDisplayMode
-): Double =
-    when (mode) {
-        SweepDisplayMode.SWR,
-        SweepDisplayMode.ANALOG_SWR,
-        SweepDisplayMode.WATERFALL -> point.swr
-
-        SweepDisplayMode.RETURN_LOSS,
-        SweepDisplayMode.ANALOG_RETURN_LOSS -> point.returnLossDb
-
-        SweepDisplayMode.RESISTANCE,
-        SweepDisplayMode.ANALOG_RESISTANCE -> point.resistance
-
-        SweepDisplayMode.REACTANCE,
-        SweepDisplayMode.ANALOG_REACTANCE -> point.reactance
-
-        SweepDisplayMode.S21_ESTIMATE -> -abs(point.returnLossDb * 0.35)
-        SweepDisplayMode.SMITH -> point.swr
-        SweepDisplayMode.IMPEDANCE_LOCUS -> point.swr
-    }
 
 private fun gaugeTitle(
     mode: SweepDisplayMode

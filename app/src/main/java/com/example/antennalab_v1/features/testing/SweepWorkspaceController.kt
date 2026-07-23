@@ -885,27 +885,4 @@ private fun clampMarkerIndex(
         val lastIndex = sweep?.points?.lastIndex ?: 0
         return index.coerceIn(0, lastIndex)
     }
-
-    private fun getDisplayValue(
-        point: SweepPoint,
-        mode: SweepDisplayMode
-    ): Double =
-        when (mode) {
-            SweepDisplayMode.SWR,
-            SweepDisplayMode.ANALOG_SWR,
-            SweepDisplayMode.WATERFALL -> point.swr
-
-            SweepDisplayMode.RETURN_LOSS,
-            SweepDisplayMode.ANALOG_RETURN_LOSS -> point.returnLossDb
-
-            SweepDisplayMode.RESISTANCE,
-            SweepDisplayMode.ANALOG_RESISTANCE -> point.resistance
-
-            SweepDisplayMode.REACTANCE,
-            SweepDisplayMode.ANALOG_REACTANCE -> point.reactance
-
-            SweepDisplayMode.S21_ESTIMATE -> -abs(point.returnLossDb * 0.35)
-            SweepDisplayMode.SMITH -> point.swr
-            SweepDisplayMode.IMPEDANCE_LOCUS -> point.swr
-        }
 }

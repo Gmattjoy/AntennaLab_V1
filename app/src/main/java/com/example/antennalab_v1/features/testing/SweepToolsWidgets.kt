@@ -463,7 +463,7 @@ fun SweepMarkerDataPanel(
     instrumentTextSecondary: Color
 ) {
     val resonancePoint = result.points.minByOrNull { it.swr }
-    val bandwidthAt2 = estimateBandwidthAtOrBelowSwrLocal(result, 2.0)
+    val bandwidthAt2 = estimateBandwidthAtOrBelowSwr(result, 2.0)
     val widgetAccent = MaterialTheme.colorScheme.primary
     val activeTraceName =
         when (mode) {
@@ -878,18 +878,4 @@ private fun buildPointSummaryLocal(
 
         append(String.format("Display: %.4f", getDisplayValue(point, mode)))
     }
-}
-
-private fun estimateBandwidthAtOrBelowSwrLocal(
-    result: SweepResult,
-    threshold: Double
-): Double? {
-    val pointsInBand = result.points.filter { it.swr <= threshold }
-    if (pointsInBand.isEmpty()) {
-        return null
-    }
-
-    val start = pointsInBand.minOf { it.frequencyMHz }
-    val end = pointsInBand.maxOf { it.frequencyMHz }
-    return end - start
 }
