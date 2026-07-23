@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 107 tests, 0 failures. Controllers extracted so far:
+Current baseline: 117 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController.
 
@@ -16,15 +16,18 @@ Goal: no meaningful logic left buried in Compose files.
 - [x] DesignWorkspaceScreen — extract to pure controller + tests (DesignWorkspaceController, 8 tests)
 - [x] Storage / save-load screen (LoadProjectScreen) — extract to pure controller
       + tests (LoadProjectController, 7 tests)
-- [ ] Remaining large Compose screens holding logic: prediction display,
-      hardware-selection UI — extract + test each
+- [~] Prediction display — N/A: no screen renders PredictedPerformance yet, so
+      nothing to extract. Covered instead as domain tests under Priority 2.
+- [ ] Remaining large Compose screens holding logic: hardware-selection UI —
+      extract + test
 - [ ] Verify all UI files are thin (delegate-only) after extraction
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
 - [ ] SweepAnalyzer — resonance detection, summary metrics, edge cases
 - [ ] CalculationEngine — calc correctness across antenna types / frequency ranges
-- [ ] Prediction engine + environmental model — predicted performance outputs
+- [x] Prediction engine + environmental model — predicted performance outputs
+      (EnvironmentalModelTest + SWRPredictionEngineTest, 10 tests)
 
 ## Priority 3 — Save/load reliability (highest real-world risk)
 Most likely failure to lose a user's work. Extend the existing
@@ -54,4 +57,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-24._
+_Last updated 2026-07-25._
