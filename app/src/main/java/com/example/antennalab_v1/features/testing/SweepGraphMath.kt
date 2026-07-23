@@ -339,6 +339,57 @@ internal fun buildDifferenceValues(
 
 /*
 ########################################################################
+SECTION 7B
+SWEEP WINDOW (span + step) RESOLUTION
+########################################################################
+PURPOSE
+Pure resolution of the sweep span/step from the effective instrument.
+LiteVNA sweeps a tighter ±0.5 MHz window at 0.01 MHz steps; the NanoVNA
+default is ±0.25 MHz at 0.02 MHz. The effective "is LiteVNA" must come
+from the live selected instrument (which reflects the connected device),
+falling back to the project's stored profile only when nothing is live —
+otherwise a LiteVNA session run through a NanoVNA-default project would
+incorrectly get the narrow NanoVNA window.
+########################################################################
+*/
+
+internal data class SweepWindow(
+    val startMHz: Double,
+    val endMHz: Double,
+    val stepMHz: Double,
+    val halfWidthMHz: Double
+)
+
+internal fun resolveSweepWindow(
+    isLiteVna: Boolean,
+    targetFrequencyMHz: Double,
+    hardwareMinMHz: Double,
+    hardwareMaxMHz: Double
+): SweepWindow {
+    val halfWidth = if (isLiteVna) 0.50 else 0.25
+    val step = if (isLiteVna) 0.01 else 0.02
+    val start = (targetFrequencyMHz - halfWidth).coerceIn(hardwareMinMHz, hardwareMaxMHz)
+    val end = (targetFrequencyMHz + halfWidth).coerceIn(hardwareMinMHz, hardwareMaxMHz)
+    return SweepWindow(
+        startMHz = start,
+        endMHz = end,
+        stepMHz = step,
+        halfWidthMHz = halfWidth
+    )
+}
+
+/*
+Precedence for the effective hardware: the live selected instrument wins
+(it reflects what is physically connected), and the project's stored
+profile is only the fallback when there is no live selection.
+*/
+internal fun resolveEffectiveIsLiteVna(
+    liveSelectedIsLiteVna: Boolean?,
+    projectIsLiteVna: Boolean
+): Boolean = liveSelectedIsLiteVna ?: projectIsLiteVna
+
+/*
+########################################################################
 SECTION 8
 AXIS BOUNDS AND SCALE
 ########################################################################

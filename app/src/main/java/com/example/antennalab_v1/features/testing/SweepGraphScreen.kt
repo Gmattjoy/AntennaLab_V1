@@ -36,6 +36,7 @@ import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
+import com.example.antennalab_v1.features.app.DeviceConnectionsController
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DriverProfile
@@ -86,19 +87,32 @@ fun SweepGraphScreen(
         selectedDriverProfile = UsbSessionManager.getSelectedDriverProfile()
     )
 
-    val sweepWidth =
-        if (hardware == TestHardwareProfile.LITEVNA64_V0_3_3) 0.50 else 0.25
+    // Sweep width/step must reflect the ACTUALLY-CONNECTED instrument, not the
+    // project's design-time testHardwareProfile (which defaults to NanoVNA and is
+    // NanoVNA for every Lab/discovery/RF-test entry). The live selected driver
+    // profile reflects the connected LiteVNA; fall back to the project profile only
+    // when nothing is live (e.g. simulated / offline review).
+    val liveSelectedProfile = UsbSessionManager.getSelectedDriverProfile()
+    val liveSelectedIsLiteVna =
+        liveSelectedProfile?.let(DeviceConnectionsController::isLiteProfile)
+    val projectIsLiteVna = hardware == TestHardwareProfile.LITEVNA64_V0_3_3
+    val isLiteVna = resolveEffectiveIsLiteVna(
+        liveSelectedIsLiteVna = liveSelectedIsLiteVna,
+        projectIsLiteVna = projectIsLiteVna
+    )
 
-    val sweepStep =
-        if (hardware == TestHardwareProfile.LITEVNA64_V0_3_3) 0.01 else 0.02
-
-    val unclampedSweepStart = targetFreq - sweepWidth
-    val unclampedSweepEnd = targetFreq + sweepWidth
     val hardwareMinMHz = capabilityProfile.minFrequencyHz / 1_000_000.0
     val hardwareMaxMHz = capabilityProfile.maxFrequencyHz / 1_000_000.0
 
-    val sweepStart = unclampedSweepStart.coerceIn(hardwareMinMHz, hardwareMaxMHz)
-    val sweepEnd = unclampedSweepEnd.coerceIn(hardwareMinMHz, hardwareMaxMHz)
+    val sweepWindow = resolveSweepWindow(
+        isLiteVna = isLiteVna,
+        targetFrequencyMHz = targetFreq,
+        hardwareMinMHz = hardwareMinMHz,
+        hardwareMaxMHz = hardwareMaxMHz
+    )
+    val sweepStart = sweepWindow.startMHz
+    val sweepEnd = sweepWindow.endMHz
+    val sweepStep = sweepWindow.stepMHz
 
     val availableDisplayModes = buildList {
         if (measurementCapabilities.supportsSWR) {

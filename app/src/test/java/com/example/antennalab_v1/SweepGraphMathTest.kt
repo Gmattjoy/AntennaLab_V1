@@ -13,12 +13,15 @@ import com.example.antennalab_v1.features.testing.formatAxisLabel
 import com.example.antennalab_v1.features.testing.getDisplayValue
 import com.example.antennalab_v1.features.testing.getTraceAxisTitle
 import com.example.antennalab_v1.features.testing.getTraceModeSummary
+import com.example.antennalab_v1.features.testing.resolveEffectiveIsLiteVna
+import com.example.antennalab_v1.features.testing.resolveSweepWindow
 import com.example.antennalab_v1.features.testing.roundUpForInstrumentScale
 import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -212,6 +215,72 @@ class SweepGraphMathTest {
             listOf(500.0, 1000.0, 20_000_000.0), emptyList(), emptyList()
         )
         assertEquals(100.0, b.maximum, tol)
+    }
+
+    // ------------------------------------------------------------------
+    // Sweep window: LiteVNA ±0.5 / step 0.01, NanoVNA ±0.25 / step 0.02,
+    // clamped to hardware limits; effective-LiteVNA resolution precedence.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun resolveSweepWindow_liteVnaIsHalfMhzAtHundredthStep() {
+        val w = resolveSweepWindow(
+            isLiteVna = true,
+            targetFrequencyMHz = 145.0,
+            hardwareMinMHz = 0.05,
+            hardwareMaxMHz = 6300.0
+        )
+        assertEquals(144.5, w.startMHz, tol)
+        assertEquals(145.5, w.endMHz, tol)
+        assertEquals(0.01, w.stepMHz, tol)
+        assertEquals(0.50, w.halfWidthMHz, tol)
+    }
+
+    @Test
+    fun resolveSweepWindow_nanoVnaIsQuarterMhzAtFiftieth() {
+        val w = resolveSweepWindow(
+            isLiteVna = false,
+            targetFrequencyMHz = 14.2,
+            hardwareMinMHz = 0.01,
+            hardwareMaxMHz = 1500.0
+        )
+        assertEquals(13.95, w.startMHz, tol)
+        assertEquals(14.45, w.endMHz, tol)
+        assertEquals(0.02, w.stepMHz, tol)
+        assertEquals(0.25, w.halfWidthMHz, tol)
+    }
+
+    @Test
+    fun resolveSweepWindow_clampsToHardwareLimits() {
+        // Target sits within 0.5 MHz of the low band edge → start coerces to hwMin.
+        val low = resolveSweepWindow(
+            isLiteVna = true,
+            targetFrequencyMHz = 0.2,
+            hardwareMinMHz = 0.05,
+            hardwareMaxMHz = 6300.0
+        )
+        assertEquals(0.05, low.startMHz, tol) // 0.2 - 0.5 = -0.3 → clamped to 0.05
+        assertEquals(0.7, low.endMHz, tol)
+
+        // Target near the high band edge → end coerces to hwMax.
+        val high = resolveSweepWindow(
+            isLiteVna = true,
+            targetFrequencyMHz = 6299.8,
+            hardwareMinMHz = 0.05,
+            hardwareMaxMHz = 6300.0
+        )
+        assertEquals(6299.3, high.startMHz, tol)
+        assertEquals(6300.0, high.endMHz, tol) // 6299.8 + 0.5 = 6300.3 → clamped to 6300.0
+    }
+
+    @Test
+    fun resolveEffectiveIsLiteVna_liveSelectionWinsElseFallsBackToProject() {
+        // Live instrument wins over the project's stored profile, both directions.
+        assertTrue(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = true, projectIsLiteVna = false))
+        assertFalse(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = false, projectIsLiteVna = true))
+        // No live selection → fall back to the project profile.
+        assertTrue(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = null, projectIsLiteVna = true))
+        assertFalse(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = null, projectIsLiteVna = false))
     }
 
     // ------------------------------------------------------------------

@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 262 tests, 0 failures. Controllers extracted so far:
+Current baseline: 266 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -56,7 +56,13 @@ High value:
       SweepGraphMathTest, 16 tests. Bugfix (2026-07-23): the SWR display axis now
       clamps its maximum at `SWR_DISPLAY_CEILING` (100) so absurd near-total-reflection
       points (e.g. SWR ~20,000,000) can't blow the axis to millions and crush real
-      data; display-only, raw sweep values untouched.
+      data; display-only, raw sweep values untouched. Bugfix (2026-07-23): the
+      LiteVNA sweep width no longer resolves from the project's design-time
+      testHardwareProfile (which defaults to NanoVNA for all Lab/discovery/RF-test
+      entries, so a connected LiteVNA wrongly got ±0.25). New pure
+      `resolveSweepWindow` + `resolveEffectiveIsLiteVna` helpers resolve span/step
+      from the live selected instrument (LiteVNA ±0.5, NanoVNA ±0.25, clamped),
+      falling back to the project profile only when nothing is live.
 - [x] SweepWorkspaceViewModel buildUiModel path — extracted the pure decision/
       formatting logic into `SweepUiModelBuilder` (run-contract decision engine
       buildSweepRunContract now takes sweepRunInProgress as a param; failure-message
