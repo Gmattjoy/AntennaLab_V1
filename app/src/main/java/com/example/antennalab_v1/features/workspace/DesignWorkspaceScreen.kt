@@ -75,16 +75,13 @@ private fun DesignLockedSummaryCard(
             Text("Design Summary")
             HorizontalDivider()
 
-            Text("Project: ${project.meta.projectName}")
-            Text("Antenna Type: ${project.designInput.antennaType.name}")
-            Text("Target Frequency: ${project.designInput.targetFrequencyMHz} MHz")
-            Text("Priority Mode: ${project.designInput.priorityMode.name}")
-
-            HorizontalDivider()
-
-            Text("Conductor Material: ${project.materialConfig.conductorMaterial.name}")
-            Text("Conductor Diameter: ${project.materialConfig.conductorDiameterMm} mm")
-            Text("Build Notes: ${project.materialConfig.buildNotes.ifBlank { "None" }}")
+            DesignWorkspaceController.buildDesignSummarySections(project)
+                .forEachIndexed { sectionIndex, lines ->
+                    if (sectionIndex > 0) {
+                        HorizontalDivider()
+                    }
+                    lines.forEach { line -> Text(line) }
+                }
 
             HorizontalDivider()
 
@@ -112,34 +109,32 @@ private fun DesignCalculatedResultsCard(
             Text("Calculated Results")
             HorizontalDivider()
 
-            if (calculatedDesign.elementLengthsMm.isNotEmpty()) {
+            val elementLengthLines = DesignWorkspaceController.buildElementLengthLines(calculatedDesign)
+            if (elementLengthLines.isNotEmpty()) {
                 Text("Element Lengths")
-                calculatedDesign.elementLengthsMm.forEachIndexed { index, value ->
-                    Text("Element ${index + 1}: ${formatMillimetres(value)}")
-                }
+                elementLengthLines.forEach { line -> Text(line) }
             } else {
                 Text("No stored element lengths.")
             }
 
-            if (calculatedDesign.elementSpacingMm.isNotEmpty()) {
+            val elementSpacingLines = DesignWorkspaceController.buildElementSpacingLines(calculatedDesign)
+            if (elementSpacingLines.isNotEmpty()) {
                 HorizontalDivider()
                 Text("Element Spacing")
-                calculatedDesign.elementSpacingMm.forEachIndexed { index, value ->
-                    Text("Spacing ${index + 1}: ${formatMillimetres(value)}")
-                }
+                elementSpacingLines.forEach { line -> Text(line) }
             }
 
-            if (calculatedDesign.boomLengthMm > 0.0) {
+            DesignWorkspaceController.boomLengthLine(calculatedDesign)?.let { line ->
                 HorizontalDivider()
-                Text("Boom Length: ${formatMillimetres(calculatedDesign.boomLengthMm)}")
+                Text(line)
             }
 
-            if (calculatedDesign.feedPointGapMm > 0.0) {
-                Text("Feed Point Gap: ${formatMillimetres(calculatedDesign.feedPointGapMm)}")
+            DesignWorkspaceController.feedPointGapLine(calculatedDesign)?.let { line ->
+                Text(line)
             }
 
-            if (calculatedDesign.matchingMethod.isNotBlank()) {
-                Text("Matching Method: ${calculatedDesign.matchingMethod}")
+            DesignWorkspaceController.matchingMethodLine(calculatedDesign)?.let { line ->
+                Text(line)
             }
 
             if (calculatedDesign.designWarnings.isNotEmpty()) {
@@ -167,13 +162,5 @@ private fun DesignWorkspaceActions(
         ) {
             Text("Back")
         }
-    }
-}
-
-private fun formatMillimetres(valueMm: Double): String {
-    return if (valueMm >= 1000.0) {
-        String.format("%.1f mm (%.3f m)", valueMm, valueMm / 1000.0)
-    } else {
-        String.format("%.1f mm", valueMm)
     }
 }
