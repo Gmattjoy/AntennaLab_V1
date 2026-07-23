@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 275 tests, 0 failures. Controllers extracted so far:
+Current baseline: 277 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -156,6 +156,17 @@ ProjectStorageRoundTripTest pattern.
       budget, 250-attempt backstop); verified on real hardware draining 3→101 in
       ~15 s (per-attempt `LiteVnaFifo` logcat, DEBUG-gated). USB IO stays device-only;
       only the read-budget arithmetic is unit-tested.
+- [ ] LiteVNA parser filtering (Finding #8 part 2, IN PROGRESS): the FIFO read now
+      delivers 101/101 raw records, but `LiteVnaSweepProtocol` keeps only ~40 valid
+      SweepPoints. DIAGNOSED (not a decode/filter bug): the freqIndex decode @0x18 is
+      correct, but the device free-runs ~201 points (freqIndex scatters 0..193, in
+      consecutive n,n+1 pairs) because the configured 101-point sweep is not landing,
+      so slow reads sample across >1 pass and the 0..100 filter keeps ~40. Instrumented
+      + reproduced in pure JVM: pure `LiteVnaFifoParser` + `LiteVnaFifoParserTest` over a
+      real captured payload fixture, plus DEBUG `LiteVnaFifo` (reason breakdown) /
+      `LiteVnaFifoRaw` (Base64 payload) logcat. Root fix pending: make the device honor
+      the sweep-points config (REG_SWEEP_POINTS 0x20) so one pass = 0..100 — NOT a
+      collect-by-distinct-freqIndex band-aid.
 
 ## Priority 5 — Feature work (after the safety net is solid)
 - [ ] Guided tuning assistant

@@ -1,5 +1,6 @@
 package com.example.antennalab_v1.domain.testing
 
+import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import kotlin.math.hypot
@@ -49,16 +50,6 @@ data class LiteVnaBringUpResult(
 data class LiteVnaCommand(
     val commandBytes: ByteArray,
     val description: String
-)
-
-private data class LiteVnaFifoRecord(
-    val fwd0Re: Int,
-    val fwd0Im: Int,
-    val rev0Re: Int,
-    val rev0Im: Int,
-    val rev1Re: Int,
-    val rev1Im: Int,
-    val freqIndex: Int
 )
 
 private data class ComplexValue(
@@ -427,7 +418,7 @@ class LiteVnaSweepProtocol(
             )
         }
 
-        val records = parseFifoRecords(rawBytes)
+        val records = parseLiteVnaFifoRecords(rawBytes)
         if (records.isEmpty()) {
             return ParsedSweepOutcome(
                 sweepResult = null,
@@ -440,14 +431,10 @@ class LiteVnaSweepProtocol(
             )
         }
 
-        val freqIndexPreview =
-            records.take(8).joinToString(prefix = "[", postfix = "]") { it.freqIndex.toString() }
+        val freqAnalysis = analyzeFreqIndices(records, requestedPointCount)
+        val freqIndexPreview = freqAnalysis.sequencePreview
 
-        val directRecords =
-            records
-                .filter { it.freqIndex in 0 until requestedPointCount }
-                .distinctBy { it.freqIndex }
-                .sortedBy { it.freqIndex }
+        val directRecords = selectDirectRecords(records, requestedPointCount)
 
         val sequentialRecords =
             records
@@ -462,6 +449,24 @@ class LiteVnaSweepProtocol(
 
         val selectedRecords =
             if (useSequentialFallback) sequentialRecords else directRecords
+
+        if (BuildConfig.DEBUG) {
+            // Exact reason breakdown for the decoded→selected drop (duplicate vs
+            // out-of-range freqIndex), pullable via `adb logcat -s LiteVnaFifo`.
+            android.util.Log.i(
+                "LiteVnaFifo",
+                "parse requested=$requestedPointCount decoded=${freqAnalysis.decodedCount} " +
+                    "inRange=${freqAnalysis.inRangeCount} outOfRange=${freqAnalysis.outOfRangeCount} " +
+                    "distinctInRange=${freqAnalysis.distinctInRangeCount} " +
+                    "duplicateInRange=${freqAnalysis.duplicateInRangeCount} " +
+                    "min=${freqAnalysis.minIndex} max=${freqAnalysis.maxIndex} " +
+                    "directRecords=${directRecords.size} useSequentialFallback=$useSequentialFallback " +
+                    "freqSeq=${freqAnalysis.sequencePreview}"
+            )
+            // Full raw FIFO payload as chunked Base64 so it can be reconstructed into a
+            // pure-JVM test fixture (tag LiteVnaFifoRaw).
+            logRawFifoPayload(rawBytes)
+        }
 
         if (selectedRecords.isEmpty()) {
             return ParsedSweepOutcome(
@@ -489,6 +494,15 @@ class LiteVnaSweepProtocol(
             parsedResults.mapNotNull { it.rejectionReason }
                 .groupingBy { it }
                 .eachCount()
+
+        if (BuildConfig.DEBUG) {
+            android.util.Log.i(
+                "LiteVnaFifo",
+                "select validPoints=${validPoints.size} filteredRecords=${directRecords.size} " +
+                    "parsePath=${if (useSequentialFallback) "SEQUENTIAL_FALLBACK" else "DIRECT_INDEX"} " +
+                    "rejectedReasons=$rejectedReasons"
+            )
+        }
 
         if (validPoints.isEmpty()) {
             return ParsedSweepOutcome(
@@ -543,36 +557,20 @@ class LiteVnaSweepProtocol(
         ).sweepResult
     }
 
-    private fun parseFifoRecords(
-        rawBytes: ByteArray
-    ): List<LiteVnaFifoRecord> {
-        val completeRecordCount =
-            rawBytes.size / LITEVNA_FIFO_RECORD_SIZE_BYTES
-
-        if (completeRecordCount <= 0) {
-            return emptyList()
-        }
-
-        return buildList {
-            for (recordIndex in 0 until completeRecordCount) {
-                val start = recordIndex * LITEVNA_FIFO_RECORD_SIZE_BYTES
-                val record = rawBytes.copyOfRange(
-                    fromIndex = start,
-                    toIndex = start + LITEVNA_FIFO_RECORD_SIZE_BYTES
-                )
-
-                add(
-                    LiteVnaFifoRecord(
-                        fwd0Re = decodeLittleEndianInt32(record, 0x00),
-                        fwd0Im = decodeLittleEndianInt32(record, 0x04),
-                        rev0Re = decodeLittleEndianInt32(record, 0x08),
-                        rev0Im = decodeLittleEndianInt32(record, 0x0C),
-                        rev1Re = decodeLittleEndianInt32(record, 0x10),
-                        rev1Im = decodeLittleEndianInt32(record, 0x14),
-                        freqIndex = decodeLittleEndianUInt16(record, 0x18)
-                    )
-                )
-            }
+    /*
+    DEBUG-only: dump the full raw FIFO payload as chunked Base64 (tag
+    LiteVnaFifoRaw) so it can be pulled via adb logcat and reconstructed exactly
+    into a pure-JVM parse fixture.
+    */
+    private fun logRawFifoPayload(rawBytes: ByteArray) {
+        val base64 = android.util.Base64.encodeToString(rawBytes, android.util.Base64.NO_WRAP)
+        val chunkSize = 900
+        val chunkCount = (base64.length + chunkSize - 1) / chunkSize
+        android.util.Log.i("LiteVnaFifoRaw", "payload bytes=${rawBytes.size} b64Len=${base64.length} chunks=$chunkCount")
+        for (chunkIndex in 0 until chunkCount) {
+            val from = chunkIndex * chunkSize
+            val to = minOf(from + chunkSize, base64.length)
+            android.util.Log.i("LiteVnaFifoRaw", "b64[$chunkIndex/$chunkCount] ${base64.substring(from, to)}")
         }
     }
 
@@ -701,35 +699,6 @@ class LiteVnaSweepProtocol(
         return bytes.joinToString(separator = " ") { byte ->
             byte.toUByte().toString(16).padStart(2, '0')
         }
-    }
-
-    private fun decodeLittleEndianInt32(
-        bytes: ByteArray,
-        startIndex: Int
-    ): Int {
-        if (startIndex + 3 >= bytes.size) return 0
-
-        val b0 = bytes[startIndex].toUByte().toInt()
-        val b1 = bytes[startIndex + 1].toUByte().toInt()
-        val b2 = bytes[startIndex + 2].toUByte().toInt()
-        val b3 = bytes[startIndex + 3].toUByte().toInt()
-
-        return b0 or
-                (b1 shl 8) or
-                (b2 shl 16) or
-                (b3 shl 24)
-    }
-
-    private fun decodeLittleEndianUInt16(
-        bytes: ByteArray,
-        startIndex: Int
-    ): Int {
-        if (startIndex + 1 >= bytes.size) return 0
-
-        val b0 = bytes[startIndex].toUByte().toInt()
-        val b1 = bytes[startIndex + 1].toUByte().toInt()
-
-        return b0 or (b1 shl 8)
     }
 
     private fun buildPointPreviewSummary(
