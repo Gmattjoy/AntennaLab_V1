@@ -50,7 +50,6 @@ import com.example.antennalab_v1.model.DriverProfile
 import com.example.antennalab_v1.model.HardwareConnectionState
 import com.example.antennalab_v1.model.UserHardwareConfig
 import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
-import com.example.antennalab_v1.model.testing.MeasurementTrustLevel
 import com.example.antennalab_v1.model.testing.UsbHardwareSession
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,8 +62,7 @@ fun DeviceConnectionsScreen(
 
     val availableProfiles = remember { DriverProfileRegistry.profiles }
     val preferredDefaultProfile = remember(availableProfiles) {
-        availableProfiles.firstOrNull { it.protocolType.name.contains("LITE", ignoreCase = true) }
-            ?: availableProfiles.first()
+        DeviceConnectionsController.preferredDefaultProfile(availableProfiles)
     }
 
     var selectedDriverProfile by remember {
@@ -134,49 +132,35 @@ fun DeviceConnectionsScreen(
     val selectedProfileLabel = buildProfileDisplayLabel(selectedDriverProfile)
     val statusCardModel = InstrumentStatusUiMapper.buildCardUiModel(context, selectedProfileLabel)
 
-    val isLiteProfile =
-        selectedDriverProfile.protocolType.name.contains("LITE", ignoreCase = true)
+    val isLiteProfile = DeviceConnectionsController.isLiteProfile(selectedDriverProfile)
 
     val liteBringUp = UsbSessionManager.getLatestLiteVnaBringUpResult()
     val liteIdentity = UsbSessionManager.getLatestLiteVnaIdentityResult()
     val liteCommandTest = UsbSessionManager.getLatestLiteVnaCommandTestResult()
 
-    val liteIdentityConfirmed = liteIdentity?.success == true
-    val liteRegisterConfirmed =
-        liteCommandTest?.stage == "REGISTER_READ_OK" ||
-                liteCommandTest?.stage == "SWEEP_PROBE_OK"
-    val liteTimedOut =
-        liteIdentity?.stage == "TIMED_OUT" ||
-                liteCommandTest?.stage == "TIMED_OUT" ||
-                liteBringUp?.stage == "TIMED_OUT"
+    val liteIdentityConfirmed = DeviceConnectionsController.liteIdentityConfirmed(liteIdentity)
+    val liteRegisterConfirmed = DeviceConnectionsController.liteRegisterConfirmed(liteCommandTest)
+    val liteTimedOut = DeviceConnectionsController.liteTimedOut(liteIdentity, liteCommandTest, liteBringUp)
 
-    val liteValidationRunning =
-        isLiteProfile &&
-                sessionOpen &&
-                transportReady &&
-                !liteIdentityConfirmed &&
-                !liteRegisterConfirmed &&
-                !liteTimedOut
+    val liteValidationRunning = DeviceConnectionsController.liteValidationRunning(
+        isLiteProfile = isLiteProfile,
+        sessionOpen = sessionOpen,
+        transportReady = transportReady,
+        liteIdentityConfirmed = liteIdentityConfirmed,
+        liteRegisterConfirmed = liteRegisterConfirmed,
+        liteTimedOut = liteTimedOut
+    )
 
-    val trustText = when (instrumentState?.measurementTrust) {
-        MeasurementTrustLevel.TRUSTED -> "Trusted"
-        MeasurementTrustLevel.DEGRADED -> "Degraded"
-        MeasurementTrustLevel.PARTIAL -> "Partial"
-        MeasurementTrustLevel.SIMULATED -> "Simulated"
-        MeasurementTrustLevel.UNKNOWN, null -> "Unknown"
-    }
+    val trustText = DeviceConnectionsController.trustText(instrumentState?.measurementTrust)
 
     val calibrationStateLabel =
-        instrumentState?.calibrationState?.readiness?.name ?: "NOT_STARTED"
+        DeviceConnectionsController.calibrationStateLabel(instrumentState?.calibrationState?.readiness)
 
-    val showRequestPermission =
-        connectionState == HardwareConnectionState.PERMISSION_REQUIRED
-    val showConnect =
-        permissionGranted && !sessionOpen
-    val showDisconnect =
-        sessionOpen
+    val showRequestPermission = DeviceConnectionsController.showRequestPermission(connectionState)
+    val showConnect = DeviceConnectionsController.showConnect(permissionGranted, sessionOpen)
+    val showDisconnect = DeviceConnectionsController.showDisconnect(sessionOpen)
     val showValidateLiteVna =
-        isLiteProfile && sessionOpen && transportReady
+        DeviceConnectionsController.showValidateLiteVna(isLiteProfile, sessionOpen, transportReady)
 
     Scaffold(
         topBar = {
@@ -447,13 +431,14 @@ fun DeviceConnectionsScreen(
     }
 }
 
-private fun buildProfileDisplayLabel(profile: DriverProfile): String {
-    return if (profile.protocolType.name.contains("LITE", ignoreCase = true)) {
-        "LiteVNA64 HW 64-0.3.3 FW v1.4.06"
-    } else {
-        profile.displayName
-    }
-}
+/*
+The hardware-selection decision logic (profile label, next-step guidance,
+validation label, plus the flag/gating derivations inlined above) lives in the
+pure, testable DeviceConnectionsController. These thin wrappers keep the existing
+call sites in the Composable unchanged.
+*/
+private fun buildProfileDisplayLabel(profile: DriverProfile): String =
+    DeviceConnectionsController.buildProfileDisplayLabel(profile)
 
 private fun buildNextHardwareStepText(
     connectionState: HardwareConnectionState?,
@@ -465,26 +450,17 @@ private fun buildNextHardwareStepText(
     liteValidationRunning: Boolean,
     liteIdentityConfirmed: Boolean,
     liteRegisterConfirmed: Boolean
-): String {
-    return when {
-        connectionState == HardwareConnectionState.NOT_CONNECTED ->
-            "Attach the USB instrument, then press Refresh."
-        !permissionGranted ->
-            "Grant USB permission for the selected device."
-        !sessionOpen ->
-            "Open a device session."
-        !transportReady ->
-            "Refresh and confirm the transport becomes ready."
-        isLiteProfile && liteValidationRunning ->
-            "LiteVNA validation is running. Wait for it to complete."
-        isLiteProfile && (!liteIdentityConfirmed || !liteRegisterConfirmed) ->
-            "Run Validate Device before moving on to calibration or sweep."
-        liveInstrumentReady ->
-            "Hardware is ready. Move on to calibration or sweep."
-        else ->
-            "Open Instrument Details / Troubleshooting if readiness still looks wrong."
-    }
-}
+): String = DeviceConnectionsController.buildNextHardwareStepText(
+    connectionState = connectionState,
+    permissionGranted = permissionGranted,
+    sessionOpen = sessionOpen,
+    transportReady = transportReady,
+    isLiteProfile = isLiteProfile,
+    liveInstrumentReady = liveInstrumentReady,
+    liteValidationRunning = liteValidationRunning,
+    liteIdentityConfirmed = liteIdentityConfirmed,
+    liteRegisterConfirmed = liteRegisterConfirmed
+)
 
 private fun buildValidationLabel(
     isLiteProfile: Boolean,
@@ -493,17 +469,14 @@ private fun buildValidationLabel(
     liteIdentityConfirmed: Boolean,
     liteRegisterConfirmed: Boolean,
     liteTimedOut: Boolean
-): String {
-    return when {
-        !isLiteProfile && liveInstrumentReady -> "Ready"
-        !isLiteProfile -> "Not Required"
-        liteValidationRunning -> "Running"
-        liteIdentityConfirmed && liteRegisterConfirmed -> "Passed"
-        liteTimedOut -> "Timed Out"
-        liteIdentityConfirmed || liteRegisterConfirmed -> "Partial"
-        else -> "Pending"
-    }
-}
+): String = DeviceConnectionsController.buildValidationLabel(
+    isLiteProfile = isLiteProfile,
+    liveInstrumentReady = liveInstrumentReady,
+    liteValidationRunning = liteValidationRunning,
+    liteIdentityConfirmed = liteIdentityConfirmed,
+    liteRegisterConfirmed = liteRegisterConfirmed,
+    liteTimedOut = liteTimedOut
+)
 
 @Composable
 private fun CompactDataPanel(
