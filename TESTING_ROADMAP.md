@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 223 tests, 0 failures. Controllers extracted so far:
+Current baseline: 259 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -108,7 +108,16 @@ Cross-file duplication to fold in during the above:
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
-- [ ] SweepAnalyzer — resonance detection, summary metrics, edge cases
+- [x] SweepAnalyzer — resonance detection, summary metrics, edge cases. Covered
+      both analysis engines: SweepAnalyzerTest (7 tests — findMinimumSWR /
+      getResonantFrequencyMHz, empty/single/tie/unordered) and
+      SweepDiagnosticsEngineTest (29 tests over analyzeSweep — hand-derived min-SWR /
+      resonance / SWR≤2.0/≤1.5 bandwidth spans incl. the exactly-2.0 inclusive
+      boundary, secondary-resonance selection, empty/single-point degenerate input,
+      and characterization of every classifier: matching quality, mismatch severity,
+      impedance stability, sweep shape, reactance trend, resonance count, likely
+      condition, feedline-loss suspicion, summary string). Physical outputs are
+      hand-derived, not mirrored from the engine.
 - [ ] CalculationEngine — calc correctness across antenna types / frequency ranges
 - [x] Prediction engine + environmental model — predicted performance outputs
       (EnvironmentalModelTest + SWRPredictionEngineTest, 10 tests)
