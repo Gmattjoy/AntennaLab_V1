@@ -8,21 +8,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
-import com.example.antennalab_v1.features.lab.LabTestTemplate
 import com.example.antennalab_v1.features.lab.LabTestTemplates
 import com.example.antennalab_v1.features.testing.CalibrationWizardScreen
 import com.example.antennalab_v1.features.wizard.CreateAntennaWizardScreen
-import com.example.antennalab_v1.model.AntennaType
-import com.example.antennalab_v1.model.CalibrationRestorePolicy
-import com.example.antennalab_v1.model.DesignInput
-import com.example.antennalab_v1.model.LabEntryMode
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
-import com.example.antennalab_v1.model.ProjectMeta
-import com.example.antennalab_v1.model.ProjectSource
-import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
-import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.project.ProjectPageScreen
 import com.example.antennalab_v1.storage.ProjectIndexManager
@@ -33,7 +24,7 @@ fun AppRootScreen() {
     val context = LocalContext.current
 
     val screen = remember { mutableStateOf("home") }
-    val currentProject = remember { mutableStateOf<ProjectData?>(emptyProjectPlaceholder()) }
+    val currentProject = remember { mutableStateOf<ProjectData?>(AppRootController.emptyProjectPlaceholder()) }
     val activeProjectOverride = remember { mutableStateOf<ProjectData?>(null) }
     val savedProjects = remember { mutableStateOf<List<ProjectListItem>>(emptyList()) }
     val selectedLabTemplateId = remember { mutableStateOf(LabTestTemplates.getDefaultTemplate().id) }
@@ -82,7 +73,7 @@ fun AppRootScreen() {
     }
 
     fun enterWizardMode() {
-        currentProject.value = emptyProjectPlaceholder()
+        currentProject.value = AppRootController.emptyProjectPlaceholder()
         activeProjectOverride.value = null
         testMode.value = false
         projectResumeIntoSweep.value = false
@@ -91,7 +82,7 @@ fun AppRootScreen() {
     }
 
     fun enterRfTestWizardMode() {
-        currentProject.value = buildRfTestModeProject()
+        currentProject.value = AppRootController.buildRfTestModeProject()
         activeProjectOverride.value = null
         testMode.value = true
         projectResumeIntoSweep.value = false
@@ -105,23 +96,7 @@ fun AppRootScreen() {
             LabTestTemplates.getTemplateById(selectedLabTemplateId.value)
                 ?: LabTestTemplates.getDefaultTemplate()
 
-        val sourceProjectName =
-            attached.meta.projectName.ifBlank { "Unnamed Project" }
-
-        val templatedProject = applyTemplateToProject(attached, template)
-
-        currentProject.value =
-            templatedProject.copy(
-                meta = templatedProject.meta.copy(
-                    labEntryMode = LabEntryMode.PROJECT_TEMPLATE_TEST,
-                    labSourceProjectName = sourceProjectName,
-                    labTemplateDisplayName = template.displayName,
-                    labTemplateBandLabel = template.bandLabel
-                ),
-                versionInfo = templatedProject.versionInfo.copy(
-                    appDataSource = ProjectSource.LAB_PROJECT_TEMPLATE_TEST
-                )
-            )
+        currentProject.value = AppRootController.buildProjectTemplateTestProject(attached, template)
 
         activeProjectOverride.value = null
         testMode.value = true
@@ -130,7 +105,7 @@ fun AppRootScreen() {
     }
 
     fun enterUnknownDiscoveryMode() {
-        activeProjectOverride.value = buildUnknownDiscoveryProject()
+        activeProjectOverride.value = AppRootController.buildUnknownDiscoveryProject()
         testMode.value = true
         projectResumeIntoSweep.value = true
         UsbSessionManager.clearCalibrationState()
@@ -138,7 +113,7 @@ fun AppRootScreen() {
     }
 
     fun enterProjectSweepMode() {
-        val resolvedProject = effectiveProject() ?: buildRfTestModeProject()
+        val resolvedProject = effectiveProject() ?: AppRootController.buildRfTestModeProject()
         activeProjectOverride.value = resolvedProject
         testMode.value = true
         projectResumeIntoSweep.value = true
@@ -207,7 +182,7 @@ fun AppRootScreen() {
                 screen.value = "device_connections"
             },
             onOpenCalibration = {
-                val projectForCalibration = effectiveProject() ?: buildRfTestModeProject()
+                val projectForCalibration = effectiveProject() ?: AppRootController.buildRfTestModeProject()
                 activeProjectOverride.value = projectForCalibration
                 testMode.value = true
                 projectResumeIntoSweep.value = false
@@ -221,20 +196,7 @@ fun AppRootScreen() {
         "wizard" -> CreateAntennaWizardScreen(
             onFinishProject = { createdProject ->
                 val finalizedProject =
-                    if (testMode.value) {
-                        createdProject.copy(
-                            meta = createdProject.meta.copy(
-                                projectName =
-                                    if (createdProject.meta.projectName.isBlank()) {
-                                        "Quick Test"
-                                    } else {
-                                        createdProject.meta.projectName
-                                    }
-                            )
-                        )
-                    } else {
-                        createdProject
-                    }
+                    AppRootController.finalizeWizardProject(createdProject, testMode.value)
 
                 currentProject.value = finalizedProject
                 activeProjectOverride.value = null
@@ -298,8 +260,8 @@ fun AppRootScreen() {
         }
 
         "calibration_wizard" -> {
-            val project = effectiveProject() ?: buildRfTestModeProject()
-            val calibrationSession = buildWizardCalibrationSession(project)
+            val project = effectiveProject() ?: AppRootController.buildRfTestModeProject()
+            val calibrationSession = AppRootController.buildWizardCalibrationSession(project)
 
             CalibrationWizardScreen(
                 calibrationSession = calibrationSession,
@@ -355,137 +317,19 @@ fun AppRootScreen() {
     }
 }
 
-private fun buildWizardCalibrationSession(
-    project: ProjectData
-): CalibrationSession {
-    val selectedHardwareName =
-        UsbSessionManager.getLatestInstrumentSessionState()?.selectedHardwareName
-            ?: project.hardwareCapabilityProfile.displayName
-
-    val calibrationState = UsbSessionManager.getLatestInstrumentCalibrationState()
-    val sharedCalibration = calibrationState.calibrationSession
-
-    return if (
-        sharedCalibration != null &&
-        (
-                calibrationState.readiness == CalibrationReadiness.VALID ||
-                        calibrationState.readiness == CalibrationReadiness.IN_PROGRESS
-                )
-    ) {
-        sharedCalibration
-    } else {
-        CalibrationSession(
-            hardwareDisplayName = selectedHardwareName,
-            startFrequencyMHz = project.designInput.targetFrequencyMHz - 0.5,
-            endFrequencyMHz = project.designInput.targetFrequencyMHz + 0.5,
-            openCaptured = false,
-            shortCaptured = false,
-            loadCaptured = false,
-            timestampLabel = "Not captured yet",
-            capturedAtEpochMs = 0L,
-            capturedProtocolFamily = null,
-            capturedInstrumentIdentityText = null,
-            capturedSessionKey = null
-        )
-    }
-}
-
-private fun buildRfTestModeProject(): ProjectData {
-    return ProjectData(
-        meta = ProjectMeta(
-            projectName = "RF Test Mode"
-        ),
-        designInput = DesignInput(
-            antennaType = AntennaType.OTHER,
-            targetFrequencyMHz = 14.2
-        ),
-        testHardwareProfile = TestHardwareProfile.NANOVNA_H4
-    )
-}
-
-private fun buildUnknownDiscoveryProject(): ProjectData {
-    return ProjectData(
-        meta = ProjectMeta(
-            projectName = "Unknown Antenna Discovery",
-            labEntryMode = LabEntryMode.UNKNOWN_DISCOVERY
-        ),
-        designInput = DesignInput(
-            antennaType = AntennaType.OTHER,
-            targetFrequencyMHz = 14.2
-        ),
-        versionInfo = com.example.antennalab_v1.model.VersionInfo(
-            appDataSource = ProjectSource.LAB_UNKNOWN_DISCOVERY
-        ),
-        testHardwareProfile = TestHardwareProfile.NANOVNA_H4
-    )
-}
-
-private fun emptyProjectPlaceholder(): ProjectData {
-    return ProjectData(
-        meta = ProjectMeta(
-            projectName = ""
-        ),
-        designInput = DesignInput(
-            antennaType = AntennaType.OTHER,
-            targetFrequencyMHz = 14.2
-        ),
-        testHardwareProfile = TestHardwareProfile.NANOVNA_H4
-    )
-}
-
-private fun applyTemplateToProject(
-    baseProject: ProjectData,
-    template: LabTestTemplate
-): ProjectData {
-    return baseProject.copy(
-        meta = baseProject.meta.copy(
-            projectName = if (baseProject.meta.projectName.isBlank()) template.displayName else baseProject.meta.projectName
-        ),
-        designInput = baseProject.designInput.copy(
-            antennaType = resolveAntennaType(template.antennaTypeKey),
-            targetFrequencyMHz = template.targetFrequencyMHz
-        )
-    )
-}
-
-private fun resolveAntennaType(
-    antennaTypeKey: String
-): AntennaType {
-    return enumValues<AntennaType>()
-        .firstOrNull { it.name.equals(antennaTypeKey, ignoreCase = true) }
-        ?: AntennaType.OTHER
-}
-
 private fun applyStoredCalibrationToSharedSession(
     context: android.content.Context,
     project: ProjectData
 ) {
-    val storedCalibration = project.storedCalibrationOrNull
-    val selectedHardwareName = project.hardwareCapabilityProfile.displayName
-
-    when {
-        storedCalibration == null -> {
+    when (AppRootController.decideCalibrationRestore(project)) {
+        CalibrationRestoreAction.CLEAR -> {
             UsbSessionManager.clearCalibrationState()
         }
 
-        project.calibrationData.restorePolicy == CalibrationRestorePolicy.DO_NOT_RESTORE -> {
-            UsbSessionManager.clearCalibrationState()
-        }
+        CalibrationRestoreAction.RESTORE -> {
+            val storedCalibration = project.storedCalibrationOrNull ?: return
+            val selectedHardwareName = project.hardwareCapabilityProfile.displayName
 
-        !storedCalibration.matchesHardwareDisplayName(selectedHardwareName) -> {
-            UsbSessionManager.clearCalibrationState()
-        }
-
-        project.calibrationData.restorePolicy == CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE &&
-                !storedCalibration.isCompatibleWithRequestedRange(
-                    selectedHardwareName = selectedHardwareName,
-                    requestedStartMHz = project.designInput.targetFrequencyMHz,
-                    requestedEndMHz = project.designInput.targetFrequencyMHz
-                ) -> {
-            UsbSessionManager.clearCalibrationState()
-        }
-
-        else -> {
             UsbSessionManager.registerCalibrationSession(
                 storedCalibration.copy(
                     captureSource = CalibrationCaptureSource.RESTORED_FROM_PROJECT,

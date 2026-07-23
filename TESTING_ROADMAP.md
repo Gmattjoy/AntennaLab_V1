@@ -7,11 +7,11 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 142 tests, 0 failures. Controllers extracted so far:
+Current baseline: 156 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
-DeviceConnectionsController. Also covered: InstrumentStatusUiMapper (was already
-extracted; per-field mappers made `internal` and tested).
+DeviceConnectionsController, AppRootController. Also covered: InstrumentStatusUiMapper
+(was already extracted; per-field mappers made `internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
@@ -55,10 +55,14 @@ High value:
 - [ ] Step1AntennaTypeScreen — recommendAntennaFamily engine + AntennaRecommendation
       model (706-796) + completeness/gating predicates (173-193). Extract a wizard
       recommendation controller/model.
-- [ ] AppRootScreen — delegate the duplicated buildWizardCalibrationSession to
-      ProjectWorkspaceController; extract applyStoredCalibrationToSharedSession
-      restore-policy + project factory builders (buildRfTestModeProject etc.) +
-      applyTemplateToProject/resolveAntennaType.
+- [x] AppRootScreen — extracted to AppRootController + AppRootControllerTest
+      (14 tests): project factories, template application, wizard finish
+      normalization, calibration-wizard session build, and the stored-calibration
+      restore-policy decision (side effects stay in the screen). NOTE: the audit
+      called buildWizardCalibrationSession a "duplicate" of
+      ProjectWorkspaceController's, but the fresh branch genuinely differs
+      (target ± 0.5 MHz here vs full hardware range there) — behaviour preserved,
+      not unified. Follow-up: decide whether to unify the two fresh-session ranges.
 
 Medium value:
 - [ ] Step2AntennaOverviewScreen — antennaOverviewFor mapping + AntennaOverview model.
@@ -112,4 +116,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-27._
+_Last updated 2026-07-28._
