@@ -144,7 +144,7 @@ object InstrumentStatusUiMapper {
             )
     }
 
-    private fun buildOperatorInstrumentTitle(
+    internal fun buildOperatorInstrumentTitle(
         state: InstrumentSessionState?,
         selectedHardwareName: String
     ): String {
@@ -178,7 +178,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildLiteVnaOperatorDisplayName(
+    internal fun buildLiteVnaOperatorDisplayName(
         selectedProfile: DriverProfile?
     ): String {
         return when {
@@ -191,7 +191,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildTechnicalIdentityLabel(
+    internal fun buildTechnicalIdentityLabel(
         state: InstrumentSessionState?
     ): String {
         return when {
@@ -202,7 +202,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildInstrumentSubtitle(state: InstrumentSessionState?): String {
+    internal fun buildInstrumentSubtitle(state: InstrumentSessionState?): String {
         return when {
             state == null ->
                 "No active instrument session."
@@ -218,7 +218,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildSelectedProfileLabel(selectedProfile: DriverProfile?): String {
+    internal fun buildSelectedProfileLabel(selectedProfile: DriverProfile?): String {
         return when {
             selectedProfile == null -> "No profile selected"
             selectedProfile.protocolType == DriverProtocolType.LITE_VNA_V2_STYLE ->
@@ -227,7 +227,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildConnectionLabel(state: InstrumentSessionState?): String {
+    internal fun buildConnectionLabel(state: InstrumentSessionState?): String {
         return when {
             state == null -> "Disconnected"
             state.connectionInfo.sessionOpen -> "Session Open"
@@ -236,11 +236,11 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildTransportLabel(state: InstrumentSessionState?): String {
+    internal fun buildTransportLabel(state: InstrumentSessionState?): String {
         return if (state?.transportReady == true) "Ready" else "Not Ready"
     }
 
-    private fun buildPathLabel(state: InstrumentSessionState?): String {
+    internal fun buildPathLabel(state: InstrumentSessionState?): String {
         return when (state?.dataSourceKind) {
             InstrumentDataSourceKind.REAL_INSTRUMENT -> "Real Instrument"
             InstrumentDataSourceKind.SIMULATED -> "Simulated"
@@ -248,7 +248,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildTrustLabel(state: InstrumentSessionState?): String {
+    internal fun buildTrustLabel(state: InstrumentSessionState?): String {
         return when (state?.measurementTrust) {
             MeasurementTrustLevel.TRUSTED -> "Trusted"
             MeasurementTrustLevel.DEGRADED -> "Degraded"
@@ -258,7 +258,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildCalibrationLabel(state: InstrumentSessionState?): String {
+    internal fun buildCalibrationLabel(state: InstrumentSessionState?): String {
         return state?.calibrationState?.readiness?.name
             ?.replace("_", " ")
             ?.lowercase()
@@ -266,7 +266,7 @@ object InstrumentStatusUiMapper {
             ?: "Not Started"
     }
 
-    private fun buildStatusLabel(state: InstrumentSessionState?): String {
+    internal fun buildStatusLabel(state: InstrumentSessionState?): String {
         return when {
             state == null -> "Unavailable"
             state.transportReady &&
@@ -283,7 +283,7 @@ object InstrumentStatusUiMapper {
         }
     }
 
-    private fun buildOperatorSummary(state: InstrumentSessionState?): String {
+    internal fun buildOperatorSummary(state: InstrumentSessionState?): String {
         return when {
             state == null ->
                 "No instrument session state is available."

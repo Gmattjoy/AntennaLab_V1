@@ -7,10 +7,11 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 129 tests, 0 failures. Controllers extracted so far:
+Current baseline: 142 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
-DeviceConnectionsController.
+DeviceConnectionsController. Also covered: InstrumentStatusUiMapper (was already
+extracted; per-field mappers made `internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files.
@@ -22,9 +23,11 @@ Goal: no meaningful logic left buried in Compose files.
 - [x] Hardware-selection UI (DeviceConnectionsScreen) — extract to pure controller
       + tests (DeviceConnectionsController, 12 tests). ProjectPageScreen's
       HardwareSelectionCard was already thin (logic in ProjectWorkspaceController).
-- [ ] Verify all UI files are thin (delegate-only) after extraction. Known
-      follow-up: InstrumentStatusUiMapper is already extracted but has no tests
-      (its public entry points read UsbSessionManager + Context).
+- [x] InstrumentStatusUiMapper — covered (per-field mappers made `internal` and
+      unit-tested; public entry points smoke-tested via Robolectric).
+      InstrumentStatusUiMapperTest, 13 tests.
+- [ ] Verify all UI files are thin (delegate-only) after extraction — final audit
+      pass across features/ and project/ Compose screens.
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
@@ -61,4 +64,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-26._
+_Last updated 2026-07-27._
