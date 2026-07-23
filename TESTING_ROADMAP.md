@@ -7,11 +7,12 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 156 tests, 0 failures. Controllers extracted so far:
+Current baseline: 164 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
-DeviceConnectionsController, AppRootController. Also covered: InstrumentStatusUiMapper
-(was already extracted; per-field mappers made `internal` and tested).
+DeviceConnectionsController, AppRootController, CalibrationSessionFactory. Also
+covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
+`internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
@@ -60,9 +61,16 @@ High value:
       normalization, calibration-wizard session build, and the stored-calibration
       restore-policy decision (side effects stay in the screen). NOTE: the audit
       called buildWizardCalibrationSession a "duplicate" of
-      ProjectWorkspaceController's, but the fresh branch genuinely differs
-      (target ± 0.5 MHz here vs full hardware range there) — behaviour preserved,
-      not unified. Follow-up: decide whether to unify the two fresh-session ranges.
+      ProjectWorkspaceController's, but the fresh branch genuinely differed
+      (target ± 0.5 MHz here vs full hardware range there).
+- [x] Fresh-calibration range divergence RESOLVED (2026-07-29): unified both paths
+      on the target-focused span (target ± 0.5 MHz, clamped to hardware limits) via a
+      new shared `domain/testing/CalibrationSessionFactory`; AppRootController and
+      ProjectWorkspaceController both delegate to it. Investigation confirmed the
+      narrow span is correct — the wizard captures a fixed 101 points, so the full
+      hardware range diluted them (~63 MHz spacing) and degraded correction, while
+      every real sweep is target ± 0.25/0.5 MHz. CalibrationSessionFactoryTest
+      (8 tests) + updated ProjectWorkspaceControllerTest fresh-range assertion.
 
 Medium value:
 - [ ] Step2AntennaOverviewScreen — antennaOverviewFor mapping + AntennaOverview model.
@@ -116,4 +124,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-28._
+_Last updated 2026-07-29._

@@ -102,15 +102,18 @@ class ProjectWorkspaceControllerTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun buildFreshCalibrationSession_isUncapturedAndSizedToHardwareRange() {
-        val project = ProjectData(testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3)
+    fun buildFreshCalibrationSession_isUncapturedAndFocusedOnTarget() {
+        // Fresh sessions are now target-focused (target +/- 0.5 MHz), unified via
+        // CalibrationSessionFactory — no longer the full hardware range.
+        val project = ProjectData(
+            designInput = DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
 
         val session = ProjectWorkspaceController.buildFreshCalibrationSession(project)
 
-        val expectedStart = project.hardwareCapabilityProfile.minFrequencyHz / 1_000_000.0
-        val expectedEnd = project.hardwareCapabilityProfile.maxFrequencyHz / 1_000_000.0
-        assertEquals(expectedStart, session.startFrequencyMHz, 0.0)
-        assertEquals(expectedEnd, session.endFrequencyMHz, 0.0)
+        assertEquals(13.7, session.startFrequencyMHz, 1e-9)
+        assertEquals(14.7, session.endFrequencyMHz, 1e-9)
 
         assertFalse(session.hasAnyCapturedStep())
         assertEquals("Not captured yet", session.timestampLabel)

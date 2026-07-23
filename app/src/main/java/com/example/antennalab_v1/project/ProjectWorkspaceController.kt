@@ -30,14 +30,13 @@ UsbSessionManager truth (as the screen did) but owns no UI.
 ########################################################################
 */
 
-import com.example.antennalab_v1.domain.testing.UsbSessionManager
+import com.example.antennalab_v1.domain.testing.CalibrationSessionFactory
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.AvailablePartsProfile
 import com.example.antennalab_v1.model.BuildCostProfile
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
-import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,55 +82,21 @@ object ProjectWorkspaceController {
     ------------------------------------------------------------
     PURPOSE
     Reuse the shared live calibration when it is still usable (valid or
-    in-progress); otherwise start a fresh session sized to the project's
-    hardware capability range.
+    in-progress); otherwise start a fresh target-focused session.
+    Delegated to the shared CalibrationSessionFactory so the Project-page
+    and Lab entry points capture over the same frequency span.
     ------------------------------------------------------------
     */
     fun buildWizardCalibrationSession(
         project: ProjectData
     ): CalibrationSession {
-        val calibrationState = UsbSessionManager.getLatestInstrumentCalibrationState()
-        val sharedCalibration = calibrationState.calibrationSession
-
-        return if (
-            sharedCalibration != null &&
-            (
-                calibrationState.readiness == CalibrationReadiness.VALID ||
-                    calibrationState.readiness == CalibrationReadiness.IN_PROGRESS
-                )
-        ) {
-            sharedCalibration
-        } else {
-            buildFreshCalibrationSession(project)
-        }
+        return CalibrationSessionFactory.buildWizardSession(project)
     }
 
     fun buildFreshCalibrationSession(
         project: ProjectData
     ): CalibrationSession {
-        val selectedHardwareName =
-            UsbSessionManager.getLatestInstrumentSessionState()?.selectedHardwareName
-                ?: formatHardware(project.testHardwareProfile)
-
-        val startFrequencyMHz =
-            project.hardwareCapabilityProfile.minFrequencyHz / 1_000_000.0
-
-        val endFrequencyMHz =
-            project.hardwareCapabilityProfile.maxFrequencyHz / 1_000_000.0
-
-        return CalibrationSession(
-            hardwareDisplayName = selectedHardwareName,
-            startFrequencyMHz = startFrequencyMHz,
-            endFrequencyMHz = endFrequencyMHz,
-            openCaptured = false,
-            shortCaptured = false,
-            loadCaptured = false,
-            timestampLabel = "Not captured yet",
-            capturedAtEpochMs = 0L,
-            capturedProtocolFamily = null,
-            capturedInstrumentIdentityText = null,
-            capturedSessionKey = null
-        )
+        return CalibrationSessionFactory.buildFreshSession(project)
     }
 
     /*

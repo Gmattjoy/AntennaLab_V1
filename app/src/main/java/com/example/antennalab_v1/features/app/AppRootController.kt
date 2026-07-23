@@ -30,7 +30,7 @@ navigation state and performs the Context-bound calibration side effects
 ########################################################################
 */
 
-import com.example.antennalab_v1.domain.testing.UsbSessionManager
+import com.example.antennalab_v1.domain.testing.CalibrationSessionFactory
 import com.example.antennalab_v1.features.lab.LabTestTemplate
 import com.example.antennalab_v1.model.AntennaType
 import com.example.antennalab_v1.model.CalibrationRestorePolicy
@@ -41,7 +41,6 @@ import com.example.antennalab_v1.model.ProjectMeta
 import com.example.antennalab_v1.model.ProjectSource
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.VersionInfo
-import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 
 /*
@@ -202,48 +201,15 @@ object AppRootController {
     ------------------------------------------------------------
     PURPOSE
     Reuse the shared live calibration when usable (valid/in-progress),
-    otherwise build a fresh session focused on the design frequency
-    (target ± 0.5 MHz).
-
-    NOTE: this deliberately differs from
-    ProjectWorkspaceController.buildWizardCalibrationSession, whose fresh
-    branch spans the full hardware-capability range. Kept as-is to
-    preserve AppRoot behaviour; unifying the two is a separate decision.
+    otherwise build a fresh target-focused session. Delegated to the
+    shared CalibrationSessionFactory so the Lab and Project-page entry
+    points capture over the same frequency span.
     ------------------------------------------------------------
     */
     fun buildWizardCalibrationSession(
         project: ProjectData
     ): CalibrationSession {
-        val selectedHardwareName =
-            UsbSessionManager.getLatestInstrumentSessionState()?.selectedHardwareName
-                ?: project.hardwareCapabilityProfile.displayName
-
-        val calibrationState = UsbSessionManager.getLatestInstrumentCalibrationState()
-        val sharedCalibration = calibrationState.calibrationSession
-
-        return if (
-            sharedCalibration != null &&
-            (
-                calibrationState.readiness == CalibrationReadiness.VALID ||
-                    calibrationState.readiness == CalibrationReadiness.IN_PROGRESS
-                )
-        ) {
-            sharedCalibration
-        } else {
-            CalibrationSession(
-                hardwareDisplayName = selectedHardwareName,
-                startFrequencyMHz = project.designInput.targetFrequencyMHz - 0.5,
-                endFrequencyMHz = project.designInput.targetFrequencyMHz + 0.5,
-                openCaptured = false,
-                shortCaptured = false,
-                loadCaptured = false,
-                timestampLabel = "Not captured yet",
-                capturedAtEpochMs = 0L,
-                capturedProtocolFamily = null,
-                capturedInstrumentIdentityText = null,
-                capturedSessionKey = null
-            )
-        }
+        return CalibrationSessionFactory.buildWizardSession(project)
     }
 
     /*
