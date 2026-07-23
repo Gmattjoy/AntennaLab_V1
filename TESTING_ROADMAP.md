@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 266 tests, 0 failures. Controllers extracted so far:
+Current baseline: 275 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -142,6 +142,20 @@ ProjectStorageRoundTripTest pattern.
 - [ ] Calibration workflow end-to-end (beyond session logic already covered)
 - [ ] USB/VNA driver reliability — NanoVNA-H4, LiteVNA64 (needs device-in-loop;
       not pure unit-testable — plan a manual/instrumented test checklist)
+- [x] LiteVNA incomplete-sweep bug (Finding #8): a live 101-point sweep returned
+      only ~20 points. Cause: the FIFO read was pass-count-driven — maxReadPasses(10)
+      × packetSize(64) ÷ 32 capped each read at 20 records, plus readRawBytes bailed
+      on the first idle read, plus a completeRecordCount≥8 stall early-out. Fixed by
+      making the read COUNT-driven and wall-clock-bounded: new pure
+      `LiteVnaFifoReadBudget` (records→bytes→backstop passes + wall-clock; unit-tested,
+      LiteVnaFifoReadBudgetTest, 9 tests), a count-driven `UsbCdcSerialChannel.
+      readRawBytesUntil` (tolerates K consecutive idle reads, not 1), and a refactored
+      `UsbVnaCommandChannel` FIFO loop that re-issues readFIFO until all expected
+      records arrive or the wall-clock deadline. On-device the LiteVNA dribbles ~2-3
+      records per readFIFO, so tuning was needed (K=2 idle, 120 ms read timeout, ~18 s
+      budget, 250-attempt backstop); verified on real hardware draining 3→101 in
+      ~15 s (per-attempt `LiteVnaFifo` logcat, DEBUG-gated). USB IO stays device-only;
+      only the read-budget arithmetic is unit-tested.
 
 ## Priority 5 — Feature work (after the safety net is solid)
 - [ ] Guided tuning assistant

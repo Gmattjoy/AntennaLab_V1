@@ -100,6 +100,88 @@ class UsbCdcSerialChannel(
 
     /*
     ####################################################################
+    EDIT SECTION 1050
+    COUNT-DRIVEN RAW CDC READ (LiteVNA FIFO)
+    --------------------------------------------------------------------
+    PURPOSE
+    Drain a KNOWN payload (expectedBytes) rather than stopping after a
+    fixed number of passes or on the first idle read. This is how the
+    LiteVNA values-FIFO must be read: keep accumulating until we have all
+    the expected bytes, tolerating up to maxConsecutiveIdleReads empty
+    reads (a momentary inter-packet gap must not end the read), bounded by
+    a hard wall-clock budget so a dead/slow device fails cleanly. The
+    maxReadPasses argument is only a backstop ceiling.
+    ####################################################################
+    */
+    fun readRawBytesUntil(
+        expectedBytes: Int,
+        maxReadPasses: Int,
+        readTimeoutMs: Int,
+        interReadDelayMs: Int,
+        maxConsecutiveIdleReads: Int,
+        wallClockBudgetMs: Long
+    ): ByteArray {
+        val packetSize =
+            transportChannel.maxReadPacketSize.coerceAtLeast(64)
+
+        val collectedBytes = mutableListOf<Byte>()
+        var readPassCount = 0
+        var consecutiveIdleReads = 0
+        val deadlineMs = System.currentTimeMillis() + wallClockBudgetMs.coerceAtLeast(0)
+
+        while (
+            collectedBytes.size < expectedBytes &&
+            readPassCount < maxReadPasses &&
+            System.currentTimeMillis() < deadlineMs
+        ) {
+            readPassCount += 1
+
+            val buffer = ByteArray(packetSize)
+
+            val bytesRead = transportChannel.connection.bulkTransfer(
+                transportChannel.bulkInEndpoint,
+                buffer,
+                buffer.size,
+                readTimeoutMs
+            )
+
+            if (bytesRead <= 0) {
+                consecutiveIdleReads += 1
+
+                // Tolerate a small run of empty reads (the device may pause between
+                // packets while it is still measuring); only give up after K idle
+                // reads in a row, never after the first.
+                if (consecutiveIdleReads >= maxConsecutiveIdleReads) {
+                    break
+                }
+
+                if (interReadDelayMs > 0) {
+                    runCatching {
+                        Thread.sleep(interReadDelayMs.toLong())
+                    }
+                }
+                continue
+            }
+
+            consecutiveIdleReads = 0
+
+            val safeBytesRead = bytesRead.coerceIn(0, buffer.size)
+            for (index in 0 until safeBytesRead) {
+                collectedBytes.add(buffer[index])
+            }
+
+            if (interReadDelayMs > 0) {
+                runCatching {
+                    Thread.sleep(interReadDelayMs.toLong())
+                }
+            }
+        }
+
+        return collectedBytes.toByteArray()
+    }
+
+    /*
+    ####################################################################
     EDIT SECTION 1100
     TEXT CDC READ
     ####################################################################

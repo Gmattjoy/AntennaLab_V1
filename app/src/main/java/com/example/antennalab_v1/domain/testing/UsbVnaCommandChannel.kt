@@ -1,5 +1,6 @@
 package com.example.antennalab_v1.domain.testing
 
+import com.example.antennalab_v1.BuildConfig
 import kotlin.text.Charsets.UTF_8
 
 /*
@@ -102,8 +103,14 @@ class UsbVnaCommandChannel(
         private const val REG_VALUES_PER_FREQUENCY: Byte = 0x22
         private const val REG_VALUES_FIFO: Byte = 0x30
         private const val LITEVNA_FIFO_RECORD_SIZE_BYTES = 32
-        private const val MAX_FIFO_ACCUMULATION_ATTEMPTS = 18
-        private const val MAX_STALL_ATTEMPTS_AFTER_PROGRESS = 3
+        // The LiteVNA dribbles ~2-3 records per readFIFO, so ~40-50 re-issues are
+        // needed to drain 101 points. This cap is a runaway backstop only; the real
+        // stop conditions are all-records-collected or the wall-clock deadline.
+        private const val MAX_FIFO_ACCUMULATION_ATTEMPTS = 250
+        // Per-bulk-read timeout for the count-driven FIFO drain. Short so an ended
+        // burst is detected fast and the next readFIFO is re-issued promptly; the
+        // overall bound is the wall-clock budget.
+        private const val FIFO_READ_TIMEOUT_MS = 120
     }
 
     private var latestTransportHealthSnapshot = UsbVnaTransportHealthSnapshot()
@@ -422,6 +429,19 @@ class UsbVnaCommandChannel(
             )
         )
 
+        // Count-driven, wall-clock-bounded FIFO drain. The read is governed by the
+        // EXPECTED record count (validatedPointCount) and a hard wall-clock deadline,
+        // NOT by a fixed number of USB read passes — the old fixed maxReadPasses=10 ×
+        // 64-byte packets capped every read at 20 records, so a 101-point sweep only
+        // ever returned ~20. maxReadPasses is now sized as a generous backstop.
+        val readPacketSize =
+            sessionManager.getActiveTransportChannel()?.maxReadPacketSize?.coerceAtLeast(64) ?: 64
+        val overallBudget = computeFifoReadBudget(
+            expectedRecordCount = validatedPointCount,
+            packetSizeBytes = readPacketSize
+        )
+        val deadlineMs = System.currentTimeMillis() + overallBudget.wallClockBudgetMs
+
         val accumulatedBytes = mutableListOf<Byte>()
         val accumulatedDebug = mutableListOf<String>()
         var accumulatedReadPassCount = 0
@@ -431,27 +451,43 @@ class UsbVnaCommandChannel(
         var previousByteCount = 0
         var lastFailure: UsbVnaCommandResult? = null
 
-        while (attemptIndex < MAX_FIFO_ACCUMULATION_ATTEMPTS) {
+        // Attempt cap is only a runaway backstop; the real stop conditions are
+        // "all expected records" or "wall-clock exhausted" (shouldContinueFifoAccumulation).
+        while (
+            attemptIndex < MAX_FIFO_ACCUMULATION_ATTEMPTS &&
+            shouldContinueFifoAccumulation(
+                completeRecordCount = fifoRecordCount(accumulatedBytes.size),
+                expectedRecordCount = validatedPointCount,
+                nowMs = System.currentTimeMillis(),
+                deadlineMs = deadlineMs
+            )
+        ) {
             attemptIndex += 1
 
-            val currentCompleteRecordCount =
-                accumulatedBytes.size / LITEVNA_FIFO_RECORD_SIZE_BYTES
+            val currentCompleteRecordCount = fifoRecordCount(accumulatedBytes.size)
 
             val remainingRecordCount =
                 (validatedPointCount - currentCompleteRecordCount)
                     .coerceAtLeast(1)
                     .coerceAtMost(validatedPointCount)
 
-            val fifoRead = executeLiteVnaBinaryCommand(
+            val remainingMs = (deadlineMs - System.currentTimeMillis()).coerceAtLeast(0)
+            val attemptBudget = computeFifoReadBudget(
+                expectedRecordCount = remainingRecordCount,
+                packetSizeBytes = readPacketSize
+            )
+
+            val fifoRead = executeLiteVnaFifoRead(
                 commandBytes = byteArrayOf(
                     LITEVNA_READFIFO_COMMAND,
                     REG_VALUES_FIFO,
                     remainingRecordCount.toByte()
                 ),
-                expectedMinimumResponseBytes = 1,
-                wallClockTimeoutMs = 2200L,
-                readTimeoutMs = 1100,
-                maxReadPasses = 10,
+                expectedBytes = remainingRecordCount * LITEVNA_FIFO_RECORD_SIZE_BYTES,
+                maxReadPasses = attemptBudget.maxReadPasses,
+                readTimeoutMs = FIFO_READ_TIMEOUT_MS,
+                maxConsecutiveIdleReads = overallBudget.maxConsecutiveIdleReads,
+                wallClockBudgetMs = remainingMs,
                 postWriteDelayMs = 10
             )
 
@@ -459,15 +495,11 @@ class UsbVnaCommandChannel(
                 lastFailure = fifoRead
 
                 if (accumulatedBytes.isNotEmpty()) {
-                    stallAttemptCount += 1
+                    // Partial already in hand: keep trying within the wall-clock budget
+                    // (the loop guard enforces the deadline); never early-break on stall.
                     accumulatedDebug.add(
-                        "attempt=$attemptIndex chunkFailure=true accumulatedBytes=${accumulatedBytes.size} stallCount=$stallAttemptCount"
+                        "attempt=$attemptIndex chunkFailure=true accumulatedBytes=${accumulatedBytes.size}"
                     )
-
-                    if (stallAttemptCount >= MAX_STALL_ATTEMPTS_AFTER_PROGRESS) {
-                        break
-                    }
-
                     applyDelay(55)
                     continue
                 }
@@ -491,37 +523,28 @@ class UsbVnaCommandChannel(
                 accumulatedBytes.add(byte)
             }
 
-            val completeRecordCount =
-                accumulatedBytes.size / LITEVNA_FIFO_RECORD_SIZE_BYTES
+            val completeRecordCount = fifoRecordCount(accumulatedBytes.size)
 
-            accumulatedDebug.add(
-                "attempt=$attemptIndex requestedRemaining=$remainingRecordCount chunkBytes=${fifoRead.rawResponseBytes.size} accumulatedBytes=${accumulatedBytes.size} completeRecords=$completeRecordCount"
-            )
+            val attemptLine =
+                "attempt=$attemptIndex requestedRemaining=$remainingRecordCount chunkBytes=${fifoRead.rawResponseBytes.size} accumulatedBytes=${accumulatedBytes.size} completeRecords=$completeRecordCount expected=$validatedPointCount"
+            accumulatedDebug.add(attemptLine)
+            if (BuildConfig.DEBUG) {
+                android.util.Log.i("LiteVnaFifo", attemptLine)
+            }
 
             if (accumulatedBytes.size > previousByteCount) {
                 stallAttemptCount = 0
                 previousByteCount = accumulatedBytes.size
             } else {
+                // No progress this attempt: give the device a moment to fill the FIFO,
+                // then continue. We do NOT break — completion is count/wall-clock-driven.
                 stallAttemptCount += 1
+                applyDelay(55)
             }
-
-            if (completeRecordCount >= validatedPointCount) {
-                break
-            }
-
-            if (
-                completeRecordCount >= 8 &&
-                stallAttemptCount >= MAX_STALL_ATTEMPTS_AFTER_PROGRESS
-            ) {
-                break
-            }
-
-            applyDelay(55)
         }
 
         val finalBytes = accumulatedBytes.toByteArray()
-        val completeRecordCount =
-            finalBytes.size / LITEVNA_FIFO_RECORD_SIZE_BYTES
+        val completeRecordCount = fifoRecordCount(finalBytes.size)
 
         if (finalBytes.isEmpty()) {
             val lastFailureSummary = lastFailure?.summary ?: "No FIFO bytes were accumulated."
@@ -923,6 +946,113 @@ class UsbVnaCommandChannel(
             bytesTransferred = responseBytes.size,
             readPassCount = 1,
             debugSummary = "commandPreview=${rawBytePreview(commandBytes)} rawPreview=${rawBytePreview(responseBytes)} elapsedMs=$elapsedMs",
+            lastReadSizeBytes = responseBytes.size
+        )
+    }
+
+    /*
+    ####################################################################
+    COUNT-DRIVEN FIFO READ COMMAND
+    --------------------------------------------------------------------
+    PURPOSE
+    Writes a LiteVNA command (a readFIFO request) and drains up to
+    `expectedBytes` from the values-FIFO using the count-driven serial
+    read. Unlike executeLiteVnaBinaryCommand (fixed passes, first-idle
+    bail), this keeps reading until the expected byte count arrives, K
+    consecutive idle reads occur, or the wall-clock budget expires. A
+    partial payload is NOT a failure — the accumulation loop judges
+    completeness by record count, so we succeed as long as some bytes
+    came back.
+    ####################################################################
+    */
+    private fun executeLiteVnaFifoRead(
+        commandBytes: ByteArray,
+        expectedBytes: Int,
+        maxReadPasses: Int,
+        readTimeoutMs: Int,
+        maxConsecutiveIdleReads: Int,
+        wallClockBudgetMs: Long,
+        postWriteDelayMs: Int
+    ): UsbVnaCommandResult {
+        val channel = sessionManager.getActiveTransportChannel()
+            ?: return buildFailureResult(
+                summary = "No active CDC transport channel exists for LiteVNA FIFO read.",
+                debugSummary = "executeLiteVnaFifoRead found no active channel.",
+                errorReason = "No active CDC transport channel."
+            )
+
+        if (channel.transportKind != UsbTransportKind.CDC_DATA) {
+            return buildFailureResult(
+                summary = "LiteVNA FIFO read requested on non-CDC transport.",
+                debugSummary = "Active transport kind was ${channel.transportKind}.",
+                errorReason = "Non-CDC transport."
+            )
+        }
+
+        val cdcChannel = UsbCdcSerialChannel(channel)
+
+        val bytesWritten = runCatching {
+            cdcChannel.writeBytes(
+                payload = commandBytes,
+                timeoutMs = DEFAULT_WRITE_TIMEOUT_MS
+            )
+        }.getOrElse { error ->
+            return buildFailureResult(
+                summary = "LiteVNA FIFO CDC write threw an exception: ${error.message ?: "unknown error"}.",
+                debugSummary = "fifoWriteException=${error.message ?: "unknown error"} commandPreview=${rawBytePreview(commandBytes)}",
+                errorReason = error.message ?: "LiteVNA FIFO CDC write exception."
+            )
+        }
+
+        if (bytesWritten <= 0) {
+            return buildFailureResult(
+                summary = "LiteVNA FIFO CDC write failed. bulkTransfer returned $bytesWritten.",
+                bytesTransferred = bytesWritten.coerceAtLeast(0),
+                debugSummary = "bytesWritten=$bytesWritten commandPreview=${rawBytePreview(commandBytes)}",
+                errorReason = "LiteVNA FIFO CDC write failed."
+            )
+        }
+
+        applyDelay(postWriteDelayMs)
+
+        val responseBytes = runCatching {
+            cdcChannel.readRawBytesUntil(
+                expectedBytes = expectedBytes,
+                maxReadPasses = maxReadPasses,
+                readTimeoutMs = readTimeoutMs,
+                interReadDelayMs = DEFAULT_INTER_READ_DELAY_MS,
+                maxConsecutiveIdleReads = maxConsecutiveIdleReads,
+                wallClockBudgetMs = wallClockBudgetMs
+            )
+        }.getOrElse { error ->
+            return buildFailureResult(
+                summary = "LiteVNA FIFO CDC read threw an exception: ${error.message ?: "unknown error"}.",
+                bytesTransferred = bytesWritten,
+                debugSummary = "fifoReadException=${error.message ?: "unknown error"} commandPreview=${rawBytePreview(commandBytes)}",
+                errorReason = error.message ?: "LiteVNA FIFO CDC read exception."
+            )
+        }
+
+        if (responseBytes.isEmpty()) {
+            return buildFailureResult(
+                summary = "LiteVNA FIFO CDC read returned no bytes.",
+                responseText = null,
+                rawResponseBytes = byteArrayOf(),
+                bytesTransferred = 0,
+                readPassCount = 1,
+                debugSummary = "commandPreview=${rawBytePreview(commandBytes)} expectedBytes=$expectedBytes",
+                lastReadSizeBytes = 0,
+                errorReason = "Empty LiteVNA FIFO response."
+            )
+        }
+
+        return buildSuccessResult(
+            summary = "LiteVNA FIFO CDC read returned ${responseBytes.size} byte(s).",
+            responseText = rawBytePreview(responseBytes),
+            rawResponseBytes = responseBytes,
+            bytesTransferred = responseBytes.size,
+            readPassCount = 1,
+            debugSummary = "commandPreview=${rawBytePreview(commandBytes)} expectedBytes=$expectedBytes gotBytes=${responseBytes.size}",
             lastReadSizeBytes = responseBytes.size
         )
     }
