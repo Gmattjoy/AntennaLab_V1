@@ -94,3 +94,9 @@ CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoeffici
 
 After completing any implementation phase, automatically stage and commit the change (code + any relevant control docs, e.g. ANTENNALAB_V1_* files) with a descriptive message. Do not wait for user confirmation to commit and do not present a "commit this" suggestion — just do it and move to the next step
 
+## Roadmap
+   Current testing/hardening plan and priorities: see TESTING_ROADMAP.md.
+   Work top-down; check off items as completed.
+
+## Roadmap
+Testing/hardening plan: see TESTING_ROADMAP.md. Work top-down, check off items as completed.
