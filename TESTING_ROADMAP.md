@@ -7,12 +7,13 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 181 tests, 0 failures. Controllers extracted so far:
+Current baseline: 203 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
-CalibrationWizardController. Also covered: InstrumentStatusUiMapper (was already
-extracted; per-field mappers made `internal` and tested).
+CalibrationWizardController, SweepUiModelBuilder. Also covered:
+InstrumentStatusUiMapper (was already extracted; per-field mappers made `internal`
+and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
 Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
@@ -53,10 +54,14 @@ High value:
       (SweepInstrumentUi.gaugeDisplayValue, SweepToolsWidgets.estimateBandwidthAtOrBelowSwrLocal,
       SweepWorkspaceController's private getDisplayValue) into the shared math.
       SweepGraphMathTest, 13 tests.
-- [ ] SweepWorkspaceViewModel buildUiModel path — run-contract decision engine
-      (buildSweepRunContract 741-817), failure-message classifier
-      (buildOperatorSweepFailureMessage), diagnostics/label/discovery formatting.
-      Extract a pure UiModel builder/controller so it's testable off the VM.
+- [x] SweepWorkspaceViewModel buildUiModel path — extracted the pure decision/
+      formatting logic into `SweepUiModelBuilder` (run-contract decision engine
+      buildSweepRunContract now takes sweepRunInProgress as a param; failure-message
+      classifier buildOperatorSweepFailureMessage; diagnostics/source-label/
+      selected-path/fallback/discovery formatting + formatAntennaClassificationLabel).
+      The VM delegates to it; side-effecting bits (resolveActiveFailureMessage,
+      instrument-session/status-card build, sweep execution) stay in the VM.
+      SweepUiModelBuilderTest, 22 tests.
 - [ ] Step1AntennaTypeScreen — recommendAntennaFamily engine + AntennaRecommendation
       model (706-796) + completeness/gating predicates (173-193). Extract a wizard
       recommendation controller/model.
@@ -130,4 +135,4 @@ ProjectStorageRoundTripTest pattern.
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
   bundled JDK before running gradlew.
 
-_Last updated 2026-07-31._
+_Last updated 2026-07-23._
