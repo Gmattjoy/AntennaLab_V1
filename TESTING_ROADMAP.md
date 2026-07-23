@@ -14,7 +14,8 @@ DeviceConnectionsController. Also covered: InstrumentStatusUiMapper (was already
 extracted; per-field mappers made `internal` and tested).
 
 ## Priority 1 — Finish the extract-and-test sweep
-Goal: no meaningful logic left buried in Compose files.
+Goal: no meaningful logic left buried in Compose files. (Main pass complete; audit
+found a straggler backlog — see Priority 1b.)
 - [x] DesignWorkspaceScreen — extract to pure controller + tests (DesignWorkspaceController, 8 tests)
 - [x] Storage / save-load screen (LoadProjectScreen) — extract to pure controller
       + tests (LoadProjectController, 7 tests)
@@ -26,8 +27,55 @@ Goal: no meaningful logic left buried in Compose files.
 - [x] InstrumentStatusUiMapper — covered (per-field mappers made `internal` and
       unit-tested; public entry points smoke-tested via Robolectric).
       InstrumentStatusUiMapperTest, 13 tests.
-- [ ] Verify all UI files are thin (delegate-only) after extraction — final audit
-      pass across features/ and project/ Compose screens.
+- [x] Verify all UI files are thin (delegate-only) after extraction — audit pass
+      done across all ~38 features/ + project/ Compose files (2026-07-27). Confirmed
+      thin: InstrumentDetailsScreen, HomeScreen, SystemMenuScreen, HomeIcons,
+      WizardCommon, AntennaGraphics, LabTestTemplates (already a pure model),
+      DesignWorkspaceCard, SweepTuningWidgets, Step4LiveDesignWorkspaceScreen
+      (delegates to CreateAntennaWizardController), and the already-extracted
+      controllers/models. The audit found remaining inline logic — tracked in
+      Priority 1b below rather than fixed in the audit pass.
+
+## Priority 1b — UI extraction backlog (from the 2026-07-27 audit)
+Remaining non-UI logic still inline in Compose files. Do one at a time (extract to
+a pure controller/model + tests), same pattern.
+
+High value:
+- [ ] CalibrationWizardScreen — no controller yet; capture state machine + session
+      orchestration inline (button onClick 153-215, captureStandardSweep,
+      findFirstIncompleteStepIndex, buildCapturedStepSession). Extract a
+      CalibrationWizardController. (OSL math already in OslCalibrationEngine.)
+- [ ] SweepGraphWidgets §17-18 (lines ~1496-1802) — pure axis-bounds / bandwidth /
+      cable-fault / display-value math sitting in a widget file (violates its own
+      header). Move into SweepGraphMath + tests.
+- [ ] SweepWorkspaceViewModel buildUiModel path — run-contract decision engine
+      (buildSweepRunContract 741-817), failure-message classifier
+      (buildOperatorSweepFailureMessage), diagnostics/label/discovery formatting.
+      Extract a pure UiModel builder/controller so it's testable off the VM.
+- [ ] Step1AntennaTypeScreen — recommendAntennaFamily engine + AntennaRecommendation
+      model (706-796) + completeness/gating predicates (173-193). Extract a wizard
+      recommendation controller/model.
+- [ ] AppRootScreen — delegate the duplicated buildWizardCalibrationSession to
+      ProjectWorkspaceController; extract applyStoredCalibrationToSharedSession
+      restore-policy + project factory builders (buildRfTestModeProject etc.) +
+      applyTemplateToProject/resolveAntennaType.
+
+Medium value:
+- [ ] Step2AntennaOverviewScreen — antennaOverviewFor mapping + AntennaOverview model.
+- [ ] LabHomeScreen — instrument-state → chip/summary mappings (110-159).
+- [ ] SweepInstrumentUi — gauge model (gaugeDisplayValue/gaugeSubtitle/scale).
+- [ ] SweepToolsWidgets — bandwidth calc, point-summary formatting, marker deltas.
+- [ ] SweepGraphScreen — sweep-range derivation (89-124), hardware display-name
+      mapping, StatusValueText keyword→status classifier.
+- [ ] ProjectPageScreen — remaining inline: sweep-return "what changed" message
+      decision (231-245), Save-As duplication/name-normalisation (165-176),
+      totalConductorLength sum, per-numeric sweep-history formatting.
+
+Cross-file duplication to fold in during the above:
+- getDisplayValue (SweepGraphWidgets) vs gaugeDisplayValue (SweepInstrumentUi) + the
+  inlined S21 formula.
+- estimateBandwidthAtOrBelowSwr (SweepGraphWidgets) vs ...Local (SweepToolsWidgets).
+- formatAntennaClassificationLabel (SweepGraphScreen vs SweepWorkspaceViewModel).
 
 ## Priority 2 — Pure domain-logic tests (fast, high value)
 Test the engines directly — no UI involved.
