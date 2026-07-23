@@ -174,6 +174,47 @@ class SweepGraphMathTest {
     }
 
     // ------------------------------------------------------------------
+    // SWR display-axis ceiling (SWR_DISPLAY_CEILING = 100). A few absurd
+    // near-total-reflection points must NOT blow the axis up to millions.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun swrAxis_valueUnderCapPassesThrough() {
+        // Below the ceiling: normal instrument rounding applies, clamp is inert.
+        val small = buildTraceAxisBounds(
+            SweepDisplayMode.SWR, TraceCompareMode.CURRENT_ONLY, listOf(1.2, 2.0, 4.3), emptyList(), emptyList()
+        )
+        assertEquals(1.0, small.minimum, tol)
+        assertEquals(5.0, small.maximum, tol) // roundUp(4.3) = 5.0
+
+        // Exactly on the ladder and still under the ceiling: passes through unchanged.
+        val onLadder = buildTraceAxisBounds(
+            SweepDisplayMode.SWR, TraceCompareMode.CURRENT_ONLY, listOf(3.0, 50.0), emptyList(), emptyList()
+        )
+        assertEquals(50.0, onLadder.maximum, tol)
+    }
+
+    @Test
+    fun swrAxis_valueOverCapClampsToCeiling() {
+        val b = buildTraceAxisBounds(
+            SweepDisplayMode.SWR, TraceCompareMode.CURRENT_ONLY,
+            listOf(1.3, 2.1, 20_000_000.0), emptyList(), emptyList()
+        )
+        assertEquals(1.0, b.minimum, tol)
+        assertEquals(100.0, b.maximum, tol) // capped, NOT ~20,000,000
+        assertTrue("SWR axis must not scale to the raw millions value", b.maximum <= 100.0)
+    }
+
+    @Test
+    fun swrAxis_allOverCapMaxesAtCeilingNotMillions() {
+        val b = buildTraceAxisBounds(
+            SweepDisplayMode.SWR, TraceCompareMode.CURRENT_ONLY,
+            listOf(500.0, 1000.0, 20_000_000.0), emptyList(), emptyList()
+        )
+        assertEquals(100.0, b.maximum, tol)
+    }
+
+    // ------------------------------------------------------------------
     // Labels, ticks, titles
     // ------------------------------------------------------------------
 

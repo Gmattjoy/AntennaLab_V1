@@ -354,6 +354,15 @@ internal data class TraceAxisBounds(
     val range: Double
 )
 
+/*
+Sane upper bound for the SWR display axis. A physical SWR is meaningful only up
+to a handful (a well-matched antenna is ~1–3); values far above this come from
+near-total reflection (open/short/disconnected) and are graphically useless.
+Capping the axis maximum here keeps real data readable. Display-only — never
+applied to raw sweep values.
+*/
+internal const val SWR_DISPLAY_CEILING = 100.0
+
 internal fun buildTraceAxisBounds(
     mode: SweepDisplayMode,
     traceCompareMode: TraceCompareMode,
@@ -388,8 +397,15 @@ internal fun buildTraceAxisBounds(
         else -> {
             when (mode) {
                 SweepDisplayMode.SWR -> {
+                    // Display-only clamp: near-total-reflection points can report
+                    // absurd SWR (e.g. millions). Cap the axis maximum at a sane
+                    // ceiling so a few blown-up samples can't crush all real data
+                    // flat. Raw sweep values are untouched — over-ceiling points
+                    // just render at the top of the axis (toCanvasY clamps to [0,1]).
+                    val observedMax = sourceValues.maxOrNull() ?: 2.0
+                    val cappedMax = min(observedMax, SWR_DISPLAY_CEILING)
                     val maxValue = roundUpForInstrumentScale(
-                        max(2.0, sourceValues.maxOrNull() ?: 2.0)
+                        max(2.0, cappedMax)
                     )
                     TraceAxisBounds(
                         minimum = 1.0,

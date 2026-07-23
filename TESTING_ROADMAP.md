@@ -7,7 +7,7 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 259 tests, 0 failures. Controllers extracted so far:
+Current baseline: 262 tests, 0 failures. Controllers extracted so far:
 SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
 DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
@@ -53,7 +53,10 @@ High value:
       source), widgets left as thin renderers. Also folded the three duplicate copies
       (SweepInstrumentUi.gaugeDisplayValue, SweepToolsWidgets.estimateBandwidthAtOrBelowSwrLocal,
       SweepWorkspaceController's private getDisplayValue) into the shared math.
-      SweepGraphMathTest, 13 tests.
+      SweepGraphMathTest, 16 tests. Bugfix (2026-07-23): the SWR display axis now
+      clamps its maximum at `SWR_DISPLAY_CEILING` (100) so absurd near-total-reflection
+      points (e.g. SWR ~20,000,000) can't blow the axis to millions and crush real
+      data; display-only, raw sweep values untouched.
 - [x] SweepWorkspaceViewModel buildUiModel path — extracted the pure decision/
       formatting logic into `SweepUiModelBuilder` (run-contract decision engine
       buildSweepRunContract now takes sweepRunInProgress as a param; failure-message
