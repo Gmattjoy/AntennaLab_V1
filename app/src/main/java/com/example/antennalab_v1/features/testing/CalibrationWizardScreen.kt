@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -32,6 +33,9 @@ import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.model.testing.CalibrationStep
 import com.example.antennalab_v1.model.testing.SweepResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +88,16 @@ fun CalibrationWizardScreen(
     // Debug-only: synthesize O/S/L captures through a known error network so the
     // wizard and OSL math can be exercised with no VNA connected.
     var debugSimulateCapture by remember { mutableStateOf(false) }
+
+    // The real capture runs a blocking USB serial sweep; it must NOT run on the
+    // main thread (doing so ANRs — the click handler blocked on the serial read).
+    // We launch on a composition-scoped coroutine and hop to Dispatchers.IO for the
+    // blocking part, then apply state updates back on the main thread.
+    val captureScope = rememberCoroutineScope()
+    // Re-entrancy guard: disables the button AND blocks a second launch so a
+    // double-tap / recomposition can't fire two concurrent sweeps into the same
+    // serial channel.
+    var isCapturing by remember { mutableStateOf(false) }
 
     val currentStep = steps[currentStepIndex]
     val currentInstrumentState = UsbSessionManager.getLatestInstrumentSessionState()
@@ -140,51 +154,80 @@ fun CalibrationWizardScreen(
 
             Button(
                 onClick = {
-                    val capturedSweep = captureStandardSweep(
-                        step = currentStep,
-                        startMHz = workingSession.startFrequencyMHz,
-                        endMHz = workingSession.endFrequencyMHz,
-                        useSimulatedCapture = debugSimulateCapture
-                    )
+                    // Guard at the launch (not just via the disabled button) so a
+                    // double-tap or recomposition can't start two concurrent sweeps.
+                    if (isCapturing) return@Button
+                    isCapturing = true
 
-                    if (capturedSweep != null) {
-                        // Pure state machine decides the new session/standards/step;
-                        // this Composable performs the side effects below.
-                        val result = CalibrationWizardController.applyCapturedStandard(
-                            currentSession = workingSession,
-                            capturedStandards = capturedStandards,
-                            currentStep = currentStep,
-                            capturedSweep = capturedSweep,
-                            selectedHardwareName = currentInstrumentState?.selectedHardwareName ?: workingSession.hardwareDisplayName,
-                            protocolFamily = currentInstrumentState?.protocolFamily,
-                            instrumentIdentityText = currentInstrumentState?.instrumentIdentityText,
-                            captureTimeMs = System.currentTimeMillis()
-                        )
+                    // Snapshot the inputs the blocking capture needs before hopping
+                    // threads; the state reads below run back on the main thread.
+                    val step = currentStep
+                    val startMHz = workingSession.startFrequencyMHz
+                    val endMHz = workingSession.endFrequencyMHz
+                    val simulate = debugSimulateCapture
 
-                        capturedStandards = result.updatedCapturedStandards
-                        workingSession = result.updatedSession
-                        onSessionChange(result.updatedSession)
-                        // Debug-simulated captures have no live session; register
-                        // them through the debug path so they are treated as usable
-                        // (this runs after onSessionChange's registration and wins).
-                        if (debugSimulateCapture) {
-                            UsbSessionManager.registerSimulatedCalibrationSession(result.updatedSession)
-                        } else {
-                            UsbSessionManager.registerCalibrationSession(result.updatedSession)
-                        }
+                    captureScope.launch {
+                        try {
+                            val capturedSweep = withContext(Dispatchers.IO) {
+                                // Blocking USB serial sweep → IO pool. (The sweep-
+                                // workspace path uses Dispatchers.Default; IO is the
+                                // correct pool here for the blocking serial read.)
+                                captureStandardSweep(
+                                    step = step,
+                                    startMHz = startMHz,
+                                    endMHz = endMHz,
+                                    useSimulatedCapture = simulate
+                                )
+                            }
 
-                        currentStepIndex = result.nextStepIndex
+                            // Resumes on the main thread (rememberCoroutineScope uses
+                            // the UI dispatcher), so all state updates below are safe.
+                            if (capturedSweep != null) {
+                                // Pure state machine decides the new session/standards/step;
+                                // this Composable performs the side effects below.
+                                val result = CalibrationWizardController.applyCapturedStandard(
+                                    currentSession = workingSession,
+                                    capturedStandards = capturedStandards,
+                                    currentStep = step,
+                                    capturedSweep = capturedSweep,
+                                    selectedHardwareName = currentInstrumentState?.selectedHardwareName ?: workingSession.hardwareDisplayName,
+                                    protocolFamily = currentInstrumentState?.protocolFamily,
+                                    instrumentIdentityText = currentInstrumentState?.instrumentIdentityText,
+                                    captureTimeMs = System.currentTimeMillis()
+                                )
 
-                        if (result.isComplete) {
-                            onFinish()
+                                capturedStandards = result.updatedCapturedStandards
+                                workingSession = result.updatedSession
+                                onSessionChange(result.updatedSession)
+                                // Debug-simulated captures have no live session; register
+                                // them through the debug path so they are treated as usable
+                                // (this runs after onSessionChange's registration and wins).
+                                if (simulate) {
+                                    UsbSessionManager.registerSimulatedCalibrationSession(result.updatedSession)
+                                } else {
+                                    UsbSessionManager.registerCalibrationSession(result.updatedSession)
+                                }
+
+                                currentStepIndex = result.nextStepIndex
+
+                                if (result.isComplete) {
+                                    onFinish()
+                                }
+                            }
+                        } finally {
+                            // Always reset, so a thrown capture/apply can't leave the
+                            // button permanently disabled (wizard soft-lock).
+                            isCapturing = false
                         }
                     }
                 },
-                enabled = canCapture,
+                enabled = canCapture && !isCapturing,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (currentStep == CalibrationStep.LOAD) {
+                    if (isCapturing) {
+                        "Capturing ${currentStep.name}…"
+                    } else if (currentStep == CalibrationStep.LOAD) {
                         "Capture LOAD and Finish"
                     } else {
                         "Capture ${currentStep.name} and Continue"
