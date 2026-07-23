@@ -76,8 +76,10 @@ CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoeffici
   passes the simulated sweep through that error network so correction can be verified
   end-to-end. Unit tests: `OslCalibrationEngineTest`, `CalibrationCorrectorTest`.
 - **Philosophy**: flag, don't reject — an uncalibrated (or partial) sweep still runs
-  and is flagged, never discarded. Real NanoVNA-H4 / LiteVNA64 hardware validation is
-  still pending (verified so far by unit tests + the simulated debug path).
+  and is flagged, never discarded.
+- **Hardware validation**: OSL ran against a real **LiteVNA64 at 14.2 MHz and PASSED**
+  (correction applied, state VALID, readiness "Live Ready"). Still unverified: OSL at
+  145 MHz, and NanoVNA-H4 entirely. See `claude/hardware-bringup-litevna64.md`.
 
 ## Conventions
 - Respect layer boundaries strictly — no calc logic in `features/`, no UI/Android refs in `model/`
@@ -88,7 +90,8 @@ CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoeffici
 ## Known gaps / to verify
 - USB host support IS now declared: `<uses-feature android:name="android.hardware.usb.host" android:required="false">` + a `USB_DEVICE_ATTACHED` intent filter on `MainActivity`, filtered by `res/xml/device_filter.xml`. The filter currently matches VID `0x0483`/PID `0x5740` (ST CDC — NanoVNA-H4 / LiteVNA64); verify against real hardware and widen if a unit reports different IDs.
 - Test coverage is still thin: OSL calibration math + `ProjectStorage` save/load serialization are covered, but most of the app (UI, sweep pipeline, wizard flow) has none. Robolectric is now available to cover Context-dependent code.
-- OSL calibration is verified by unit tests + the simulated debug path only — not yet against real NanoVNA-H4 / LiteVNA64 hardware.
+- OSL calibration IS verified against real LiteVNA64 hardware (14.2 MHz pass). Still unverified: OSL at 145 MHz; NanoVNA-H4 entirely; `device_filter.xml` VID/PID against real units. Bench procedure + results log: `claude/hardware-bringup-litevna64.md`.
+- **Capability profile follows the STALE project profile, not the live instrument** (next code task). `ProjectData.hardwareCapabilityProfile` derives from `testHardwareProfile` (defaults `NANOVNA_H4`), so `SweepGraphScreen` clamps frequency and gates features (Smith/S21/TDR/markers/CSV/support tier) as if a connected LiteVNA were a NanoVNA. Same class as the fixed sweep-width bug, broader. See bring-up doc §7.1.
 - **LiteVNA64 v0.3.3 cannot be forced to a host-set point count (KNOWN LIMITATION).**
   The USB `sweepPoints` register (0x20) is accepted/read-back correctly but the device
   keeps free-running its native ~201-point sweep (confirmed against DiSlord firmware:

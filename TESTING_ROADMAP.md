@@ -17,13 +17,22 @@ covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
 
 ### ▶ Next up (2026-07-24)
 The LiteVNA hardware/sweep-pipeline saga is closed (Finding #8 + parts; interim
-shipped, force-101-on-v0.3.3 logged as a known limitation). Next focus:
-**Priority 3 — Save/load reliability** — it's the roadmap's flagged *highest
-real-world risk* (losing a user's project), is fully open, and is pure/JVM-testable
-by extending the existing `ProjectStorageRoundTripTest` pattern (no device needed).
-Quick-win alternative if a short task is wanted: **Priority 2 — CalculationEngine**
-(pure domain correctness tests across antenna types / frequency ranges). Then return
-to the Priority 1b medium-value UI extractions (Step2AntennaOverviewScreen, LabHomeScreen,
+shipped, force-101-on-v0.3.3 logged as a known limitation), and the device-in-loop
+bring-up procedure is now written up in `claude/hardware-bringup-litevna64.md`.
+
+**Next code task: the stale capability profile** (bring-up doc §7.1). Same class of
+defect as the already-fixed sweep-width bug but broader:
+`ProjectData.hardwareCapabilityProfile` derives from `testHardwareProfile`, which
+defaults to `NANOVNA_H4`, so `SweepGraphScreen` clamps frequency and gates features
+(Smith / S21 / TDR / markers / CSV / support tier) as if a validated, connected
+LiteVNA were a NanoVNA. Fix by resolving the capability profile from the live
+selected instrument, falling back to the project profile only when nothing is live.
+
+Then: **Priority 3 — Save/load reliability** (the roadmap's flagged *highest
+real-world risk* — losing a user's project; fully open, pure/JVM-testable by
+extending `ProjectStorageRoundTripTest`, no device needed). Quick-win alternative if
+a short task is wanted: **Priority 2 — CalculationEngine**. Then return to the
+Priority 1b medium-value UI extractions (Step2AntennaOverviewScreen, LabHomeScreen,
 SweepInstrumentUi, SweepToolsWidgets, SweepGraphScreen, ProjectPageScreen).
 
 ## Priority 1 — Finish the extract-and-test sweep
@@ -151,8 +160,12 @@ ProjectStorageRoundTripTest pattern.
 
 ## Priority 4 — Calibration & hardware reliability
 - [ ] Calibration workflow end-to-end (beyond session logic already covered)
-- [ ] USB/VNA driver reliability — NanoVNA-H4, LiteVNA64 (needs device-in-loop;
-      not pure unit-testable — plan a manual/instrumented test checklist)
+- [~] USB/VNA driver reliability — NanoVNA-H4, LiteVNA64 (needs device-in-loop;
+      not pure unit-testable). **Checklist written:
+      `claude/hardware-bringup-litevna64.md`** — stage-by-stage bring-up procedure,
+      logcat verification, pass criteria, the logcat→JVM-fixture capture recipe, the
+      four bugs found+fixed on real hardware, open findings, and a results log.
+      LiteVNA64 side is executable now; NanoVNA-H4 still needs a unit on the bench.
 - [x] LiteVNA incomplete-sweep bug (Finding #8): a live 101-point sweep returned
       only ~20 points. Cause: the FIFO read was pass-count-driven — maxReadPasses(10)
       × packetSize(64) ÷ 32 capped each read at 20 records, plus readRawBytes bailed
