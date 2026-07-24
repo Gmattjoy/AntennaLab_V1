@@ -411,7 +411,57 @@ dedicated (much shorter) budget rather than the full distinct-collection budget.
 
 ---
 
-## 9. NanoVNA-H4 — UNVERIFIED
+## 9b. NanoVNA-H4 bring-up, 2026-07-24 — BLOCKED by a protocol/transport confusion
+
+First time this path has ever met hardware. It enumerates, auto-launches, gets permission
+and opens a session — then cannot reach a live sweep at all.
+
+**Confirmed working:**
+- **VID/PID `0x0483`/`0x5740`** (`nanovna.com` / `NanoVNA-H4`, version 2.00) — **exactly what
+  `device_filter.xml:14` declares.** The entry was written for the H4 and is correct; the
+  file's comment was wrong only about the LiteVNA (§10).
+- **`USB_DEVICE_ATTACHED` auto-launch fired** (13:37:20.994) — the first time that path has
+  ever run. The LiteVNA cannot do this, and this asymmetry explains the whole permission
+  difference: the H4 can also persist its grant via the "use by default" checkbox.
+- Profile selection, permission, session open, transport ready — all correct
+  (`supportTier='STABLE'`, `validation='Not Required'`, both right for a non-LiteVNA profile).
+
+**BLOCKER — `queryAnalyzerIdentity` branches on TRANSPORT, not PROTOCOL.**
+`UsbVnaCommandChannel.kt:777-880`:
+
+```kotlin
+if (isUsingCdcSerialTransport()) {
+    runLiteVnaCdcHandshakeTest()               // LiteVNA V2 binary handshake
+    readLiteVnaRegisterByteForBringUp(0xF0)    // LiteVNA register read
+    …                                           // returns unconditionally
+}
+val commands = listOf("version", "info", "v")  // ASCII shell path — line 841
+```
+
+The H4 is a **CDC** device (`class=2`, CDC-control + CDC-data), so it takes the CDC branch
+and is interrogated with LiteVNA V2 binary registers it does not implement. Identity fails →
+`UsbVnaDriverRegistry.resolveDriver` never runs (it is gated on `identityResult.success`) →
+`discoverySnapshot` is null → `supportTier` falls back to `chosenProfile.supportTier.name` =
+`"STABLE"` → `canExecuteRealSweep()` false (it demands `FULL_SUPPORT`) → `dataSource=SIMULATED`.
+
+Observed exactly: `conn='Session Open' transport='Ready' supportTier='STABLE'
+dataSource=SIMULATED path='Simulated' effective=NANOVNA_H4` (13:41:07.611).
+
+**The ASCII identity path is correct but unreachable for any CDC device — i.e. for both
+VNAs.** The branch uses transport as a proxy for protocol when
+`selectedDriverProfile.protocolType` (`LITE_VNA_V2_STYLE` vs `NANO_SHELL`) is what actually
+determines the wire format. Fix: route on `protocolType`; the ASCII branch already exists.
+
+**Consequence: "does the H4 honour `sweepPoints=101`?" is UNANSWERABLE on this build.** The
+H4 cannot run a live sweep, so Finding #10 is neither confirmed nor reopened by it and
+remains LiteVNA-specific on its existing evidence (register read-back `0x65` correct while
+`freqIndex` scattered 0..200, plus DiSlord firmware behaviour). Retest after the identity fix.
+
+Note this is a *fourth* variant of §10c.8's pattern, and a new shape: not a missing writer or
+an unread flag, but **a shared abstraction with a device-specific implementation hidden
+behind a generic name**. `queryAnalyzerIdentity` reads as protocol-neutral and is not.
+
+## 9. NanoVNA-H4 — original section (now superseded by §9b)
 
 Same skeleton (enumerate → identity → configured sweep) via
 `domain/testing/NanoVnaSweepProtocol.kt`. It has **never been run against real hardware**;
