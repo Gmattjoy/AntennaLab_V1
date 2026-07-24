@@ -17,13 +17,17 @@ source, the source wins — fix this doc.**
 
 ## 1. Preconditions
 
-1. **Attach the VNA, then: Grant Permission → Refresh → Connect, in that order.**
-   `device_filter.xml` does **not** match this LiteVNA64 (§10), so plugging in never
-   auto-launches the app and there is **no Connect button until permission is granted**
-   (`showConnect = permissionGranted && !sessionOpen`). A screen stuck at
-   `PERMISSION_REQUIRED` with only "Grant Permission" is the expected pre-grant state, not
-   a fault. The filter mismatch does not block enumeration or use — only auto-launch and
-   grant persistence.
+1. **Attach the VNA, then: Grant Permission → Refresh → Connect.**
+   `device_filter.xml` now declares the LiteVNA's real `0x04B4/0x0008` (added 2026-07-24),
+   so on a **fresh install** the first attach should auto-launch the app and offer the
+   "use by default for this device" checkbox — tick it and the permission grant persists
+   across replugs. **VERIFY THIS ON THE NEXT BENCH DAY:** it changes the connect flow the
+   only working path was verified against. If it works, Grant Permission stops being
+   mandatory every session and this step reduces to Refresh → Connect. Until verified,
+   assume the old flow (Grant Permission → Refresh → Connect) still applies, and note that
+   a screen at `PERMISSION_REQUIRED` with only "Grant Permission"
+   (`showConnect = permissionGranted && !sessionOpen`) is a valid pre-grant state, not a
+   fault. The filter never blocks enumeration or use — only auto-launch and grant persistence.
 2. Debug build installed (release strips the logcat diagnostics).
 3. Driver profile selected = a LiteVNA-style profile
    (`DriverProtocolType.LITE_VNA_V2_STYLE`; `DeviceConnectionsController.isLiteProfile:67`
@@ -515,8 +519,15 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
       This cost real bench time on 2026-07-24: the operator looked for a Connect button that
       cannot appear pre-grant, and three A0 runs were reported that could not have happened
       (no session → no bring-up → zero `LiteVnaFifo` output → `CalRestore` logging
-      `effective=NANOVNA_H4`). **Bench procedure: after attaching the VNA, always
-      Grant Permission → Refresh → Connect, in that order.**
+      `effective=NANOVNA_H4`).
+
+      **RESOLVED IN CODE 2026-07-24 (behaviour change, hardware-unverified):** the real
+      LiteVNA pair `0x04B4/0x0008` was added to `device_filter.xml` in its own commit, so the
+      LiteVNA should now auto-launch and be able to persist its grant like the H4 does. Two
+      caveats carried into the XML: (a) `0x04B4/0x0008` is a **generic Cypress** pair, so with
+      unfiltered `deviceList.first()` enumeration it raises the odds of grabbing an unrelated
+      Cypress device — attach the VNA alone; (b) the persistence behaviour is **unverified** —
+      confirm on the next bench day and, if it holds, simplify §1 to Refresh → Connect.
 
 - [ ] **NanoVNA-H4 VID/PID** — still unmeasured. **Read it with
       `adb shell dumpsys usb`** (`host_manager.devices`), which needs no root and also

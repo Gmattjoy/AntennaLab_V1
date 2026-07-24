@@ -17,4 +17,18 @@
 <resources>
     <!-- NanoVNA-H4: STMicro USB CDC (measured 0x0483/0x5740, 2026-07-24) -->
     <usb-device vendor-id="1155" product-id="22336" />
+
+    <!--
+      LiteVNA64: Cypress CDC, measured 0x04B4/0x0008 on 2026-07-24.
+
+      BEHAVIOUR CHANGE: adding this makes the app auto-launch on LiteVNA attach and
+      persist its USB permission grant (the "use by default" checkbox), which the
+      runtime-permission path alone cannot do. Bench §1 procedure updated accordingly.
+
+      CAUTION: 0x04B4/0x0008 is a GENERIC Cypress VID/PID, not LiteVNA-specific. Because
+      UsbSessionManager enumerates usbManager.deviceList unfiltered and takes
+      deviceList.first(), declaring this pair raises the chance of the app auto-launching
+      on (or selecting) an unrelated Cypress device sharing the bus. Attach the VNA alone.
+    -->
+    <usb-device vendor-id="1204" product-id="8" />
 </resources>
