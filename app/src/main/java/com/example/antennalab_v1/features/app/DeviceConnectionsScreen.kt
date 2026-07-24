@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,7 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.DriverProfileRegistry
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.UsbPermissionManager
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.model.DriverProfile
@@ -155,6 +158,30 @@ fun DeviceConnectionsScreen(
 
     val calibrationStateLabel =
         DeviceConnectionsController.calibrationStateLabel(instrumentState?.calibrationState?.readiness)
+
+    // DEBUG: one greppable line per state change (`adb logcat -s BenchState`) so bench
+    // verdicts are read from the log instead of transcribed off the tablet. Keyed
+    // LaunchedEffect → fires once per DISTINCT line, never on mere recomposition.
+    // resolveForProject(null) gives the LIVE-derived hardware, independent of any project:
+    // if that reads LITEVNA64_V0_3_3 then any project resolves to LiteVNA via tier 1/2,
+    // which is exactly A1's precondition.
+    val benchInstrumentLine = BenchStateLog.buildInstrumentLine(
+        state = instrumentState,
+        card = statusCardModel,
+        validationLabel = buildValidationLabel(
+            isLiteProfile = isLiteProfile,
+            liveInstrumentReady = liveInstrumentReady,
+            liteValidationRunning = liteValidationRunning,
+            liteIdentityConfirmed = liteIdentityConfirmed,
+            liteRegisterConfirmed = liteRegisterConfirmed,
+            liteTimedOut = liteTimedOut
+        ),
+        effectiveHardware = EffectiveHardwareResolver.resolveForProject(null)
+    )
+
+    LaunchedEffect(benchInstrumentLine) {
+        if (BuildConfig.DEBUG) android.util.Log.i("BenchState", benchInstrumentLine)
+    }
 
     val showRequestPermission = DeviceConnectionsController.showRequestPermission(connectionState)
     val showConnect = DeviceConnectionsController.showConnect(permissionGranted, sessionOpen)

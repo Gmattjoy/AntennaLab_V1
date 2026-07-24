@@ -17,11 +17,13 @@ source, the source wins — fix this doc.**
 
 ## 1. Preconditions
 
-1. `res/xml/device_filter.xml` must match the unit's VID/PID — currently `0x0483`/`0x5740`
-   (ST CDC). If Android never offers the device or never prompts for permission, check
-   this **first**: a mismatched filter means the OS never routes the device to the app.
-   `<uses-feature android:name="android.hardware.usb.host">` + the
-   `USB_DEVICE_ATTACHED` filter on `MainActivity` are already declared.
+1. **Attach the VNA, then: Grant Permission → Refresh → Connect, in that order.**
+   `device_filter.xml` does **not** match this LiteVNA64 (§10), so plugging in never
+   auto-launches the app and there is **no Connect button until permission is granted**
+   (`showConnect = permissionGranted && !sessionOpen`). A screen stuck at
+   `PERMISSION_REQUIRED` with only "Grant Permission" is the expected pre-grant state, not
+   a fault. The filter mismatch does not block enumeration or use — only auto-launch and
+   grant persistence.
 2. Debug build installed (release strips the logcat diagnostics).
 3. Driver profile selected = a LiteVNA-style profile
    (`DriverProtocolType.LITE_VNA_V2_STYLE`; `DeviceConnectionsController.isLiteProfile:67`
@@ -268,7 +270,64 @@ contract key on transport readiness (as `SweepController.shouldUseRealSweepSourc
 already does) with validation affecting *trust* rather than *permission* —
 flag-don't-reject, as the rest of the app does.
 
-### 7.3 Lower priority
+### 7.3 TWO capability layers gave opposite answers about TDR — **RECONCILED 2026-07-24**
+
+Same disease as Finding #7: **more than one source of truth for hardware capability.** Here
+the two layers contradicted each other, and the UI happened to consult the one saying "no".
+
+| Layer | Value | Consumers |
+|---|---|---|
+| `HardwareCapabilityProfile.supportsTdrPreview` | **`true`** for both profiles (`ProjectData.kt:598`, `:621`) | **NONE.** Its only accessor `supportsTdrPreviewOrDefault` (`ProjectData.kt:133-134`) has **zero call sites** — dead capability data. |
+| `HardwareMeasurementCapabilities.supportsTDR` | **`false`** — `VNA_STANDARD` never set it (`HardwareMeasurementCapabilities.kt:67-79`) | The real ones: `SweepGraphMath.kt:652` (guard) and `SweepGraphWidgets.kt:569` (whether the row renders) |
+
+Net effect: `buildCableFaultPreview` always returned **"TDR preview not supported by this
+hardware."** on *every* device, so the velocity-factor fix (0.66 → 0.82) was correct and
+unit-tested but had **no reachable UI surface**. That is what blocked A1.
+
+**Resolved by setting `supportsTDR = true` in `VNA_STANDARD`** — recorded as reconciling a
+contradiction, not as enabling a feature. `true` is correct on the merits: the preview is
+derived from S11, which both one-port devices produce.
+
+**Still open:** `supportsTdrPreview` remains dead data. Either wire it to the consumers or
+delete it — leaving a populated, authoritative-looking flag that nothing reads is how this
+contradiction survived unnoticed. Worth an audit of the other paired flags across the two
+models for the same pattern.
+
+### 7.3b Original finding (kept for the trace)
+
+`buildCableFaultPreview` (`SweepGraphMath.kt:652-654`) returns
+**"TDR preview not supported by this hardware."** unless `measurementCapabilities.supportsTDR`
+is true. But `HardwareCapabilityProfiles.VNA_STANDARD`
+(`HardwareMeasurementCapabilities.kt:67-79`) **never sets `supportsTDR`**, so it defaults to
+`false` — and *both* `TestHardwareProfile` values map to `VNA_STANDARD` via
+`toHardwareMeasurementCapabilities()`.
+
+**So no device can ever display a cable-fault distance**, and the velocity-factor fix
+(0.66 → 0.82) is correct in code and unit-tested but has no reachable UI surface.
+
+Note the two-model inconsistency that hid this: `HardwareCapabilityProfile.supportsTdrPreview`
+is **`true`** for both profiles (`ProjectData.kt:598`, `:621`), while
+`HardwareMeasurementCapabilities.supportsTDR` is **`false`**. One capability model says the
+feature is supported and the other says it isn't. This is exactly the divergence §7.1 #5
+predicted would eventually bite.
+
+Fix is one line — add `supportsTDR = true` to `VNA_STANDARD` — but it is a real behaviour
+change (it makes the preview appear) and needs a rebuild, so it is a decision, not a
+drive-by.
+
+### 7.4 Measurement trust never reaches TRUSTED on a LiteVNA (expected, documented)
+
+Bench-relevant so it isn't misread as a fault. `applyCalibrationTrustAdjustment:1202-1225`:
+with session open and transport ready, a `VALID` calibration returns **base** trust
+unchanged; every other readiness (`NOT_STARTED`/`IN_PROGRESS`/`STALE`/`INVALID`) maps
+`PARTIAL`→`DEGRADED`. Base trust for a validated LiteVNA is `PARTIAL`
+(`litePartialSupportAvailable`, `:1019`).
+
+Therefore the expected progression is **Degraded → Partial** once OSL completes.
+`TRUSTED` is unreachable on this path. A2's pass signal is "Partial", **not** "Validated";
+trust remaining `Degraded` after a `VALID` calibration *would* be a defect.
+
+### 7.5 Lower priority
 
 - **Fixed ±0.5 MHz span can't characterize a broadband or unknown antenna.** Needs a
   wide / user-settable scan span. Blocks the roadmap's "unknown-antenna discovery mode".
@@ -360,8 +419,45 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 
 - [ ] **OSL calibration at 145 MHz** (14.2 MHz passed — see §6)
 - [ ] **NanoVNA-H4, entirely** (§9)
-- [ ] **`device_filter.xml` VID/PID against real units** — currently `0x0483`/`0x5740`;
-      widen if a unit reports different IDs
+- [x] **`device_filter.xml` VID/PID against real units — ANSWERED 2026-07-24, and the
+      declared IDs are WRONG for the LiteVNA64.** The real unit reports:
+
+      ```
+      manufacturer_name=ZeenKo.tech   product_name=LiteVNA6
+      vendor_id=1204 (0x04B4, Cypress)   product_id=8 (0x0008)
+      class=2 (CDC) → if0 CDC-control (2/2/1), if1 CDC-data (10), bulk max_packet_size=64
+      ```
+
+      `device_filter.xml:14` declares `1155`/`22336` = `0x0483`/`0x5740` (STMicro), and the
+      file's comment asserting both VNAs enumerate as ST CDC is incorrect — at least for
+      this LiteVNA64. It does **not** block enumeration or use — `UsbSessionManager.kt:582`
+      and `UsbPermissionManager.kt:65` read `usbManager.deviceList` unfiltered. Fix by
+      adding a `0x04B4`/`0x0008` entry (keep the ST entry until the H4 is measured).
+
+      **It DOES change operator procedure every session (confirmed on the bench).**
+      Android grants USB permission two ways: (1) the **attach-intent route** — a device
+      matching `device_filter.xml` fires `USB_DEVICE_ATTACHED`, the app is launched with the
+      `UsbDevice` in the intent and is implicitly permitted, and this is the only route that
+      offers the *"use by default for this USB device"* checkbox; (2) the **runtime route**,
+      `UsbManager.requestPermission()`. With the filter not matching, route 1 never fires, so:
+
+      - plugging in never auto-launches the app;
+      - **"Grant Permission" is the mandatory first step of every session** — the screen sits
+        at `PERMISSION_REQUIRED` with *no* Connect button until it is tapped
+        (`showConnect = permissionGranted && !sessionOpen`, `DeviceConnectionsController:154`);
+      - because the persistence checkbox only exists on route 1, the grant is not reliably
+        durable across a replug/re-enumeration — every physical reconnect starts over.
+
+      This cost real bench time on 2026-07-24: the operator looked for a Connect button that
+      cannot appear pre-grant, and three A0 runs were reported that could not have happened
+      (no session → no bring-up → zero `LiteVnaFifo` output → `CalRestore` logging
+      `effective=NANOVNA_H4`). **Bench procedure: after attaching the VNA, always
+      Grant Permission → Refresh → Connect, in that order.**
+
+- [ ] **NanoVNA-H4 VID/PID** — still unmeasured. **Read it with
+      `adb shell dumpsys usb`** (`host_manager.devices`), which needs no root and also
+      reports manufacturer/product names. Do **not** use the `/sys/bus/usb/devices/*/idVendor`
+      route — those reads are permission-denied without root on this tablet.
 
 ## 11. Results log
 
@@ -369,4 +465,6 @@ Fill in per bench run.
 
 | Date | FW | Stage reached | Label | `0xF0` | Points read-back | Distinct / requested | Elapsed | Parse path | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1 — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 deferred until the timeout is fixed. |
+| 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1, pre-fix — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 skipped on this build: the code trace was decisive and re-measuring an expired join buys nothing. |
+| 2026-07-24 | v1.4.06 | `SWEEP_PROBE_OK` | **Passed** | `0x02` | `0x08` (8-pt probe) | 8/8 records (`distinctInRange=2/8`) | probe **2.03 s**; <15 s total | `SEQUENTIAL_FALLBACK` | **A0 PASS on both gates — build `e479d5d`, §8 fix VERIFIED.** Status "LIVE READY", Data Source `REAL_INSTRUMENT`, and the sweep screen offered **"Run Live Sweep"** enabled — the actual unblock. Mechanism confirmed: `probeReconstruct stop=records-satisfied rawRecords=8/8 budgetMs=2500 attempts=4`. Collection took **1.084 s** (`attempt=1` 11:51:21.372 → `probeReconstruct` 11:51:22.456). **Diagnosis proven by `distinctInRange=2/8`**: after 4 reads only indices 0,1 of the needed 0..7 had arrived (`freqSeq=[0,1,122,123,48,49,173,174]`, `max=174` — the §5 free-run scatter), so the old all-distinct rule would have burned its full 7.2 s and still not completed. ~6.1 s saved per bring-up. `LITEVNA_PROBE_MIN_RECORDS=8` validated in situ: `parsePath=SEQUENTIAL_FALLBACK` with `validPoints=8` — the probe passes *because* 8 records is exactly what the fallback needs. Elapsed later measured via the `BenchState` line on a second run: session-open + `validation='Running'` 12:25:05.854 → `validation='Passed'` 12:25:11.126 = **5.27 s** (slight over-count — the session opens just before that render), vs 15.2 s pre-fix. Trust `Degraded` — expected, calibration `NOT_STARTED` (see §7.4). |
+| 2026-07-24 | — | — | — | — | — | — | — | — | *False start, kept as a process note.* An earlier A0 pass was reported that the device log contradicted — zero `LiteVnaFifo` lines across two app launches and `CalRestore` reporting `effective=NANOVNA_H4`, which the resolver only returns when no LiteVNA session is open. **Cause: the screen was at `PERMISSION_REQUIRED`, so no Connect button existed and no session was ever opened** (see §1 and §10 — a consequence of the VID/PID mismatch). Cost ~35 min. Lesson applied: verdicts are read from logcat, not reported from the UI. |

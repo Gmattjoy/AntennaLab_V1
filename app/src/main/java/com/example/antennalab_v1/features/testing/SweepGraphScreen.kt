@@ -37,6 +37,7 @@ import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
+import com.example.antennalab_v1.features.app.BenchStateLog
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DriverProfile
@@ -193,6 +194,25 @@ fun SweepGraphScreen(
     val markerBPoint = uiModel.markerBPoint
     val sweepRunContract = uiModel.sweepRunContract
     val discoveryUi = uiModel.discoveryUi
+
+    // DEBUG: `adb logcat -s BenchState`. runButton/enabled is the real unblock signal —
+    // "Run Live Sweep" enabled means the run contract resolved a live path, which
+    // "Run Demo Sweep"/"Run Sweep Locked" does not. `effective` is the same resolved
+    // hardware that drives the TDR velocity factor and the frequency clamp above.
+    val benchSweepLine = BenchStateLog.buildSweepLine(
+        runButtonText = sweepRunContract.runButtonText,
+        runEnabled = sweepRunContract.runEnabled,
+        runUsesRealInstrument = sweepRunContract.runUsesRealInstrument,
+        runUsesSimulation = sweepRunContract.runUsesSimulation,
+        calibrationStateLabel = sweepRunContract.calibrationStateLabel,
+        trustDowngraded = sweepRunContract.trustDowngraded,
+        blockReason = sweepRunContract.blockReason,
+        effectiveHardware = hardware
+    )
+
+    LaunchedEffect(benchSweepLine) {
+        if (BuildConfig.DEBUG) android.util.Log.i("BenchState", benchSweepLine)
+    }
 
     val activeSweepFailureText =
         if (uiModel.shouldSuppressStaleOperatorWarning) {

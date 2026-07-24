@@ -75,6 +75,20 @@ object HardwareCapabilityProfiles {
         supportsImpedanceLocus = true,
         supportsReturnLoss = true,
         supportsSWR = true,
+        // RECONCILING A CONTRADICTION, not enabling a new feature. Two capability
+        // layers described the same feature oppositely:
+        //   HardwareCapabilityProfile.supportsTdrPreview = TRUE for both profiles
+        //     (ProjectData.kt:598, :621) — but its only accessor,
+        //     supportsTdrPreviewOrDefault (:133), has ZERO call sites: dead data.
+        //   HardwareMeasurementCapabilities.supportsTDR = omitted here, so FALSE —
+        //     and this is the one actually consumed (SweepGraphMath.kt:652 guard,
+        //     SweepGraphWidgets.kt:569 render).
+        // Net effect: no device could ever show a cable-fault distance, so the TDR
+        // velocity-factor fix had no reachable UI surface. TRUE is correct on the
+        // merits — the preview is derived from S11, which both one-port devices
+        // produce. Same disease as Finding #7: more than one source of truth for
+        // hardware capability.
+        supportsTDR = true,
         supportsPhaseAnalysis = true
     )
 }
