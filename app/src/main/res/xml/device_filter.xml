@@ -2,14 +2,19 @@
 <!--
     Supported VNA hardware for USB_DEVICE_ATTACHED auto-launch.
 
-    NanoVNA-H4 and LiteVNA64 both enumerate as the STMicroelectronics USB
-    CDC virtual COM port: VID 0x0483 (1155) / PID 0x5740 (22336).
+    MEASURED on real hardware 2026-07-24 (the previous comment claiming BOTH VNAs
+    enumerate as ST CDC was WRONG, and caused a full day of mis-diagnosis):
+      - NanoVNA-H4  : VID 0x0483 (1155) / PID 0x5740 (22336), STMicro CDC.
+                      Declared below; confirmed to auto-launch.
+      - LiteVNA64   : VID 0x04B4 (1204) / PID 0x0008 (8), Cypress CDC (ZeenKo.tech
+                      "LiteVNA6"). NOT the ST pair. See the separate commit that adds it.
 
     vendor-id / product-id are DECIMAL values (Android parses them as base-10).
-    Verify against real hardware on the Device Connections screen; adjust or
-    add entries if a unit reports different IDs.
+    This filter only governs auto-launch and permission persistence, NOT enumeration:
+    UsbSessionManager reads usbManager.deviceList unfiltered, so a missing entry costs
+    only auto-launch, never the ability to connect.
 -->
 <resources>
-    <!-- STMicro USB CDC (NanoVNA-H4 / LiteVNA64) -->
+    <!-- NanoVNA-H4: STMicro USB CDC (measured 0x0483/0x5740, 2026-07-24) -->
     <usb-device vendor-id="1155" product-id="22336" />
 </resources>
