@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
 import com.example.antennalab_v1.features.lab.LabTestTemplates
@@ -245,7 +246,8 @@ fun AppRootScreen() {
 
         "instrument_details" -> {
             val selectedHardwareName =
-                effectiveProject()?.hardwareCapabilityProfile?.displayName
+                effectiveProject()
+                    ?.let { EffectiveHardwareResolver.resolveCapabilityProfileForProject(it).displayName }
                     ?: UsbSessionManager.getSelectedDriverProfile()?.displayName
                     ?: "Unknown USB Analyzer"
 
@@ -328,7 +330,8 @@ private fun applyStoredCalibrationToSharedSession(
 
         CalibrationRestoreAction.RESTORE -> {
             val storedCalibration = project.storedCalibrationOrNull ?: return
-            val selectedHardwareName = project.hardwareCapabilityProfile.displayName
+            val selectedHardwareName =
+                EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).displayName
 
             UsbSessionManager.registerCalibrationSession(
                 storedCalibration.copy(

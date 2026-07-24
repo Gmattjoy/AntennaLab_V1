@@ -78,8 +78,15 @@ object CalibrationSessionFactory {
             UsbSessionManager.getLatestInstrumentSessionState()?.selectedHardwareName
                 ?: project.hardwareCapabilityProfile.displayName
 
-        val hardwareMinMHz = project.hardwareCapabilityProfile.minFrequencyHz / 1_000_000.0
-        val hardwareMaxMHz = project.hardwareCapabilityProfile.maxFrequencyHz / 1_000_000.0
+        // Clamp against the instrument that will ACTUALLY capture the standards.
+        // This previously used the project's design-time profile while the display
+        // name above already came from the live session — the same session was named
+        // after one instrument but bounded by another.
+        val effectiveCapabilities =
+            EffectiveHardwareResolver.resolveCapabilityProfileForProject(project)
+
+        val hardwareMinMHz = effectiveCapabilities.minFrequencyHz / 1_000_000.0
+        val hardwareMaxMHz = effectiveCapabilities.maxFrequencyHz / 1_000_000.0
         val targetMHz = project.designInput.targetFrequencyMHz
 
         val startFrequencyMHz =

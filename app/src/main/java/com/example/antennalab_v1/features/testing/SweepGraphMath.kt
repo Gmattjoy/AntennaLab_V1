@@ -379,14 +379,12 @@ internal fun resolveSweepWindow(
 }
 
 /*
-Precedence for the effective hardware: the live selected instrument wins
-(it reflects what is physically connected), and the project's stored
-profile is only the fallback when there is no live selection.
+NOTE: the old `resolveEffectiveIsLiteVna` lived here. Effective-hardware
+precedence now has exactly ONE home — domain/testing/EffectiveHardwareResolver
+— and "is LiteVNA" is derived from it, so sweep width and capability
+resolution (frequency clamp, TDR velocity factor, feature tiers) can never
+disagree. resolveSweepWindow below stays here: it is pure span/step math.
 */
-internal fun resolveEffectiveIsLiteVna(
-    liveSelectedIsLiteVna: Boolean?,
-    projectIsLiteVna: Boolean
-): Boolean = liveSelectedIsLiteVna ?: projectIsLiteVna
 
 /*
 ########################################################################

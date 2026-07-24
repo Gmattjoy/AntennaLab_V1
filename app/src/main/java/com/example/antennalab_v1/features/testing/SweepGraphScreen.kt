@@ -33,15 +33,17 @@ import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassification
 import com.example.antennalab_v1.domain.analysis.TuningSuggestionReport
 import com.example.antennalab_v1.domain.analysis.TuningWorkflowReport
 import com.example.antennalab_v1.BuildConfig
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
-import com.example.antennalab_v1.features.app.DeviceConnectionsController
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DriverProfile
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.toHardwareCapabilityProfile
+import com.example.antennalab_v1.model.toHardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 
@@ -77,9 +79,17 @@ fun SweepGraphScreen(
     onOpenInstrumentDetails: () -> Unit = onOpenSystemDevices
 ) {
     val context = LocalContext.current
-    val hardware = project.testHardwareProfile
-    val capabilityProfile = project.hardwareCapabilityProfile
-    val measurementCapabilities = project.hardwareMeasurementCapabilities
+
+    // EVERY capability read here must follow the instrument that is ACTUALLY
+    // measuring, not the project's design-time testHardwareProfile (which defaults
+    // to NanoVNA and is NanoVNA for every Lab/discovery/RF-test entry). That stale
+    // value reached the TDR velocity factor (0.66 vs 0.82 — a ~24% cable-fault
+    // distance error), the frequency clamp, and the feature gates below.
+    // EffectiveHardwareResolver is the single resolution point; see its header for
+    // the design-time vs effective distinction.
+    val hardware = EffectiveHardwareResolver.resolveForProject(project)
+    val capabilityProfile = hardware.toHardwareCapabilityProfile()
+    val measurementCapabilities = hardware.toHardwareMeasurementCapabilities()
     val targetFreq = project.designInput.targetFrequencyMHz
 
     val selectedHardwareName = buildSweepScreenHardwareDisplayName(
@@ -87,19 +97,9 @@ fun SweepGraphScreen(
         selectedDriverProfile = UsbSessionManager.getSelectedDriverProfile()
     )
 
-    // Sweep width/step must reflect the ACTUALLY-CONNECTED instrument, not the
-    // project's design-time testHardwareProfile (which defaults to NanoVNA and is
-    // NanoVNA for every Lab/discovery/RF-test entry). The live selected driver
-    // profile reflects the connected LiteVNA; fall back to the project profile only
-    // when nothing is live (e.g. simulated / offline review).
-    val liveSelectedProfile = UsbSessionManager.getSelectedDriverProfile()
-    val liveSelectedIsLiteVna =
-        liveSelectedProfile?.let(DeviceConnectionsController::isLiteProfile)
-    val projectIsLiteVna = hardware == TestHardwareProfile.LITEVNA64_V0_3_3
-    val isLiteVna = resolveEffectiveIsLiteVna(
-        liveSelectedIsLiteVna = liveSelectedIsLiteVna,
-        projectIsLiteVna = projectIsLiteVna
-    )
+    // Derived from the same resolution, so sweep width and capability resolution
+    // can never disagree.
+    val isLiteVna = hardware == TestHardwareProfile.LITEVNA64_V0_3_3
 
     val hardwareMinMHz = capabilityProfile.minFrequencyHz / 1_000_000.0
     val hardwareMaxMHz = capabilityProfile.maxFrequencyHz / 1_000_000.0

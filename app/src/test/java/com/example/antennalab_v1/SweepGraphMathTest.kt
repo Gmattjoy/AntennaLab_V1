@@ -13,11 +13,13 @@ import com.example.antennalab_v1.features.testing.formatAxisLabel
 import com.example.antennalab_v1.features.testing.getDisplayValue
 import com.example.antennalab_v1.features.testing.getTraceAxisTitle
 import com.example.antennalab_v1.features.testing.getTraceModeSummary
-import com.example.antennalab_v1.features.testing.resolveEffectiveIsLiteVna
 import com.example.antennalab_v1.features.testing.resolveSweepWindow
 import com.example.antennalab_v1.features.testing.roundUpForInstrumentScale
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
+import com.example.antennalab_v1.model.HardwareModel
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import org.junit.Assert.assertEquals
@@ -273,15 +275,9 @@ class SweepGraphMathTest {
         assertEquals(6300.0, high.endMHz, tol) // 6299.8 + 0.5 = 6300.3 → clamped to 6300.0
     }
 
-    @Test
-    fun resolveEffectiveIsLiteVna_liveSelectionWinsElseFallsBackToProject() {
-        // Live instrument wins over the project's stored profile, both directions.
-        assertTrue(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = true, projectIsLiteVna = false))
-        assertFalse(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = false, projectIsLiteVna = true))
-        // No live selection → fall back to the project profile.
-        assertTrue(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = null, projectIsLiteVna = true))
-        assertFalse(resolveEffectiveIsLiteVna(liveSelectedIsLiteVna = null, projectIsLiteVna = false))
-    }
+    // resolveEffectiveIsLiteVna moved to domain/testing/EffectiveHardwareResolver so
+    // effective-hardware precedence has exactly one home; its matrix is covered by
+    // EffectiveHardwareResolverTest.
 
     // ------------------------------------------------------------------
     // Labels, ticks, titles
@@ -350,5 +346,46 @@ class SweepGraphMathTest {
 
         val lite = buildCableFaultPreview(threePointSweep(), tdrCaps, TestHardwareProfile.LITEVNA64_V0_3_3)
         assertTrue(lite.contains("123.00 m")) // vf 0.82
+    }
+
+    /*
+    REGRESSION (Finding #7): the cable-fault preview used to be fed the project's
+    design-time testHardwareProfile, which defaults to NANOVNA_H4. On a connected,
+    validated LiteVNA that produced velocity factor 0.66 instead of 0.82 — a ~24%
+    distance error at any frequency. The screen now feeds it the EFFECTIVE hardware,
+    so this composes the resolver with the preview over a known-length fixture.
+    */
+    @Test
+    fun buildCableFaultPreview_followsValidatedLiteVnaNotStaleProjectProfile() {
+        // A LiteVNA is connected and validated; the project still says NanoVNA.
+        val effective = EffectiveHardwareResolver.resolveEffectiveHardware(
+            liveDataSourceKind = InstrumentDataSourceKind.REAL_INSTRUMENT,
+            liveSelectedModel = HardwareModel.LITE_VNA_64,
+            liveSessionOpen = true,
+            projectHardware = TestHardwareProfile.NANOVNA_H4
+        )
+
+        val preview = buildCableFaultPreview(threePointSweep(), tdrCaps, effective)
+
+        // 1 MHz span, vf 0.82 -> (3e8 * 0.82) / (2 * 1e6) = 123.00 m
+        assertTrue(preview.contains("123.00 m"))
+        // The stale-project answer would have been 99.00 m (vf 0.66) — 24% short.
+        assertFalse(preview.contains("99.00 m"))
+    }
+
+    /*
+    The other direction: with nothing live, the project profile still governs, so
+    offline review of a NanoVNA project is unchanged.
+    */
+    @Test
+    fun buildCableFaultPreview_keepsProjectProfileWhenNothingIsLive() {
+        val effective = EffectiveHardwareResolver.resolveEffectiveHardware(
+            liveDataSourceKind = null,
+            liveSelectedModel = null,
+            liveSessionOpen = false,
+            projectHardware = TestHardwareProfile.NANOVNA_H4
+        )
+
+        assertTrue(buildCableFaultPreview(threePointSweep(), tdrCaps, effective).contains("99.00 m"))
     }
 }
