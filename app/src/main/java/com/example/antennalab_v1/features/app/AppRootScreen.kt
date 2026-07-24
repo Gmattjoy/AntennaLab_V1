@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
@@ -323,7 +324,14 @@ private fun applyStoredCalibrationToSharedSession(
     context: android.content.Context,
     project: ProjectData
 ) {
-    when (AppRootController.decideCalibrationRestore(project)) {
+    // DEBUG: one greppable line per project load (`adb logcat -s CalRestore`) recording
+    // which predicate decided the load. Without it, a silently-cleared calibration is
+    // indistinguishable from one that was never stored.
+    val decision = AppRootController.decideCalibrationRestore(project) { message ->
+        if (BuildConfig.DEBUG) android.util.Log.i("CalRestore", message)
+    }
+
+    when (decision) {
         CalibrationRestoreAction.CLEAR -> {
             UsbSessionManager.clearCalibrationState()
         }

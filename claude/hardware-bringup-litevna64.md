@@ -236,15 +236,49 @@ disjoint: no NanoVNA alias may match LiteVNA and vice versa (incl. `LITE_VNA_84`
 driver-label form). The mis-accept direction is the dangerous one — applying the wrong
 correction silently beats a cleared calibration.
 
-### 7.2 Lower priority
+### 7.2 `liveSweepAllowed` is reachable ONLY via `litePartialSupportAvailable` — **OPEN, not fixed today**
+
+Found while diagnosing §8. This is the amplifier that turned a slow probe into a total
+loss of the live sweep path, and it outlives the timeout fix.
+
+**The causal chain, in full:**
+
+1. `DriverProfileRegistry.kt:94` registers the LiteVNA64 with
+   `supportTier = DriverSupportTier.EXPERIMENTAL`.
+2. `UsbSessionManager.kt:1052-1060` computes the session's `supportTier` string:
+   `litePartialSupportAvailable → "Partial Support"`, else a discovery snapshot's tier,
+   else **`chosenProfile.supportTier.name`** — which for this device is the literal string
+   **`"EXPERIMENTAL"`**.
+3. `SweepUiModelBuilder.buildSweepRunContract:88-92` allows a live sweep only when
+   `supportTier ∈ {"Full Support", "Partial Support"}`.
+4. Therefore the registered `EXPERIMENTAL` tier is **dead weight — it can never satisfy the
+   run contract.** The only route to a live sweep is `litePartialSupportAvailable`, which
+   requires `liteValidationConfirmed`, which requires bring-up to complete inside the 15 s
+   join.
+
+**Consequence:** any bring-up failure — however transient, and whatever its cause — does
+not merely delay validation, it removes the live sweep path entirely and silently
+substitutes demo data. A 7.2 s probe overrun should have cost seconds; instead it cost the
+whole live path, and the operator's only signal was a "Run Demo Sweep" button.
+
+The §8 fix removes today's trigger but not this fragility: the next thing that makes
+bring-up fail will have the same outsized blast radius. Options when addressed: let a
+validated-transport `EXPERIMENTAL` device run a flagged live sweep, or make the run
+contract key on transport readiness (as `SweepController.shouldUseRealSweepSource:171-177`
+already does) with validation affecting *trust* rather than *permission* —
+flag-don't-reject, as the rest of the app does.
+
+### 7.3 Lower priority
 
 - **Fixed ±0.5 MHz span can't characterize a broadband or unknown antenna.** Needs a
   wide / user-settable scan span. Blocks the roadmap's "unknown-antenna discovery mode".
 - **Lab screen has no frequency input** — presets / hardcoded 14.2 MHz only; the wizard is
   the only way to set a frequency.
 - **Sweep speed ~15-44 s** — a consequence of §5, but still the dominant UX cost.
-- **A readiness label may show "Simulated Sweep" on the real path** — verify and correct
-  the source label.
+- ~~A readiness label may show "Simulated Sweep" on the real path~~ — **RESOLVED as a
+  duplicate of §8** (confirmed 2026-07-24). Not a labelling bug: the timed-out validation
+  genuinely drops `supportTier` to `EXPERIMENTAL`, so the run contract really does select
+  the simulated path. One finding, tracked in §8.
 - **`SweepDiagnosticsEngine.classifyFeedlineLossSuspicion` MODERATE branch is
   unreachable** (`SweepDiagnosticsEngine.kt:489-492`). It requires
   `minimumSwrPoint.swr > 2.0` **and** `bandwidthMHz >= fullSpanMHz * 0.6` with
@@ -253,9 +287,38 @@ correction silently beats a cleared calibration.
 
 ---
 
-## 8. Hypothesis to confirm on the bench — bring-up may time out on healthy hardware
+## 8. CONFIRMED 2026-07-24 — bring-up times out on healthy hardware (BLOCKER)
 
-**Do not fix in this pass — measure it first.**
+**Measured: 15.2 s → `TIMED_OUT` / "Timed Out", on a device answering `0xF0 = 0x02`
+correctly.** Elapsed pinned at the `worker.join(15000L)` expiry, and the status card read
+"Transport Ready" rather than "Live Ready" — both exactly as predicted below.
+
+### Why this blocks the whole bench day
+
+The timeout is not cosmetic. `liteValidationConfirmed = false` →
+`litePartialSupportAvailable = false` → `supportTier` falls through to
+`chosenProfile.supportTier.name` = **`"EXPERIMENTAL"`** (`DriverProfileRegistry.kt:94`
+registers the LiteVNA as `DriverSupportTier.EXPERIMENTAL`). But
+`SweepUiModelBuilder.buildSweepRunContract:88-92` requires
+`supportTier ∈ {"Full Support", "Partial Support"}` for `liveSweepAllowed`, and
+`"Partial Support"` is produced **only** by `litePartialSupportAvailable`
+(`UsbSessionManager.kt:1053`). So a timed-out validation makes a live sweep
+**unreachable from the UI**:
+
+- `dataSourceKind == SIMULATED` → button "Run Demo Sweep", `runUsesSimulation = true`
+- `dataSourceKind == REAL_INSTRUMENT` → `runEnabled = false`, "Run Sweep Locked"
+
+Note the execution layer is *not* the problem: `SweepController.shouldUseRealSweepSource:171-177`
+gates purely on transport readiness and never consults `dataSourceKind` or support tier.
+The block is entirely in the UI run contract. Likewise the effective-hardware resolver is
+unaffected — its tier 2 (selected + session open) still yields `LITEVNA64_V0_3_3` without
+validation, so capability/TDR/calibration-range resolution stays correct.
+
+**This also subsumes the old §7.3 item "a readiness label may show Simulated Sweep on the
+real path" — same root cause, one finding, not two.** The support-tier coupling that made
+this so damaging is tracked separately as **§7.2**, and is *not* fixed by the timeout fix.
+
+### Original hypothesis (now confirmed)
 
 `runLiteVnaBringUp` joins its worker for **15 s** (`UsbSessionManager.kt:301`). But
 `runBasicCommandTest` → `runLiteVnaMiniSweepProbe:607` → `runLiteVnaConfiguredSweepRead`
@@ -306,4 +369,4 @@ Fill in per bench run.
 
 | Date | FW | Stage reached | Label | `0xF0` | Points read-back | Distinct / requested | Elapsed | Parse path | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | | |
+| 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1 — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 deferred until the timeout is fixed. |

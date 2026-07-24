@@ -224,18 +224,32 @@ object AppRootController {
     UsbSessionManager side effects (which need a Context).
     ------------------------------------------------------------
     */
+    /*
+    `logger` is an injected sink, defaulting to a no-op. It exists so the bench can
+    see WHICH predicate decided a load without this controller taking an Android
+    dependency: android.util.Log is not mocked in plain-JVM unit tests, and this
+    file (like every controller under features/) stays framework-free. The Compose
+    layer supplies the real sink. Reporting from inside the single evaluation means
+    the log can never disagree with the decision it describes.
+    */
     fun decideCalibrationRestore(
         project: ProjectData,
-        effectiveHardware: TestHardwareProfile
+        effectiveHardware: TestHardwareProfile,
+        logger: (String) -> Unit = {}
     ): CalibrationRestoreAction {
         val storedCalibration = project.storedCalibrationOrNull
+        val reason: String
 
-        return when {
-            storedCalibration == null ->
+        val action = when {
+            storedCalibration == null -> {
+                reason = "no-stored-calibration"
                 CalibrationRestoreAction.CLEAR
+            }
 
-            project.calibrationData.restorePolicy == CalibrationRestorePolicy.DO_NOT_RESTORE ->
+            project.calibrationData.restorePolicy == CalibrationRestorePolicy.DO_NOT_RESTORE -> {
+                reason = "policy-do-not-restore"
                 CalibrationRestoreAction.CLEAR
+            }
 
             // Match on the hardware FAMILY, not on one spelling of its name. The
             // stored name may be a driver label ("LiteVNA64 HW 64-0.3.3 FW v1.4.06")
@@ -244,30 +258,85 @@ object AppRootController {
             !EffectiveHardwareResolver.storedNameMatchesHardware(
                 storedHardwareName = storedCalibration.hardwareDisplayName,
                 profile = effectiveHardware
-            ) ->
+            ) -> {
+                reason = "hardware-name-mismatch"
                 CalibrationRestoreAction.CLEAR
+            }
 
             project.calibrationData.restorePolicy == CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE &&
                 !storedCalibration.coversFrequencyRange(
                     requestedStartMHz = project.designInput.targetFrequencyMHz,
                     requestedEndMHz = project.designInput.targetFrequencyMHz
-                ) ->
+                ) -> {
+                reason = "range-not-covered"
                 CalibrationRestoreAction.CLEAR
+            }
 
             project.calibrationData.restorePolicy == CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE &&
-                !storedCalibration.isFullyCaptured() ->
+                !storedCalibration.isFullyCaptured() -> {
+                reason = "not-fully-captured"
                 CalibrationRestoreAction.CLEAR
+            }
 
-            else ->
+            else -> {
+                reason = "ok"
                 CalibrationRestoreAction.RESTORE
+            }
         }
+
+        logger(
+            buildCalibrationRestoreLogLine(
+                action = action,
+                reason = reason,
+                storedCalibration = storedCalibration,
+                effectiveHardware = effectiveHardware,
+                project = project
+            )
+        )
+
+        return action
+    }
+
+    /*
+    ONE greppable line per project load: `adb logcat -s CalRestore`.
+    policy / target / storedSpan are included because policy-do-not-restore and
+    range-not-covered are otherwise indistinguishable from the operator's side.
+    */
+    internal fun buildCalibrationRestoreLogLine(
+        action: CalibrationRestoreAction,
+        reason: String,
+        storedCalibration: CalibrationSession?,
+        effectiveHardware: TestHardwareProfile,
+        project: ProjectData
+    ): String {
+        val storedSpan =
+            if (storedCalibration == null) {
+                "none"
+            } else {
+                String.format(
+                    "%.3f-%.3f",
+                    storedCalibration.startFrequencyMHz,
+                    storedCalibration.endFrequencyMHz
+                )
+            }
+
+        return "calRestore decision=$action reason=$reason " +
+            "storedName='${storedCalibration?.hardwareDisplayName ?: "none"}' " +
+            "effective=$effectiveHardware " +
+            "policy=${project.calibrationData.restorePolicy} " +
+            String.format("target=%.3f ", project.designInput.targetFrequencyMHz) +
+            "storedSpan=$storedSpan"
     }
 
     /** Convenience overload resolving the effective hardware from the live session. */
-    fun decideCalibrationRestore(project: ProjectData): CalibrationRestoreAction {
+    fun decideCalibrationRestore(
+        project: ProjectData,
+        logger: (String) -> Unit = {}
+    ): CalibrationRestoreAction {
         return decideCalibrationRestore(
             project = project,
-            effectiveHardware = EffectiveHardwareResolver.resolveForProject(project)
+            effectiveHardware = EffectiveHardwareResolver.resolveForProject(project),
+            logger = logger
         )
     }
 }

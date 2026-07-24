@@ -272,8 +272,16 @@ class UsbVnaCommandChannel(
         )
     }
 
+    /*
+    `probeMode` switches the FIFO drain from the measurement rule (collect every
+    distinct in-range freqIndex, sized by computeDistinctCollectionBudgetMs) to the
+    liveness rule (stop once LITEVNA_PROBE_MIN_RECORDS decode, short budget). Only
+    runLiteVnaMiniSweepProbe sets it, so real measurement sweeps keep the §5
+    reconstruction behaviour unchanged.
+    */
     fun runLiteVnaConfiguredSweepRead(
-        request: LiteVnaSweepRequest
+        request: LiteVnaSweepRequest,
+        probeMode: Boolean = false
     ): UsbVnaCommandResult {
         if (!isUsingCdcSerialTransport()) {
             return buildFailureResult(
@@ -470,7 +478,11 @@ class UsbVnaCommandChannel(
             packetSizeBytes = readPacketSize
         )
         val deadlineMs = System.currentTimeMillis() +
-                computeDistinctCollectionBudgetMs(validatedPointCount)
+                if (probeMode) {
+                    computeProbeCollectionBudgetMs()
+                } else {
+                    computeDistinctCollectionBudgetMs(validatedPointCount)
+                }
 
         val accumulator = DistinctInRangeAccumulator(validatedPointCount)
         val accumulatedBytes = mutableListOf<Byte>()
@@ -482,8 +494,20 @@ class UsbVnaCommandChannel(
 
         while (
             attemptIndex < MAX_FIFO_ACCUMULATION_ATTEMPTS &&
-            !accumulator.isComplete &&
-            System.currentTimeMillis() < deadlineMs
+            (
+                if (probeMode) {
+                    // Liveness: enough decoded records, regardless of which indices.
+                    shouldContinueProbeAccumulation(
+                        completeRecordCount = fifoRecordCount(accumulatedBytes.size),
+                        minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                        nowMs = System.currentTimeMillis(),
+                        deadlineMs = deadlineMs
+                    )
+                } else {
+                    // Measurement: every distinct in-range freqIndex (§5).
+                    !accumulator.isComplete && System.currentTimeMillis() < deadlineMs
+                }
+                )
         ) {
             attemptIndex += 1
 
@@ -569,12 +593,29 @@ class UsbVnaCommandChannel(
         }
 
         if (BuildConfig.DEBUG) {
-            android.util.Log.i(
-                "LiteVnaFifo",
-                "sweepReconstruct distinct=$distinctCount/$validatedPointCount complete=$sweepComplete " +
-                    "attempts=$attemptIndex rawRecords=${fifoRecordCount(finalBytes.size)} " +
-                    "missing=${missingIndices.take(16)}${if (missingIndices.size > 16) "..." else ""}"
-            )
+            if (probeMode) {
+                // Which condition ended the probe. If a bring-up still times out, this
+                // line is the difference between diagnosing it in one run and another
+                // round trip: records-satisfied = the probe did its job quickly;
+                // budget-expired = the device did not stream enough records in time.
+                val rawRecords = fifoRecordCount(finalBytes.size)
+                val stopReason =
+                    if (rawRecords >= LITEVNA_PROBE_MIN_RECORDS) "records-satisfied" else "budget-expired"
+
+                android.util.Log.i(
+                    "LiteVnaFifo",
+                    "probeReconstruct stop=$stopReason rawRecords=$rawRecords/$LITEVNA_PROBE_MIN_RECORDS " +
+                        "budgetMs=${computeProbeCollectionBudgetMs()} attempts=$attemptIndex " +
+                        "distinctInRange=$distinctCount/$validatedPointCount"
+                )
+            } else {
+                android.util.Log.i(
+                    "LiteVnaFifo",
+                    "sweepReconstruct distinct=$distinctCount/$validatedPointCount complete=$sweepComplete " +
+                        "attempts=$attemptIndex rawRecords=${fifoRecordCount(finalBytes.size)} " +
+                        "missing=${missingIndices.take(16)}${if (missingIndices.size > 16) "..." else ""}"
+                )
+            }
         }
 
         // Return the full accumulated payload; the parser dedupes by freqIndex and flags
@@ -611,7 +652,11 @@ class UsbVnaCommandChannel(
                 stepFrequencyHz = 100_000L,
                 pointCount = 8,
                 valuesPerFrequency = 1
-            )
+            ),
+            // Liveness probe, not a measurement: stop as soon as enough records decode.
+            // Held to the measurement rule this burned its full 7.2 s budget and pushed
+            // bring-up past the 15 s join (measured 15.2 s on hardware, 2026-07-24).
+            probeMode = true
         )
     }
 

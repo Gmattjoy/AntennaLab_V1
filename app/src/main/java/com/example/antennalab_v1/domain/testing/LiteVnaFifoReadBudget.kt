@@ -88,6 +88,42 @@ internal fun computeDistinctCollectionBudgetMs(
     return (baseMs + points * perPointMs).coerceAtMost(maxMs)
 }
 
+/*
+PROBE MODE.
+
+The bring-up mini sweep probe is a LIVENESS check, not a measurement: it only has to
+prove the device streams decodable records. It was previously held to the measurement
+rule above (`computeDistinctCollectionBudgetMs` + "all target indices seen"), which on
+this firmware is coupon-collecting indices 0..7 out of a free-running ~201-point sweep —
+roughly 4% of what the device produces. The probe therefore burned its entire 7200 ms
+budget almost every time and pushed total bring-up past the 15 s worker join, which
+reported TIMED_OUT on healthy hardware and (via the support-tier coupling) removed the
+live sweep path altogether. Measured 15.2 s on real hardware, 2026-07-24.
+
+8 records is the right threshold because buildParsedSweepOutcomeFromBytes already falls
+back to SEQUENTIAL_FALLBACK once it has MINIMUM_USABLE_SWEEP_POINTS = 8 records at ANY
+indices — so 8 raw records is precisely what makes the probe pass.
+*/
+internal const val LITEVNA_PROBE_MIN_RECORDS = 8
+
+/*
+Backstop so a dead or silent device still fails FAST and well inside the 15 s join,
+rather than overrunning it. Deliberately much smaller than the measurement budget.
+*/
+internal fun computeProbeCollectionBudgetMs(): Long = 2500
+
+/*
+Probe stop predicate: keep reading only until enough records prove the path, or the
+(short) probe budget expires. Unlike the measurement rule this ignores WHICH indices
+arrived — coverage is not what a liveness probe is establishing.
+*/
+internal fun shouldContinueProbeAccumulation(
+    completeRecordCount: Int,
+    minRecords: Int,
+    nowMs: Long,
+    deadlineMs: Long
+): Boolean = completeRecordCount < minRecords && nowMs < deadlineMs
+
 // Number of COMPLETE fixed-size records in a byte buffer (a trailing partial record
 // is not counted).
 internal fun fifoRecordCount(

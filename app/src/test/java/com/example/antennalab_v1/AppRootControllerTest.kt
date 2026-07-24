@@ -15,6 +15,7 @@ import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -370,6 +371,148 @@ class AppRootControllerTest {
                 effectiveHardware = TestHardwareProfile.LITEVNA64_V0_3_3
             )
         )
+    }
+
+    // ------------------------------------------------------------------
+    // Bench evidence log (tag CalRestore) — one line per project load
+    // ------------------------------------------------------------------
+
+    /*
+    The injected logger is what makes A3's verdict evidence rather than inference.
+    These assert the emitted reason token per branch, so a bench log can be read
+    literally. The controller stays Android-free: android.util.Log is not mocked in
+    plain-JVM tests and returnDefaultValues is not enabled.
+    */
+    private fun captureRestoreLog(
+        project: ProjectData,
+        effectiveHardware: TestHardwareProfile
+    ): Pair<CalibrationRestoreAction, String> {
+        val lines = mutableListOf<String>()
+        val action = AppRootController.decideCalibrationRestore(
+            project = project,
+            effectiveHardware = effectiveHardware,
+            logger = { lines.add(it) }
+        )
+        assertEquals("expected exactly one log line per decision", 1, lines.size)
+        return action to lines.first()
+    }
+
+    @Test
+    fun restoreLog_reasonNoStoredCalibration() {
+        val (action, line) = captureRestoreLog(ProjectData(), TestHardwareProfile.LITEVNA64_V0_3_3)
+        assertEquals(CalibrationRestoreAction.CLEAR, action)
+        assertTrue(line, line.contains("decision=CLEAR"))
+        assertTrue(line, line.contains("reason=no-stored-calibration"))
+    }
+
+    @Test
+    fun restoreLog_reasonPolicyDoNotRestore() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.DO_NOT_RESTORE,
+            calHardwareName = "LiteVNA64 v0.3.3"
+        )
+        val (action, line) = captureRestoreLog(project, TestHardwareProfile.LITEVNA64_V0_3_3)
+        assertEquals(CalibrationRestoreAction.CLEAR, action)
+        assertTrue(line, line.contains("reason=policy-do-not-restore"))
+    }
+
+    // The A3 / Block B evidence line.
+    @Test
+    fun restoreLog_reasonHardwareNameMismatch() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 HW 64-0.3.3 FW v1.4.06"
+        )
+        val (action, line) = captureRestoreLog(project, TestHardwareProfile.NANOVNA_H4)
+        assertEquals(CalibrationRestoreAction.CLEAR, action)
+        assertTrue(line, line.contains("reason=hardware-name-mismatch"))
+        // The stored name and the hardware it was judged against must both be visible,
+        // or the bench cannot tell WHY it mismatched.
+        assertTrue(line, line.contains("storedName='LiteVNA64 HW 64-0.3.3 FW v1.4.06'"))
+        assertTrue(line, line.contains("effective=NANOVNA_H4"))
+    }
+
+    @Test
+    fun restoreLog_reasonRangeNotCovered() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 v0.3.3",
+            calStartMHz = 20.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2
+        )
+        val (action, line) = captureRestoreLog(project, TestHardwareProfile.LITEVNA64_V0_3_3)
+        assertEquals(CalibrationRestoreAction.CLEAR, action)
+        assertTrue(line, line.contains("reason=range-not-covered"))
+        // policy/target/storedSpan disambiguate this from policy-do-not-restore.
+        assertTrue(line, line.contains("target=14.200"))
+        assertTrue(line, line.contains("storedSpan=20.000-30.000"))
+    }
+
+    @Test
+    fun restoreLog_reasonNotFullyCaptured() {
+        val base = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+        val project = base.copy(
+            calibrationData = ProjectCalibrationData(
+                storedCalibrationSession = CalibrationSession(
+                    hardwareDisplayName = "LiteVNA64 v0.3.3",
+                    startFrequencyMHz = 1.0,
+                    endFrequencyMHz = 30.0,
+                    openCaptured = true,
+                    shortCaptured = true,
+                    loadCaptured = false
+                ),
+                restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE
+            )
+        )
+        val (action, line) = captureRestoreLog(project, TestHardwareProfile.LITEVNA64_V0_3_3)
+        assertEquals(CalibrationRestoreAction.CLEAR, action)
+        assertTrue(line, line.contains("reason=not-fully-captured"))
+    }
+
+    // The A3 PASS line.
+    @Test
+    fun restoreLog_reasonOkOnRestore() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 HW 64-0.3.3 FW v1.4.06",
+            calStartMHz = 1.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2,
+            hardware = TestHardwareProfile.NANOVNA_H4
+        )
+        val (action, line) = captureRestoreLog(project, TestHardwareProfile.LITEVNA64_V0_3_3)
+        assertEquals(CalibrationRestoreAction.RESTORE, action)
+        assertTrue(line, line.contains("decision=RESTORE"))
+        assertTrue(line, line.contains("reason=ok"))
+    }
+
+    // The log must never disagree with the value actually returned.
+    @Test
+    fun restoreLog_decisionAlwaysMatchesReturnedAction() {
+        val cases = listOf(
+            ProjectData() to TestHardwareProfile.LITEVNA64_V0_3_3,
+            projectWithStoredCalibration(
+                restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+                calHardwareName = "LiteVNA64 v0.3.3"
+            ) to TestHardwareProfile.LITEVNA64_V0_3_3,
+            projectWithStoredCalibration(
+                restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+                calHardwareName = "LiteVNA64 v0.3.3"
+            ) to TestHardwareProfile.NANOVNA_H4,
+            projectWithStoredCalibration(
+                restorePolicy = CalibrationRestorePolicy.DO_NOT_RESTORE,
+                calHardwareName = "NanoVNA-H4"
+            ) to TestHardwareProfile.NANOVNA_H4
+        )
+
+        for ((project, hardware) in cases) {
+            val (action, line) = captureRestoreLog(project, hardware)
+            assertTrue("log '$line' must report decision=$action", line.contains("decision=$action"))
+        }
     }
 
     // A partially-captured calibration must not be restored as compatible.

@@ -1,9 +1,12 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.testing.LITEVNA_PROBE_MIN_RECORDS
 import com.example.antennalab_v1.domain.testing.computeDistinctCollectionBudgetMs
 import com.example.antennalab_v1.domain.testing.computeFifoReadBudget
+import com.example.antennalab_v1.domain.testing.computeProbeCollectionBudgetMs
 import com.example.antennalab_v1.domain.testing.fifoRecordCount
 import com.example.antennalab_v1.domain.testing.shouldContinueFifoAccumulation
+import com.example.antennalab_v1.domain.testing.shouldContinueProbeAccumulation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -132,5 +135,76 @@ class LiteVnaFifoReadBudgetTest {
                 nowMs = 6000, deadlineMs = 5000
             )
         )
+    }
+
+    // ------------------------------------------------------------------
+    // Probe mode — liveness, not measurement (bring-up 15 s join, §8)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun shouldContinueProbe_keepsReadingBelowTheRecordThreshold() {
+        assertTrue(
+            shouldContinueProbeAccumulation(
+                completeRecordCount = 3, minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                nowMs = 100, deadlineMs = 2500
+            )
+        )
+    }
+
+    @Test
+    fun shouldContinueProbe_stopsAtAndAboveTheRecordThreshold() {
+        // Boundary: count == minRecords is already enough — the probe only needs proof
+        // that records decode, and 8 is what SEQUENTIAL_FALLBACK requires downstream.
+        assertFalse(
+            shouldContinueProbeAccumulation(
+                completeRecordCount = LITEVNA_PROBE_MIN_RECORDS,
+                minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                nowMs = 100, deadlineMs = 2500
+            )
+        )
+        assertFalse(
+            shouldContinueProbeAccumulation(
+                completeRecordCount = 12, minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                nowMs = 100, deadlineMs = 2500
+            )
+        )
+    }
+
+    @Test
+    fun shouldContinueProbe_stopsOnDeadlineEvenWhenStarved() {
+        // A dead/silent device must fail fast, well inside the 15 s join.
+        assertFalse(
+            shouldContinueProbeAccumulation(
+                completeRecordCount = 0, minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                nowMs = 2500, deadlineMs = 2500
+            )
+        )
+        assertFalse(
+            shouldContinueProbeAccumulation(
+                completeRecordCount = 1, minRecords = LITEVNA_PROBE_MIN_RECORDS,
+                nowMs = 9999, deadlineMs = 2500
+            )
+        )
+    }
+
+    /*
+    REGRESSION GUARD for the confirmed bench blocker: bring-up ran the mini probe on the
+    MEASUREMENT budget (7200 ms for 8 points), which alone consumed most of the 15 s
+    worker join and reported TIMED_OUT on healthy hardware — which in turn dropped the
+    support tier and removed the live sweep path entirely. Measured 15.2 s, 2026-07-24.
+    A future budget tweak must not silently put the probe back over that cliff.
+    */
+    @Test
+    fun probeBudget_isFarSmallerThanTheMeasurementBudget() {
+        val probeBudget = computeProbeCollectionBudgetMs()
+        val measurementBudgetForSamePointCount = computeDistinctCollectionBudgetMs(8)
+
+        assertEquals(7200L, measurementBudgetForSamePointCount)
+        assertTrue(
+            "probe budget $probeBudget must be well under the 7200 ms measurement budget",
+            probeBudget < measurementBudgetForSamePointCount / 2
+        )
+        // Must leave generous room inside the 15 s join even in the worst case.
+        assertTrue("probe budget $probeBudget must stay well inside the 15 s join", probeBudget <= 3000L)
     }
 }
