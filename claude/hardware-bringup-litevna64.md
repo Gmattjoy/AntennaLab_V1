@@ -450,7 +450,16 @@ dataSource=SIMULATED path='Simulated' effective=NANOVNA_H4` (13:41:07.611).
 **The ASCII identity path is correct but unreachable for any CDC device — i.e. for both
 VNAs.** The branch uses transport as a proxy for protocol when
 `selectedDriverProfile.protocolType` (`LITE_VNA_V2_STYLE` vs `NANO_SHELL`) is what actually
-determines the wire format. Fix: route on `protocolType`; the ASCII branch already exists.
+determines the wire format.
+
+**FIX CODED (not yet hardware-verified).** `resolveIdentityProbeStrategy`
+(`domain/testing/IdentityProbeRouting.kt`) now routes `queryAnalyzerIdentity` on
+`protocolType`, falling back to the old transport behaviour only when no profile is selected.
+The `when` is exhaustive with no `else`, so a future protocol cannot silently take the ASCII
+path. A DEBUG `IdentityProbe` line records the chosen strategy for the next bench run.
+**Block C stays OPEN** — this only gets the H4 past the identity branch; identity success,
+`FULL_SUPPORT`, any sweep, and the `sweepPoints=101` question all remain unverified until the
+device is back on the desk (see the Handover section).
 
 **Consequence: "does the H4 honour `sweepPoints=101`?" is UNANSWERABLE on this build.** The
 H4 cannot run a live sweep, so Finding #10 is neither confirmed nor reopened by it and

@@ -1,6 +1,7 @@
 package com.example.antennalab_v1.domain.testing
 
 import com.example.antennalab_v1.BuildConfig
+import com.example.antennalab_v1.model.DriverProtocolType
 import kotlin.random.Random
 import kotlin.text.Charsets.UTF_8
 
@@ -780,7 +781,24 @@ class UsbVnaCommandChannel(
             return cached
         }
 
-        if (isUsingCdcSerialTransport()) {
+        // Route on PROTOCOL, not transport. The H4 is a CDC device that speaks ASCII
+        // shell, so a transport-based branch fed it LiteVNA binary registers it does not
+        // implement (doc §9b). resolveIdentityProbeStrategy falls back to the old
+        // transport behaviour only when no profile is selected.
+        val probeStrategy = resolveIdentityProbeStrategy(
+            protocolType = sessionManager.getSelectedProtocolType(),
+            isCdcTransport = isUsingCdcSerialTransport()
+        )
+
+        if (BuildConfig.DEBUG) {
+            android.util.Log.i(
+                "IdentityProbe",
+                "queryIdentity protocolType=${sessionManager.getSelectedProtocolType()} " +
+                    "isCdc=${isUsingCdcSerialTransport()} strategy=$probeStrategy"
+            )
+        }
+
+        if (probeStrategy == IdentityProbeStrategy.LITEVNA_BINARY) {
             val handshake = runLiteVnaCdcHandshakeTest()
 
             if (!handshake.success) {
@@ -1547,6 +1565,7 @@ class UsbVnaCommandChannel(
 interface UsbSessionManagerFacade {
     fun hasOpenSession(): Boolean
     fun getActiveTransportChannel(): UsbTransportChannel?
+    fun getSelectedProtocolType(): DriverProtocolType?
 }
 
 class DefaultUsbSessionManagerFacade : UsbSessionManagerFacade {
@@ -1556,5 +1575,9 @@ class DefaultUsbSessionManagerFacade : UsbSessionManagerFacade {
 
     override fun getActiveTransportChannel(): UsbTransportChannel? {
         return UsbSessionManager.getActiveTransportChannel()
+    }
+
+    override fun getSelectedProtocolType(): DriverProtocolType? {
+        return UsbSessionManager.getSelectedDriverProfile()?.protocolType
     }
 }
