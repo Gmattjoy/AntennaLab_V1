@@ -15,6 +15,46 @@ source, the source wins — fix this doc.**
 
 ---
 
+## 0. Next bench day — handover (written 2026-07-24)
+
+Do these **in order**. Everything below landed as code + tests today with **no install**;
+the build on the tablet is `e479d5d`-era and does **not** contain these changes. **Build and
+reinstall first**, then:
+
+**Step 1 — Re-verify LiteVNA bring-up is still green (REGRESSION GATE — do before anything
+else).** It is the only fully-working path and today's commits touch its identity route
+(`d4c6c1d`) and its connect flow (`307c582`). Run A0 exactly as before: attach LiteVNA alone,
+Connect, watch `BenchState` + `LiteVnaFifo`. Expect unchanged: `validation='Passed'`,
+`status='Live Ready'`, `probeReconstruct stop=records-satisfied`, sweep offers "Run Live
+Sweep". **If any of that regressed, stop** — bisect `307c582` (filter entry) vs `d4c6c1d`
+(routing) before touching the H4. Also confirm the new `IdentityProbe` line reads
+`protocolType=LITE_VNA_V2_STYLE strategy=LITEVNA_BINARY`.
+Sub-check the filter-entry behaviour change: on a *fresh* install, does the LiteVNA now
+auto-launch and offer the "use by default" permission checkbox? If yes, simplify §1.
+
+**Step 2 — H4 identity (the point of today's fix).** Attach the H4, select the
+**NanoVNA-H4** profile, Connect. Read `BenchState` + the new `IdentityProbe` line:
+- `IdentityProbe` should read `protocolType=NANO_SHELL strategy=ASCII_SHELL` — confirms
+  routing. If it still says `LITEVNA_BINARY`, the profile isn't selected.
+- Then the real unknowns (all still open, none verified today): does identity **succeed**
+  (H4 answers `version`/`info`/`v` with text containing "nanovna")? Does `supportTier` reach
+  **`'Full Support'`** (a text-only match gives `'Partial Support'`, which
+  `canExecuteRealSweep()` rejects → still `SIMULATED`)? Watch `dataSource` → must be
+  `REAL_INSTRUMENT` and the sweep button → "Run Live Sweep".
+
+**Step 3 — C5, the original question.** Only reachable if Step 2 gives a live sweep. Run one
+sweep, read the *"measured N of 101 points"* banner. **Does the H4 honour `sweepPoints=101`
+(101/101, no banner) or free-run like the LiteVNA?** Watch also for a `sweep points N`
+command-syntax error — that syntax may not be valid on H4 firmware, and would be a bug in our
+command construction, not the device. This is the answer Finding #10 has been waiting for;
+it is **still unanswered** and has no independent corroboration yet.
+
+**Open findings queued as off-bench code tasks** (none block the bench): §10c.7
+`hardwareProfile` writer + neutral default; §10c.6 calibration producer; §10b resonance
+count; §10c.1 wizard canonicalisation / display-string coupling.
+
+---
+
 ## 1. Preconditions
 
 1. **Attach the VNA, then: Grant Permission → Refresh → Connect.**
