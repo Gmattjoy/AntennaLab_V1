@@ -268,4 +268,137 @@ class AppRootControllerTest {
         )
         assertEquals(CalibrationRestoreAction.RESTORE, AppRootController.decideCalibrationRestore(project))
     }
+
+    // ------------------------------------------------------------------
+    // Finding #7b — stored calibration vs the EFFECTIVE instrument
+    // ------------------------------------------------------------------
+
+    /*
+    NAMED REGRESSION TEST — the headline bug.
+
+    A calibration captured on a real LiteVNA was stored under the DRIVER LABEL
+    ("LiteVNA64 HW 64-0.3.3 FW v1.4.06", written by DeviceConnectionsScreen via
+    buildProfileDisplayLabel), then compared against the project's design-time
+    capability displayName — "NanoVNA-H4", because testHardwareProfile defaults to
+    NANOVNA_H4. The names never matched, so a verified OSL calibration was silently
+    CLEARED on project load and the operator's calibration work was lost.
+
+    Restoring must now succeed: the effective hardware is the LiteVNA, and the
+    driver-label spelling is recognised as the same family.
+    */
+    @Test
+    fun decideCalibrationRestore_restoresLiveLiteVnaCalibrationStoredUnderDriverLabel() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 HW 64-0.3.3 FW v1.4.06",
+            calStartMHz = 1.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2,
+            hardware = TestHardwareProfile.NANOVNA_H4 // stale project default
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.RESTORE,
+            AppRootController.decideCalibrationRestore(
+                project = project,
+                effectiveHardware = TestHardwareProfile.LITEVNA64_V0_3_3
+            )
+        )
+    }
+
+    /*
+    THE DANGEROUS DIRECTION. Loosening the name comparison must not let a LiteVNA
+    calibration be adopted by an attached NanoVNA — that applies wrong corrections
+    silently, which is worse than clearing a good calibration.
+    */
+    @Test
+    fun decideCalibrationRestore_clearsLiteVnaCalibrationWhenNanoVnaIsAttached() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 HW 64-0.3.3 FW v1.4.06",
+            calStartMHz = 1.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2,
+            hardware = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.CLEAR,
+            AppRootController.decideCalibrationRestore(
+                project = project,
+                effectiveHardware = TestHardwareProfile.NANOVNA_H4
+            )
+        )
+    }
+
+    @Test
+    fun decideCalibrationRestore_clearsNanoVnaCalibrationWhenLiteVnaIsAttached() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "NanoVNA-H4",
+            calStartMHz = 1.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.CLEAR,
+            AppRootController.decideCalibrationRestore(
+                project = project,
+                effectiveHardware = TestHardwareProfile.LITEVNA64_V0_3_3
+            )
+        )
+    }
+
+    // The canonical capability displayName still restores — canonicalised captures
+    // and legacy driver-label captures must both work.
+    @Test
+    fun decideCalibrationRestore_restoresCanonicalCapabilityName() {
+        val project = projectWithStoredCalibration(
+            restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE,
+            calHardwareName = "LiteVNA64 v0.3.3",
+            calStartMHz = 1.0,
+            calEndMHz = 30.0,
+            targetFrequencyMHz = 14.2,
+            hardware = TestHardwareProfile.NANOVNA_H4
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.RESTORE,
+            AppRootController.decideCalibrationRestore(
+                project = project,
+                effectiveHardware = TestHardwareProfile.LITEVNA64_V0_3_3
+            )
+        )
+    }
+
+    // A partially-captured calibration must not be restored as compatible.
+    @Test
+    fun decideCalibrationRestore_clearsPartiallyCapturedCalibration() {
+        val base = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+        val project = base.copy(
+            calibrationData = ProjectCalibrationData(
+                storedCalibrationSession = CalibrationSession(
+                    hardwareDisplayName = "LiteVNA64 v0.3.3",
+                    startFrequencyMHz = 1.0,
+                    endFrequencyMHz = 30.0,
+                    openCaptured = true,
+                    shortCaptured = true,
+                    loadCaptured = false // never finished
+                ),
+                restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE
+            )
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.CLEAR,
+            AppRootController.decideCalibrationRestore(
+                project = project,
+                effectiveHardware = TestHardwareProfile.LITEVNA64_V0_3_3
+            )
+        )
+    }
 }

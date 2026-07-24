@@ -74,16 +74,20 @@ object CalibrationSessionFactory {
     ------------------------------------------------------------
     */
     fun buildFreshSession(project: ProjectData): CalibrationSession {
-        val selectedHardwareName =
-            UsbSessionManager.getLatestInstrumentSessionState()?.selectedHardwareName
-                ?: project.hardwareCapabilityProfile.displayName
-
         // Clamp against the instrument that will ACTUALLY capture the standards.
         // This previously used the project's design-time profile while the display
-        // name above already came from the live session — the same session was named
-        // after one instrument but bounded by another.
+        // name came from the live session — the same session was named after one
+        // instrument but bounded by another.
         val effectiveCapabilities =
             EffectiveHardwareResolver.resolveCapabilityProfileForProject(project)
+
+        // Record the CANONICAL capability displayName, not the live session's driver
+        // label ("LiteVNA64 HW 64-0.3.3 FW v1.4.06"). A calibration stored under the
+        // driver label never matched the capability name it was later compared
+        // against, so real calibrations were silently cleared on project load.
+        // Legacy sessions already stored under a driver label are still recognised —
+        // see EffectiveHardwareResolver.hardwareNameAliases.
+        val selectedHardwareName = effectiveCapabilities.displayName
 
         val hardwareMinMHz = effectiveCapabilities.minFrequencyHz / 1_000_000.0
         val hardwareMaxMHz = effectiveCapabilities.maxFrequencyHz / 1_000_000.0

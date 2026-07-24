@@ -20,15 +20,18 @@ The LiteVNA hardware/sweep-pipeline saga is closed (Finding #8 + parts; interim
 shipped, force-101-on-v0.3.3 logged as a known limitation), and the device-in-loop
 bring-up procedure is now written up in `claude/hardware-bringup-litevna64.md`.
 
-**Next code task: the stale capability profile** (bring-up doc §7.1). Same class of
-defect as the already-fixed sweep-width bug but broader:
-`ProjectData.hardwareCapabilityProfile` derives from `testHardwareProfile`, which
-defaults to `NANOVNA_H4`, so `SweepGraphScreen` clamps frequency and gates features
-(Smith / S21 / TDR / markers / CSV / support tier) as if a validated, connected
-LiteVNA were a NanoVNA. Fix by resolving the capability profile from the live
-selected instrument, falling back to the project profile only when nothing is live.
+**DONE (Finding #7): the stale capability profile.** `domain/testing/EffectiveHardwareResolver`
+is now the single resolution point (three-tier: validated live → selected+open live →
+project → deterministic default), with every capability consumer routed through it and
+design-time reads left alone. Headline fix was a verified OSL calibration being silently
+discarded on project load — stored under the driver label, compared against the project's
+capability displayName, so the names never matched. Also fixed the TDR velocity factor
+(0.66 vs 0.82, ~24% cable-fault distance error) and the >1.5 GHz frequency clamp. Feature
+tiers were identical between profiles, so that part is future-proofing. 25 new tests
+(EffectiveHardwareResolverTest incl. cross-family alias-safety; AppRootControllerTest
+restore-policy both directions; SweepGraphMathTest cable-fault regression).
 
-Then: **Priority 3 — Save/load reliability** (the roadmap's flagged *highest
+**Next: Priority 3 — Save/load reliability** (the roadmap's flagged *highest
 real-world risk* — losing a user's project; fully open, pure/JVM-testable by
 extending `ProjectStorageRoundTripTest`, no device needed). Quick-win alternative if
 a short task is wanted: **Priority 2 — CalculationEngine**. Then return to the

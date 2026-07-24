@@ -229,6 +229,91 @@ class EffectiveHardwareResolverTest {
         }
     }
 
+    /*
+    ------------------------------------------------------------
+    HARDWARE NAME ALIASES
+    ------------------------------------------------------------
+    Alias matching LOOSENS a comparison, so the safety property matters more than
+    the convenience one: it must never let a calibration cross families. Applying
+    the wrong correction silently is worse than clearing a good calibration.
+    ------------------------------------------------------------
+    */
+
+    // THE SAFETY PROPERTY: no NanoVNA alias may match the LiteVNA family, and no
+    // LiteVNA alias (incl. LiteVNA84 and the driver-label form) may match NanoVNA.
+    @Test
+    fun aliases_neverMatchAcrossFamilies() {
+        for (name in EffectiveHardwareResolver.hardwareNameAliases(nano)) {
+            assertTrue(
+                "NanoVNA alias '$name' should match NanoVNA",
+                EffectiveHardwareResolver.storedNameMatchesHardware(name, nano)
+            )
+            assertFalse(
+                "NanoVNA alias '$name' must NOT match LiteVNA",
+                EffectiveHardwareResolver.storedNameMatchesHardware(name, lite)
+            )
+        }
+
+        for (name in EffectiveHardwareResolver.hardwareNameAliases(lite)) {
+            assertTrue(
+                "LiteVNA alias '$name' should match LiteVNA",
+                EffectiveHardwareResolver.storedNameMatchesHardware(name, lite)
+            )
+            assertFalse(
+                "LiteVNA alias '$name' must NOT match NanoVNA",
+                EffectiveHardwareResolver.storedNameMatchesHardware(name, nano)
+            )
+        }
+    }
+
+    @Test
+    fun aliasSets_areDisjointAfterNormalisation() {
+        val nanoNormalised = EffectiveHardwareResolver.hardwareNameAliases(nano)
+            .map(EffectiveHardwareResolver::normalizeHardwareName)
+            .toSet()
+        val liteNormalised = EffectiveHardwareResolver.hardwareNameAliases(lite)
+            .map(EffectiveHardwareResolver::normalizeHardwareName)
+            .toSet()
+
+        assertTrue(nanoNormalised.intersect(liteNormalised).isEmpty())
+    }
+
+    // The two vocabularies that actually caused the bug: a calibration stored under
+    // the driver label must be recognised as the same hardware as the capability
+    // displayName it is compared against.
+    @Test
+    fun driverLabelAndCapabilityDisplayName_bothResolveToTheSameFamily() {
+        assertTrue(
+            EffectiveHardwareResolver.storedNameMatchesHardware(
+                "LiteVNA64 HW 64-0.3.3 FW v1.4.06", lite
+            )
+        )
+        assertTrue(EffectiveHardwareResolver.storedNameMatchesHardware("LiteVNA64 v0.3.3", lite))
+        assertTrue(EffectiveHardwareResolver.storedNameMatchesHardware("LiteVNA84 (Standard)", lite))
+        assertFalse(
+            EffectiveHardwareResolver.storedNameMatchesHardware(
+                "LiteVNA64 HW 64-0.3.3 FW v1.4.06", nano
+            )
+        )
+    }
+
+    @Test
+    fun storedNameMatching_normalisesCaseSpacingAndPunctuation() {
+        assertTrue(EffectiveHardwareResolver.storedNameMatchesHardware("nano vna h4", nano))
+        assertTrue(EffectiveHardwareResolver.storedNameMatchesHardware("  NANOVNA-H4  ", nano))
+        assertTrue(EffectiveHardwareResolver.storedNameMatchesHardware("litevna64_v0.3.3", lite))
+    }
+
+    // An unnamed calibration must not be silently adopted by whatever is attached.
+    @Test
+    fun blankOrUnknownStoredName_doesNotMatchAnything() {
+        assertFalse(EffectiveHardwareResolver.storedNameMatchesHardware(null, nano))
+        assertFalse(EffectiveHardwareResolver.storedNameMatchesHardware("", nano))
+        assertFalse(EffectiveHardwareResolver.storedNameMatchesHardware("   ", lite))
+        assertFalse(EffectiveHardwareResolver.storedNameMatchesHardware("Some Other VNA", lite))
+        assertFalse(EffectiveHardwareResolver.storedNameMatchesHardware("Some Other VNA", nano))
+    }
+
     @Test
     fun isLiteVna_trueForValidatedLiteVnaOnNanoVnaProject() {
         assertTrue(

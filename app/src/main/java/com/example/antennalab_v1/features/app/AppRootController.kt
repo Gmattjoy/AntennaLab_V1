@@ -31,6 +31,7 @@ navigation state and performs the Context-bound calibration side effects
 */
 
 import com.example.antennalab_v1.domain.testing.CalibrationSessionFactory
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.features.lab.LabTestTemplate
 import com.example.antennalab_v1.model.AntennaType
 import com.example.antennalab_v1.model.CalibrationRestorePolicy
@@ -223,9 +224,11 @@ object AppRootController {
     UsbSessionManager side effects (which need a Context).
     ------------------------------------------------------------
     */
-    fun decideCalibrationRestore(project: ProjectData): CalibrationRestoreAction {
+    fun decideCalibrationRestore(
+        project: ProjectData,
+        effectiveHardware: TestHardwareProfile
+    ): CalibrationRestoreAction {
         val storedCalibration = project.storedCalibrationOrNull
-        val selectedHardwareName = project.hardwareCapabilityProfile.displayName
 
         return when {
             storedCalibration == null ->
@@ -234,19 +237,37 @@ object AppRootController {
             project.calibrationData.restorePolicy == CalibrationRestorePolicy.DO_NOT_RESTORE ->
                 CalibrationRestoreAction.CLEAR
 
-            !storedCalibration.matchesHardwareDisplayName(selectedHardwareName) ->
+            // Match on the hardware FAMILY, not on one spelling of its name. The
+            // stored name may be a driver label ("LiteVNA64 HW 64-0.3.3 FW v1.4.06")
+            // while the capability displayName is "LiteVNA64 v0.3.3" — comparing
+            // those two strings directly silently CLEARED real calibrations.
+            !EffectiveHardwareResolver.storedNameMatchesHardware(
+                storedHardwareName = storedCalibration.hardwareDisplayName,
+                profile = effectiveHardware
+            ) ->
                 CalibrationRestoreAction.CLEAR
 
             project.calibrationData.restorePolicy == CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE &&
-                !storedCalibration.isCompatibleWithRequestedRange(
-                    selectedHardwareName = selectedHardwareName,
+                !storedCalibration.coversFrequencyRange(
                     requestedStartMHz = project.designInput.targetFrequencyMHz,
                     requestedEndMHz = project.designInput.targetFrequencyMHz
                 ) ->
                 CalibrationRestoreAction.CLEAR
 
+            project.calibrationData.restorePolicy == CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE &&
+                !storedCalibration.isFullyCaptured() ->
+                CalibrationRestoreAction.CLEAR
+
             else ->
                 CalibrationRestoreAction.RESTORE
         }
+    }
+
+    /** Convenience overload resolving the effective hardware from the live session. */
+    fun decideCalibrationRestore(project: ProjectData): CalibrationRestoreAction {
+        return decideCalibrationRestore(
+            project = project,
+            effectiveHardware = EffectiveHardwareResolver.resolveForProject(project)
+        )
     }
 }

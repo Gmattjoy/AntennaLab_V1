@@ -199,24 +199,42 @@ applied, calibration state `VALID`, readiness "Live Ready".
 
 ---
 
-## 7. Open findings
+## 7. Findings
 
-### 7.1 Capability profile follows the STALE project profile, not the live instrument — **top priority, next code task**
+### 7.1 Capability profile followed the STALE project profile — **RESOLVED**
 
-Same class of defect as fixed-bug #2, but broader. `ProjectData.hardwareCapabilityProfile`
-(`ProjectData.kt:112-113`) derives from `testHardwareProfile`, which **defaults to
-`NANOVNA_H4`** (`ProjectData.kt:94-95`, and is hardcoded to it in the
-`AppRootController` project factories at `:87`, `:100`, `:117`). `SweepGraphScreen.kt:80-81`
-then reads that stale value and uses it for:
+`ProjectData.hardwareCapabilityProfile` derived from `testHardwareProfile`, which
+**defaults to `NANOVNA_H4`**, so a connected, validated LiteVNA was treated as a NanoVNA.
+Fixed by `domain/testing/EffectiveHardwareResolver` — one resolution point, pure
+three-tier precedence (validated live → selected+open live → project → default), with
+every capability consumer routed through it.
 
-- the **frequency clamp** — `hardwareMinMHz` / `hardwareMaxMHz` (`:104-105`)
-- **feature tiers** — Smith chart, S21 estimate, TDR preview, markers/delta markers
-  (`:431`, `:470`, `:476`), CSV preview (`:315`, `:525`)
-- the **support-tier / display name** shown to the operator (`:86`, `:1039`)
+**The headline was the calibration loss, not the TDR error.** In severity order:
 
-Net effect: **a validated, connected LiteVNA is treated as a NanoVNA** for limits and
-features. Fix in the same shape as #2 — resolve the capability profile from the live
-selected instrument, falling back to the project profile only when nothing is live.
+1. **A verified OSL calibration was silently DISCARDED on project load.** Calibrations
+   captured on a real LiteVNA were stored under the *driver label*
+   (`"LiteVNA64 HW 64-0.3.3 FW v1.4.06"`, written via
+   `DeviceConnectionsController.buildProfileDisplayLabel`) but compared against the
+   project's *capability displayName* — `"NanoVNA-H4"` from the stale default. Two
+   different name vocabularies, so `normalizeIdentity` never matched and
+   `decideCalibrationRestore` returned `CLEAR`. This destroyed real operator work,
+   including calibrations of the kind verified passing at 14.2 MHz (§6). Note the
+   resolver alone did **not** fix this — the names still came from different
+   vocabularies; it needed canonicalised captures plus family-scoped alias matching.
+2. **TDR velocity factor 0.66 instead of 0.82** → ~24% cable-fault distance error, at any
+   frequency (`buildCableFaultPreview`).
+3. **Frequency clamp** 1.5 GHz instead of 6.3 GHz — only bites above 1.5 GHz (e.g. a
+   2.4 GHz antenna), so correctness rather than a user-visible fix.
+4. **Calibration fresh-session** was named from the live session but clamped by the
+   project profile — internally inconsistent regardless of which VNA was attached.
+5. **Feature tiers** (Smith/S21/TDR/markers/CSV/OSL) were **identical** between both
+   profiles and both map to `VNA_STANDARD`, so that part was future-proofing, not a fix.
+   Routed through the resolver anyway so the next divergence can't reintroduce the bug.
+
+Alias matching loosens a comparison, so it is deliberately family-scoped and tested to be
+disjoint: no NanoVNA alias may match LiteVNA and vice versa (incl. `LITE_VNA_84` and the
+driver-label form). The mis-accept direction is the dangerous one — applying the wrong
+correction silently beats a cleared calibration.
 
 ### 7.2 Lower priority
 

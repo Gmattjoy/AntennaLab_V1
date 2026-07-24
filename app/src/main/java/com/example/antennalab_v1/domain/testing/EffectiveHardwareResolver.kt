@@ -155,6 +155,85 @@ object EffectiveHardwareResolver {
 
     /*
     ------------------------------------------------------------
+    SECTION 1250
+    HARDWARE NAME ALIASES (pure)
+    ------------------------------------------------------------
+    PURPOSE
+    A stored calibration records only a free-text hardware name, and the app
+    writes that name from TWO different vocabularies:
+
+      • the capability displayName   e.g. "LiteVNA64 v0.3.3"
+      • the driver profile label     e.g. "LiteVNA64 HW 64-0.3.3 FW v1.4.06"
+        (DeviceConnectionsController.buildProfileDisplayLabel, which every
+        operator goes through to connect and Validate)
+
+    CalibrationSession.normalizeIdentity only lowercases and strips spaces,
+    dashes and underscores, so those two forms never matched — a real LiteVNA
+    calibration was compared against "NanoVNA-H4" and silently CLEARED on
+    project load. Resolving the profile correctly is NOT enough on its own,
+    because the two names still come from different vocabularies.
+
+    These alias sets are deliberately per-family and MUST NOT overlap across
+    families: loosening the comparison must never let a NanoVNA calibration be
+    accepted for a LiteVNA or vice versa. Applying the wrong correction
+    silently is worse than clearing a good calibration.
+    ------------------------------------------------------------
+    */
+    internal fun hardwareNameAliases(profile: TestHardwareProfile): Set<String> {
+        return when (profile) {
+            TestHardwareProfile.NANOVNA_H4 -> setOf(
+                "NanoVNA-H4",
+                "NanoVNA-H",
+                "NanoVNA-H4 (Default Shell)",
+                "NanoVNA-H (Default Shell)",
+                "NANO_VNA_H4",
+                "NANO_VNA_H"
+            )
+
+            TestHardwareProfile.LITEVNA64_V0_3_3 -> setOf(
+                "LiteVNA64 v0.3.3",
+                "LiteVNA64 HW 64-0.3.3 FW v1.4.06",
+                "LiteVNA64 (Standard)",
+                "LiteVNA84 (Standard)",
+                "LITE_VNA_64",
+                "LITE_VNA_84"
+            )
+        }
+    }
+
+    /*
+    Does a stored calibration's recorded hardware name belong to `profile`?
+    Uses the SAME normalisation as CalibrationSession so the two agree.
+    Blank names are treated as non-matching — an unnamed calibration should not
+    be silently adopted by whatever is attached.
+    */
+    fun storedNameMatchesHardware(
+        storedHardwareName: String?,
+        profile: TestHardwareProfile
+    ): Boolean {
+        if (storedHardwareName.isNullOrBlank()) return false
+
+        val normalizedStored = normalizeHardwareName(storedHardwareName)
+
+        return hardwareNameAliases(profile)
+            .any { normalizeHardwareName(it) == normalizedStored }
+    }
+
+    /*
+    Mirrors CalibrationSession.normalizeIdentity. Kept here (rather than reaching
+    into the model) so this stays a pure domain rule; the two must not drift.
+    */
+    internal fun normalizeHardwareName(rawText: String): String {
+        return rawText
+            .trim()
+            .lowercase()
+            .replace(" ", "")
+            .replace("-", "")
+            .replace("_", "")
+    }
+
+    /*
+    ------------------------------------------------------------
     SECTION 1300
     LIVE-SESSION ADAPTER (impure — reads the shared singleton)
     ------------------------------------------------------------
