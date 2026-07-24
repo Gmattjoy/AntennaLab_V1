@@ -459,6 +459,26 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
       reports manufacturer/product names. Do **not** use the `/sys/bus/usb/devices/*/idVendor`
       route — those reads are permission-denied without root on this tablet.
 
+## 10b. Bench observations pending re-check after OSL (A2)
+
+Recorded from the A1 sweep, which was **uncalibrated** — the values themselves are not
+yet trustworthy, so these are logged as presentation questions to re-examine once a VALID
+calibration is applied, not as chased bugs.
+
+1. **Two different resonance numbers on one screen.** Sweep Summary showed
+   *Resonant Frequency 144.790 MHz* (the minimum-SWR point, SWR 2.104) while Diagnostics
+   showed *Detected Resonance 145.330* with *Secondary 145.030*. One is the min-SWR
+   frequency and the other a detected estimate, but the labels do not distinguish them and
+   an operator will read it as a contradiction.
+2. **`Resonance Count 0` alongside a Detected and a Secondary resonance** — self-inconsistent
+   on its face.
+
+Also worth noting from the same run: on a partial sweep the cable-fault **"distance scale"
+is a function of which indices survive**, since it derives from the achieved span. This run
+recovered both endpoints so the span was the full 1.000 MHz, but a run missing index 0 or
+100 would yield a different number for the same physical cable. It is labelled a distance
+*scale* rather than a fault distance, which is honest, but it is not a stable reading.
+
 ## 11. Results log
 
 Fill in per bench run.
@@ -467,4 +487,5 @@ Fill in per bench run.
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1, pre-fix — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 skipped on this build: the code trace was decisive and re-measuring an expired join buys nothing. |
 | 2026-07-24 | v1.4.06 | `SWEEP_PROBE_OK` | **Passed** | `0x02` | `0x08` (8-pt probe) | 8/8 records (`distinctInRange=2/8`) | probe **2.03 s**; <15 s total | `SEQUENTIAL_FALLBACK` | **A0 PASS on both gates — build `e479d5d`, §8 fix VERIFIED.** Status "LIVE READY", Data Source `REAL_INSTRUMENT`, and the sweep screen offered **"Run Live Sweep"** enabled — the actual unblock. Mechanism confirmed: `probeReconstruct stop=records-satisfied rawRecords=8/8 budgetMs=2500 attempts=4`. Collection took **1.084 s** (`attempt=1` 11:51:21.372 → `probeReconstruct` 11:51:22.456). **Diagnosis proven by `distinctInRange=2/8`**: after 4 reads only indices 0,1 of the needed 0..7 had arrived (`freqSeq=[0,1,122,123,48,49,173,174]`, `max=174` — the §5 free-run scatter), so the old all-distinct rule would have burned its full 7.2 s and still not completed. ~6.1 s saved per bring-up. `LITEVNA_PROBE_MIN_RECORDS=8` validated in situ: `parsePath=SEQUENTIAL_FALLBACK` with `validPoints=8` — the probe passes *because* 8 records is exactly what the fallback needs. Elapsed later measured via the `BenchState` line on a second run: session-open + `validation='Running'` 12:25:05.854 → `validation='Passed'` 12:25:11.126 = **5.27 s** (slight over-count — the session opens just before that render), vs 15.2 s pre-fix. Trust `Degraded` — expected, calibration `NOT_STARTED` (see §7.4). |
+| 2026-07-24 | v1.4.06 | — | — | — | `0x65` | **74/101** | **46.77 s** | `DIRECT_INDEX` | **A1 PASS — TDR velocity factor 0.82 confirmed reaching the UI.** Cable-fault read *"Estimated distance scale 123.00 m"*; at the achieved span vf 0.66 would give 99.00 m, so 0.82 is in play (ratio 1.2424). Sweep: `attempts=128 rawRecords=257 inRange=129 outOfRange=128 duplicateInRange=55 min=0 max=200`, `useSequentialFallback=false`. **Achieved span verified = exactly 1.000 MHz**, i.e. NOT narrowed: `missing` starts at index 3 (so 0,1,2 recovered) and 123.00 m ⟹ span 1.000 MHz ⟹ index 100 recovered; all 27 missing indices are interior. Span endpoints are min/max **recovered** index because `selectDirectRecords` sorts by `freqIndex` (`LiteVnaFifoParser.kt:87`) before `validPoints.first()/.last()` (`LiteVnaSweepProtocol.kt:519-520`). ⚠️ **Caveat on the evidence:** this run cannot empirically distinguish "span from decoded points" (the code's behaviour) from "span from the requested window", because both yield 1.000 MHz here — that distinction is code-verified only; an endpoint-missing run would be the empirical test. Uncalibrated (banner shown), `isComplete=false` (banner shown) — both correct. Readings for the record: resonance 144.790, min SWR 2.104. See §10b for two presentation inconsistencies to re-check post-OSL. |
 | 2026-07-24 | — | — | — | — | — | — | — | — | *False start, kept as a process note.* An earlier A0 pass was reported that the device log contradicted — zero `LiteVnaFifo` lines across two app launches and `CalRestore` reporting `effective=NANOVNA_H4`, which the resolver only returns when no LiteVNA session is open. **Cause: the screen was at `PERMISSION_REQUIRED`, so no Connect button existed and no session was ever opened** (see §1 and §10 — a consequence of the VID/PID mismatch). Cost ~35 min. Lesson applied: verdicts are read from logcat, not reported from the UI. |
