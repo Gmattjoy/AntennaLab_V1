@@ -459,11 +459,76 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
       reports manufacturer/product names. Do **not** use the `/sys/bus/usb/devices/*/idVendor`
       route — those reads are permission-denied without root on this tablet.
 
+## 10c. Findings from A2 (2026-07-24)
+
+### 10c.1 Calibration canonicalisation is BYPASSED by the wizard — OPEN
+
+Confirmed on hardware: a real OSL capture stores `hardwareDisplayName =
+"LiteVNA64 HW 64-0.3.3 FW v1.4.06"` — the **raw driver label**, not the canonical
+capability displayName. (Visible because `SweepController.kt:143-151` composes the
+calibration label as `"$hardwareName OSL"` straight from the stored field.)
+
+Path: `CalibrationWizardScreen.kt:143`/`:193` pass
+`currentInstrumentState?.selectedHardwareName` into `CalibrationWizardController`, which
+assigns it at `:145` — overwriting whatever `CalibrationSessionFactory.buildFreshSession`
+canonicalised. **The canonicalisation half of the 2026-07-23 fix is dead code on this path.**
+
+Calibration restore still works, but only via the **alias-matching** half
+(`EffectiveHardwareResolver.hardwareNameAliases` lists the driver label explicitly).
+
+**The real risk:** `buildProfileDisplayLabel` (`DeviceConnectionsController:72-76`) is a
+**hardcoded UI display string**, and persistence now depends on it. Change it — firmware
+bump, cosmetic edit — and every stored calibration silently stops matching. A display
+label must not govern data survival. Fix by making the wizard store the canonical
+capability name (aliases then cover legacy data only), or by persisting the resolved
+`TestHardwareProfile` enum alongside the name.
+
+### 10c.2 TDR preview cannot locate a fault — the metres are span, not distance
+
+Proven by A2: **124.24 m on the 50 Ω load AND 124.24 m on the AR-771.** Identical for a
+matched load and an antenna, so the figure carries **no information about the DUT**.
+
+Working back through `(3e8 × 0.82) / (2 × span)`: 125.51 m ⟹ 0.980 MHz, 124.24 m ⟹
+0.990 MHz, 123.00 m ⟹ 1.000 MHz — each exactly the run's achieved span. The number is a
+pure restatement of sweep bandwidth, i.e. a **range-resolution limit**, not a fault
+location. "Distance scale" is therefore not lying, but it cannot answer "how far away is
+the fault", and the label invites that reading. The *"strongest discontinuity clue near
+X MHz"* half does carry DUT information (max |reactance| frequency); the metres do not.
+
+### 10c.3 A1's span ambiguity is now RESOLVED empirically
+
+A1 could not distinguish "span from decoded points" from "span from the requested window",
+since both gave 1.000 MHz. A2 supplied the missing test by accident: achieved spans across
+four runs were **0.980, 0.990, 0.990, 1.000 MHz** (72, 70, 78, 74 points recovered). A
+request-derived span would be 1.000 every time. **`LiteVnaSweepProtocol.kt:519-520` taking
+start/end from the decoded points is now run-verified, not merely code-verified**, and
+A1's round 123.00 m was a coincidence of both endpoints surviving.
+
+### 10c.4 OSL capture is slow: 40-60 s per standard
+
+~2.5-3 min for a full O/S/L set, worse than the 15-44 s single-sweep figure in §5. Each
+standard is a full 101-point reconstruction subject to the same free-run limitation, so
+the cost is 3× a normal sweep. Not a defect, but it dominates calibration UX and belongs
+with the §7.5 sweep-speed item.
+
+### 10c.5 `HIGH_LOSS_OR_WEAK_RADIATION` on a 50 Ω load is CORRECT
+
+Not a bug — a matched load absorbs everything and radiates nothing, so the classifier is
+physically right. Recorded so it isn't "fixed" later by mistake.
+
 ## 10b. Bench observations pending re-check after OSL (A2)
 
 Recorded from the A1 sweep, which was **uncalibrated** — the values themselves are not
 yet trustworthy, so these are logged as presentation questions to re-examine once a VALID
 calibration is applied, not as chased bugs.
+
+**PROMOTED TO A CONFIRMED BUG (2026-07-24, item 2 below): resonance counting is wrong in
+both directions on GOOD data.** A **calibrated 50 Ω load** reading `FLAT_RESPONSE`,
+`Impedance STABLE`, SWR 1.000 reported **`Resonance Count 15`** — a matched load has none.
+The same engine reported **0** on the uncalibrated antenna sweep *alongside* a detected and
+a secondary resonance. Not a noise artefact: it is a logic defect in the resonance-count
+classifier, independent of calibration quality. Not fixed today; needs its own task with
+hand-derived `SweepDiagnosticsEngine` cases.
 
 1. **Two different resonance numbers on one screen.** Sweep Summary showed
    *Resonant Frequency 144.790 MHz* (the minimum-SWR point, SWR 2.104) while Diagnostics
@@ -487,5 +552,5 @@ Fill in per bench run.
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1, pre-fix — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 skipped on this build: the code trace was decisive and re-measuring an expired join buys nothing. |
 | 2026-07-24 | v1.4.06 | `SWEEP_PROBE_OK` | **Passed** | `0x02` | `0x08` (8-pt probe) | 8/8 records (`distinctInRange=2/8`) | probe **2.03 s**; <15 s total | `SEQUENTIAL_FALLBACK` | **A0 PASS on both gates — build `e479d5d`, §8 fix VERIFIED.** Status "LIVE READY", Data Source `REAL_INSTRUMENT`, and the sweep screen offered **"Run Live Sweep"** enabled — the actual unblock. Mechanism confirmed: `probeReconstruct stop=records-satisfied rawRecords=8/8 budgetMs=2500 attempts=4`. Collection took **1.084 s** (`attempt=1` 11:51:21.372 → `probeReconstruct` 11:51:22.456). **Diagnosis proven by `distinctInRange=2/8`**: after 4 reads only indices 0,1 of the needed 0..7 had arrived (`freqSeq=[0,1,122,123,48,49,173,174]`, `max=174` — the §5 free-run scatter), so the old all-distinct rule would have burned its full 7.2 s and still not completed. ~6.1 s saved per bring-up. `LITEVNA_PROBE_MIN_RECORDS=8` validated in situ: `parsePath=SEQUENTIAL_FALLBACK` with `validPoints=8` — the probe passes *because* 8 records is exactly what the fallback needs. Elapsed later measured via the `BenchState` line on a second run: session-open + `validation='Running'` 12:25:05.854 → `validation='Passed'` 12:25:11.126 = **5.27 s** (slight over-count — the session opens just before that render), vs 15.2 s pre-fix. Trust `Degraded` — expected, calibration `NOT_STARTED` (see §7.4). |
-| 2026-07-24 | v1.4.06 | — | — | — | `0x65` | **74/101** | **46.77 s** | `DIRECT_INDEX` | **A1 PASS — TDR velocity factor 0.82 confirmed reaching the UI.** Cable-fault read *"Estimated distance scale 123.00 m"*; at the achieved span vf 0.66 would give 99.00 m, so 0.82 is in play (ratio 1.2424). Sweep: `attempts=128 rawRecords=257 inRange=129 outOfRange=128 duplicateInRange=55 min=0 max=200`, `useSequentialFallback=false`. **Achieved span verified = exactly 1.000 MHz**, i.e. NOT narrowed: `missing` starts at index 3 (so 0,1,2 recovered) and 123.00 m ⟹ span 1.000 MHz ⟹ index 100 recovered; all 27 missing indices are interior. Span endpoints are min/max **recovered** index because `selectDirectRecords` sorts by `freqIndex` (`LiteVnaFifoParser.kt:87`) before `validPoints.first()/.last()` (`LiteVnaSweepProtocol.kt:519-520`). ⚠️ **Caveat on the evidence:** this run cannot empirically distinguish "span from decoded points" (the code's behaviour) from "span from the requested window", because both yield 1.000 MHz here — that distinction is code-verified only; an endpoint-missing run would be the empirical test. Uncalibrated (banner shown), `isComplete=false` (banner shown) — both correct. Readings for the record: resonance 144.790, min SWR 2.104. See §10b for two presentation inconsistencies to re-check post-OSL. |
+| 2026-07-24 | v1.4.06 | — | — | — | `0x65` | **74/101** | **46.77 s** | `DIRECT_INDEX` | **A1 PASS — TDR velocity factor 0.82 confirmed reaching the UI.** Cable-fault read *"Estimated distance scale 123.00 m"*; at the achieved span vf 0.66 would give 99.00 m, so 0.82 is in play (ratio 1.2424). Sweep: `attempts=128 rawRecords=257 inRange=129 outOfRange=128 duplicateInRange=55 min=0 max=200`, `useSequentialFallback=false`. **Achieved span verified = exactly 1.000 MHz**, i.e. NOT narrowed: `missing` starts at index 3 (so 0,1,2 recovered) and 123.00 m ⟹ span 1.000 MHz ⟹ index 100 recovered; all 27 missing indices are interior. Span endpoints are min/max **recovered** index because `selectDirectRecords` sorts by `freqIndex` (`LiteVnaFifoParser.kt:87`) before `validPoints.first()/.last()` (`LiteVnaSweepProtocol.kt:519-520`). ✅ **Caveat RESOLVED by A2** (see §10c.3): achieved spans across four runs were 0.980/0.990/0.990/1.000 MHz, which a request-derived span could not produce. Span-from-decoded-points is now run-verified; A1's round number was a coincidence of both endpoints surviving. Uncalibrated (banner shown), `isComplete=false` (banner shown) — both correct. Readings for the record: resonance 144.790, min SWR 2.104. See §10b for two presentation inconsistencies to re-check post-OSL. |
 | 2026-07-24 | — | — | — | — | — | — | — | — | *False start, kept as a process note.* An earlier A0 pass was reported that the device log contradicted — zero `LiteVnaFifo` lines across two app launches and `CalRestore` reporting `effective=NANOVNA_H4`, which the resolver only returns when no LiteVNA session is open. **Cause: the screen was at `PERMISSION_REQUIRED`, so no Connect button existed and no session was ever opened** (see §1 and §10 — a consequence of the VID/PID mismatch). Cost ~35 min. Lesson applied: verdicts are read from logcat, not reported from the UI. |
