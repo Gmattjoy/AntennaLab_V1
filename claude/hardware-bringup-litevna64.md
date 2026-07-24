@@ -488,6 +488,52 @@ label must not govern data survival. Fix by making the wizard store the canonica
 capability name (aliases then cover legacy data only), or by persisting the resolved
 `TestHardwareProfile` enum alongside the name.
 
+### 10c.7 Finding #6 PROMOTED — real LiteVNA sweeps are persisted as `Hardware: SIMULATED` (DATA INTEGRITY)
+
+Previously filed as a stale UI label. **It is not cosmetic: the wrong value is written into
+stored project data and outlives the session.** Confirmed by the §6 reload — all three
+history entries, every one a real LiteVNA measurement (including the calibrated 78/101
+AR-771 sweep and the SWR 1.000 calibrated load), read `Hardware: SIMULATED` after
+save → kill → reload.
+
+**Root cause.** `SweepResult.hardwareProfile` defaults to the literal string **`"SIMULATED"`**
+(`SweepResult.kt:128`), and each driver is expected to overwrite it:
+
+| Writer | Sets | |
+|---|---|---|
+| `NanoVnaSweepProtocol.kt:270` | `"USB_NANOVNA_DRIVER"` | ✓ |
+| `SweepController.kt:335`, `:350` | `"SIMULATED"` | ✓ correct — those *are* simulated |
+| `DebugOslCalibrationSimulator.kt:91` | `"SIMULATED_CAL_…"` | ✓ |
+| **`LiteVnaSweepProtocol`** (`:524-536`) | **nothing — field omitted** | ✗ inherits `"SIMULATED"` |
+
+The NanoVNA driver remembered; the LiteVNA driver did not. The default being a *confident
+wrong value* rather than a neutral one (`""`/`"UNKNOWN"`) is what made the omission
+invisible — `buildSweepHistoryEntry:823` even guards `.ifBlank { "Unknown Instrument" }`,
+which can never fire.
+
+**Also live, not only persisted:** `SweepUiModelBuilder:73-74` branches on
+`hardwareProfile.equals("SIMULATED")` to emit *"Current loaded sweep is simulated."* — so a
+real LiteVNA sweep actively tells the operator it was simulated. **This corrects the earlier
+fold-in:** the "readiness shows Simulated on the real path" symptom has **two independent
+causes**; §8 fixed the support-tier one, this is the other, and it survived §8.
+
+Fix (not today): set `hardwareProfile` in `LiteVnaSweepProtocol`, and change the model
+default to a neutral value so a future driver's omission fails loudly instead of lying.
+
+### 10c.8 The pattern, three times in two days: readers verified, writers not
+
+1. **Alias/calibration fix (§10c.6)** — correct fix, *no writer exists*, so the path is unreachable.
+2. **TDR capability flag (§7.3)** — correct value in a model *nothing reads*, while the model that is read said no.
+3. **`hardwareProfile` (§10c.7)** — *writer omitted*, and the default silently wrote a false claim.
+
+The first two are correct fixes to unreachable paths; the third is the mirror image — a path
+nobody checked that quietly writes wrong data. Same root cause in all three: **the decision
+logic was verified without verifying what produces its inputs, or what consumes its outputs.**
+Applies directly to how this codebase is reviewed: for any capability, flag or persisted
+field, establish *both* ends — who writes it and who reads it — before trusting a fix to it.
+`REAL_INSTRUMENT` was resolved correctly everywhere we looked today, and wrong in the one
+place that outlives the session.
+
 ### 10c.6 There is NO PRODUCER for `storedCalibrationSession` — A3 is unrunnable, and yesterday's severity claim was WRONG
 
 Exhaustive grep: every mention of `storedCalibrationSession` in `main/` is either a **read**
@@ -584,4 +630,7 @@ Fill in per bench run.
 | 2026-07-24 | v1.4.06 | `TIMED_OUT` | Timed Out | `0x02` | — | — | **15.2 s** | — | **A0 run 1, pre-fix — §8 CONFIRMED.** Healthy device: `0xF0` answered `0x02` correctly, status card read "Transport Ready" (not "Live Ready") exactly as predicted. Elapsed pinned at the 15 s join. **BLOCKER** — see §8. Runs 2-3 skipped on this build: the code trace was decisive and re-measuring an expired join buys nothing. |
 | 2026-07-24 | v1.4.06 | `SWEEP_PROBE_OK` | **Passed** | `0x02` | `0x08` (8-pt probe) | 8/8 records (`distinctInRange=2/8`) | probe **2.03 s**; <15 s total | `SEQUENTIAL_FALLBACK` | **A0 PASS on both gates — build `e479d5d`, §8 fix VERIFIED.** Status "LIVE READY", Data Source `REAL_INSTRUMENT`, and the sweep screen offered **"Run Live Sweep"** enabled — the actual unblock. Mechanism confirmed: `probeReconstruct stop=records-satisfied rawRecords=8/8 budgetMs=2500 attempts=4`. Collection took **1.084 s** (`attempt=1` 11:51:21.372 → `probeReconstruct` 11:51:22.456). **Diagnosis proven by `distinctInRange=2/8`**: after 4 reads only indices 0,1 of the needed 0..7 had arrived (`freqSeq=[0,1,122,123,48,49,173,174]`, `max=174` — the §5 free-run scatter), so the old all-distinct rule would have burned its full 7.2 s and still not completed. ~6.1 s saved per bring-up. `LITEVNA_PROBE_MIN_RECORDS=8` validated in situ: `parsePath=SEQUENTIAL_FALLBACK` with `validPoints=8` — the probe passes *because* 8 records is exactly what the fallback needs. Elapsed later measured via the `BenchState` line on a second run: session-open + `validation='Running'` 12:25:05.854 → `validation='Passed'` 12:25:11.126 = **5.27 s** (slight over-count — the session opens just before that render), vs 15.2 s pre-fix. Trust `Degraded` — expected, calibration `NOT_STARTED` (see §7.4). |
 | 2026-07-24 | v1.4.06 | — | — | — | `0x65` | **74/101** | **46.77 s** | `DIRECT_INDEX` | **A1 PASS — TDR velocity factor 0.82 confirmed reaching the UI.** Cable-fault read *"Estimated distance scale 123.00 m"*; at the achieved span vf 0.66 would give 99.00 m, so 0.82 is in play (ratio 1.2424). Sweep: `attempts=128 rawRecords=257 inRange=129 outOfRange=128 duplicateInRange=55 min=0 max=200`, `useSequentialFallback=false`. **Achieved span verified = exactly 1.000 MHz**, i.e. NOT narrowed: `missing` starts at index 3 (so 0,1,2 recovered) and 123.00 m ⟹ span 1.000 MHz ⟹ index 100 recovered; all 27 missing indices are interior. Span endpoints are min/max **recovered** index because `selectDirectRecords` sorts by `freqIndex` (`LiteVnaFifoParser.kt:87`) before `validPoints.first()/.last()` (`LiteVnaSweepProtocol.kt:519-520`). ✅ **Caveat RESOLVED by A2** (see §10c.3): achieved spans across four runs were 0.980/0.990/0.990/1.000 MHz, which a request-derived span could not produce. Span-from-decoded-points is now run-verified; A1's round number was a coincidence of both endpoints surviving. Uncalibrated (banner shown), `isComplete=false` (banner shown) — both correct. Readings for the record: resonance 144.790, min SWR 2.104. See §10b for two presentation inconsistencies to re-check post-OSL. |
+| 2026-07-24 | v1.4.06 | — | — | — | — | 70/101 & 78/101 | 40-60 s per standard | — | **A2 OSL PASS.** Calibrated 50 Ω: **SWR 1.000**, `FLAT_RESPONSE`, `Impedance STABLE`, RL 82.261 dB — the sealed pass criterion met exactly. AR-771 min SWR **2.104 → 1.585** after correction, so calibration reaches the sweep. **No ANR on any capture — fixed bug #1 holds at 145 MHz on hardware.** O/S/L set took ~2.5-3 min (§10c.4). Calibration label stored as the raw driver label (§10c.1). Findings §10c.1-.5, and resonance-count promoted to a confirmed bug (§10b). |
+| 2026-07-24 | v1.4.06 | — | — | — | — | 3 entries | — | — | **§6 SAVE/LOAD ROUND-TRIP PASS — with a data-integrity failure alongside.** After save → kill → reload, sweep history survived intact: points, span (144.500→145.490), best frequency, best SWR, the `78 of 101` partial flag and `Calibration: Calibrated (OSL)` all preserved. **BUT every entry — all real LiteVNA measurements — is persisted as `Hardware: SIMULATED`** (§10c.7). Persistence mechanism verified; the data it persists is wrong in that field. |
+| 2026-07-24 | — | — | — | — | — | — | — | — | **A3 NOT RUN — unrunnable, see §10c.6.** No code path writes a live calibration into a project, so save persists `storedCalibrationSession = null` and reload would log `reason=no-stored-calibration` — a null result, not a test of the fix. Block B skipped for the same reason (§10c.6). |
 | 2026-07-24 | — | — | — | — | — | — | — | — | *False start, kept as a process note.* An earlier A0 pass was reported that the device log contradicted — zero `LiteVnaFifo` lines across two app launches and `CalRestore` reporting `effective=NANOVNA_H4`, which the resolver only returns when no LiteVNA session is open. **Cause: the screen was at `PERMISSION_REQUIRED`, so no Connect button existed and no session was ever opened** (see §1 and §10 — a consequence of the VID/PID mismatch). Cost ~35 min. Lesson applied: verdicts are read from logcat, not reported from the UI. |
