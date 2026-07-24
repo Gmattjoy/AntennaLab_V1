@@ -213,7 +213,12 @@ every capability consumer routed through it.
 
 **The headline was the calibration loss, not the TDR error.** In severity order:
 
-1. **A verified OSL calibration was silently DISCARDED on project load.** Calibrations
+1. ⚠️ **SEVERITY CORRECTED 2026-07-24 — see §10c.6. This was recorded as active data loss;
+   it is actually a LATENT defect.** No code path writes a calibration into a project, so
+   no operator work could ever have been discarded. The fix below is correct and still
+   needed, but it repaired an unreachable path. Original text follows.
+
+   **A verified OSL calibration was silently DISCARDED on project load.** Calibrations
    captured on a real LiteVNA were stored under the *driver label*
    (`"LiteVNA64 HW 64-0.3.3 FW v1.4.06"`, written via
    `DeviceConnectionsController.buildProfileDisplayLabel`) but compared against the
@@ -482,6 +487,32 @@ bump, cosmetic edit — and every stored calibration silently stops matching. A 
 label must not govern data survival. Fix by making the wizard store the canonical
 capability name (aliases then cover legacy data only), or by persisting the resolved
 `TestHardwareProfile` enum alongside the name.
+
+### 10c.6 There is NO PRODUCER for `storedCalibrationSession` — A3 is unrunnable, and yesterday's severity claim was WRONG
+
+Exhaustive grep: every mention of `storedCalibrationSession` in `main/` is either a **read**
+(accessors `ProjectData.kt:150-158`, the restore decision, display) or the **JSON round-trip**
+(`ProjectStorage.kt:879` write, `:890` read). The only three `calibrationData =` assignments
+are `duplicateProject` (`:270`), load-deserialisation (`:550`) and a default (`:1284`).
+`mergeProjectReturnFromSweep` (`ProjectWorkspaceController.kt:70-75`) adopts `sweepHistory`
+and `testData` on sweep return but **not** `calibrationData`.
+
+**Nothing ever writes a live calibration into a project.** Both halves of persistence exist;
+the producer does not. Saving a project stores `storedCalibrationSession = null`.
+
+**Correction to the 2026-07-23 finding (§7.1 #1).** It was recorded as the headline — "a
+verified OSL calibration was silently DISCARDED on project load… destroyed real operator
+work". **That severity was wrong.** The name-mismatch defect was real *in the code*, but
+**unreachable**: no operator work could be lost because no calibration was ever stored in a
+project to begin with. Same shape as §7.3's TDR flag — a correct fix on a path nothing can
+reach. The alias-matching fix remains correct and is still needed the moment a producer
+exists, but it fixed a latent defect, not an active data-loss bug.
+
+**What is actually missing** is a feature: capture → persist into `ProjectData`. Until it
+exists, `decideCalibrationRestore`, the alias set, the restore policy and
+`CalibrationRestorePolicy` all operate on data that only a hand-written JSON file could
+supply. Needs its own task (when to persist, on explicit Save or automatically; whether a
+STALE calibration should persist; interaction with `restoredFromStorage`).
 
 ### 10c.2 TDR preview cannot locate a fault — the metres are span, not distance
 
