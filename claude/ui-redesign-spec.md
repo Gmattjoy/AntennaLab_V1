@@ -233,4 +233,16 @@ phases; commit per phase.
   + `LocalAntennaLabSemanticColors` + selector, `AntennaLabTheme` accessor) provided additively in
   `Theme.kt`; first shared primitive `ui/components/StatusPill.kt`; `TokenPreviews.kt` swatch sheet
   (light + dark); `DesignTokensTest` (5 tests) locking the touch floor / 4 dp grid / theme-aware
-  semantic invariants. No screen touched. Light-mode semantic hex proposed, pending swatch review.
+  semantic invariants. No screen touched. Light-mode semantic hex approved off the swatch.
+- 2026-07-29 — **Phase 1 landed (Dashboard).** `DashboardScreen` replaces the `"home"` route's
+  `HomeScreen` (now unused); the ⋮ overflow (`AppTopRightMenu`) is kept so no route loses its entry
+  point. Device/calibration status card reads real `UsbSessionManager` truth via the existing
+  `InstrumentStatusUiMapper`, with the calibration pill labelled "App calibration · …". Three
+  distinct quick actions (Measure now / New project / Identify antenna → existing `enter*` handlers);
+  Test Antenna + design extras stay in ⋮ / Lab. Recent projects render from the cheap index
+  immediately; cal + last-SWR badges load bounded (top 4) off the main thread, a failed load just
+  drops that row's badges. New primitives `ui/components/MetricCard.kt` + `AppActionButton.kt`
+  (first token consumers, `touch.field` for the accent action). Pure `DashboardController` +
+  `DashboardControllerTest` (12 tests). `@Preview` of `DashboardContent` in light + dark. Suite
+  376 tests, 0 failures. Open items still standing: recent-badge index enrichment (Fork 2/B) if
+  perf bites; the sweep/Simple-Full/marker-table questions belong to later phases.

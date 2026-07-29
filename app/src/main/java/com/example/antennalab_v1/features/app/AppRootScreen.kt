@@ -160,18 +160,40 @@ fun AppRootScreen() {
     }
 
     LaunchedEffect(screen.value) {
-        if (screen.value == "projects") {
+        if (screen.value == "projects" || screen.value == "home") {
             refreshProjectsList()
         }
     }
 
     when (screen.value) {
-        "home" -> HomeScreen(
-            onOpenLab = { enterLab() },
-            onOpenSettings = { enterSettings() },
-            onOpenWizard = { enterWizardMode() },
-            onOpenTestAntenna = { enterRfTestWizardMode() },
-            onOpenProjects = { enterProjects() }
+        "home" -> DashboardScreen(
+            selectedHardwareName =
+                EffectiveHardwareResolver.resolveCapabilityProfileForProject(effectiveProject()).displayName,
+            recentProjects = savedProjects.value,
+            onAction = { action ->
+                when (action) {
+                    DashboardController.DashboardAction.MEASURE_NOW -> enterProjectSweepMode()
+                    DashboardController.DashboardAction.NEW_PROJECT -> enterWizardMode()
+                    DashboardController.DashboardAction.IDENTIFY_ANTENNA -> enterUnknownDiscoveryMode()
+                }
+            },
+            onOpenProject = { projectId ->
+                val loadedProject = ProjectStorage.loadProjectById(context, projectId)
+                if (loadedProject != null) {
+                    applyStoredCalibrationToSharedSession(context, loadedProject)
+                    currentProject.value = loadedProject
+                    activeProjectOverride.value = null
+                    testMode.value = false
+                    projectResumeIntoSweep.value = false
+                    screen.value = "project"
+                }
+            },
+            onSeeAllProjects = { enterProjects() },
+            onOpenDeviceStatus = {
+                projectResumeIntoSweep.value = false
+                deviceConnectionsReturnScreen.value = "home"
+                screen.value = "device_connections"
+            }
         )
 
         "lab" -> LabHomeScreen(
