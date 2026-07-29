@@ -502,10 +502,18 @@ fun SweepSummaryCard(
             )
 
             resonanceMHz?.let {
+                // §10b item 1: this is the minimum-SWR frequency (best match), NOT the
+                // reactance-null "Electrical Resonance" shown in Diagnostics. The caption
+                // makes the distinction legible so the two numbers don't read as a
+                // contradiction. Display only — the value is unchanged.
                 SharedTwoValueRow(
-                    label = "Resonant Frequency",
+                    label = "Best-Match Frequency",
                     value = String.format("%.3f MHz", it),
                     instrumentTextPrimary = instrumentTextPrimary,
+                    instrumentTextSecondary = instrumentTextSecondary
+                )
+                SharedInstrumentMutedText(
+                    text = "Lowest SWR — the best match to 50 Ω.",
                     instrumentTextSecondary = instrumentTextSecondary
                 )
             }

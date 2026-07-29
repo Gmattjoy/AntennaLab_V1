@@ -126,10 +126,17 @@ fun SweepDiagnosticsSummaryPanel(
             }
 
             diagnostics.resonanceText?.let {
+                // §10b item 1: the reactance-null (electrical) resonance — distinct from
+                // the Sweep Summary "Best-Match Frequency" (minimum-SWR point). The caption
+                // names the physics so the two numbers don't read as a contradiction.
                 SharedTwoValueRow(
-                    label = "Detected Resonance",
+                    label = "Electrical Resonance",
                     value = it,
                     instrumentTextPrimary = instrumentTextPrimary,
+                    instrumentTextSecondary = instrumentTextSecondary
+                )
+                SharedInstrumentMutedText(
+                    text = "Where reactance passes through zero.",
                     instrumentTextSecondary = instrumentTextSecondary
                 )
             }

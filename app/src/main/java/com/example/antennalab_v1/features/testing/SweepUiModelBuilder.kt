@@ -168,7 +168,7 @@ object SweepUiModelBuilder {
 
         // §10b: the count and the detector share one source of truth, so the
         // display must too — when no resonance was detected (count 0) show none,
-        // never a bogus "Detected Resonance 0.000" alongside a count that denies it.
+        // never a bogus "Electrical Resonance 0.000" alongside a count that denies it.
         val hasResonance = diagnostics.resonanceCountEstimate > 0
 
         return SweepDiagnosticsUiModel(

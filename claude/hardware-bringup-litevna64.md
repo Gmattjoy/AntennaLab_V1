@@ -809,7 +809,16 @@ at the constant): lower it if a gentle real resonance is ever missed on the benc
 **Next bench re-run:** calibrated 50 Ω load → expect **Resonance Count 0** (was 15) and no
 Detected/Secondary shown; AR-771 → expect **count == number of detected resonances**. Log §11.
 
-**ITEM 1 STILL OPEN — separate UI-wording task (not this fix):**
+**ITEM 1 RESOLVED (2026-07-29, off-bench) — labelling only, zero logic change.** The two
+numbers are genuinely different quantities and were mislabelled: the Sweep Summary number is the
+**minimum-SWR frequency** (best match), not a resonance. Relabelled so they read as distinct:
+- Sweep Summary (`SweepGraphWidgets.kt:506`): "Resonant Frequency" → **"Best-Match Frequency"** +
+  caption *"Lowest SWR — the best match to 50 Ω."*
+- Diagnostics (`SweepTuningWidgets.kt:130`): "Detected Resonance" → **"Electrical Resonance"** +
+  caption *"Where reactance passes through zero."* ("Secondary Resonance" label unchanged.)
+Display strings + two muted caption lines only; `SweepAnalyzer.getResonantFrequencyMHz` and
+`findResonances` untouched; values identical. No test asserts these labels. **This closes §10b
+entirely.** Original item 1 below for history:
 
 1. **Two different resonance numbers on one screen.** Sweep Summary showed
    *Resonant Frequency 144.790 MHz* (the minimum-SWR point, SWR 2.104) while Diagnostics
