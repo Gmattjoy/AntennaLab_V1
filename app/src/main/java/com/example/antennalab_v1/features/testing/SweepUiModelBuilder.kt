@@ -166,12 +166,24 @@ object SweepUiModelBuilder {
             .map { line -> line.removeSuffix(".") }
             .filter { it.isNotBlank() }
 
+        // §10b: the count and the detector share one source of truth, so the
+        // display must too — when no resonance was detected (count 0) show none,
+        // never a bogus "Detected Resonance 0.000" alongside a count that denies it.
+        val hasResonance = diagnostics.resonanceCountEstimate > 0
+
         return SweepDiagnosticsUiModel(
             minimumSwrText = String.format("%.3f", diagnostics.minimumSwr),
-            resonanceText = String.format("%.3f MHz", diagnostics.resonanceFrequencyMHz),
-            secondaryResonanceText = diagnostics.secondaryResonanceFrequencyMHz?.let {
-                String.format("%.3f MHz", it)
-            },
+            resonanceText =
+                if (hasResonance) String.format("%.3f MHz", diagnostics.resonanceFrequencyMHz)
+                else null,
+            secondaryResonanceText =
+                if (hasResonance) {
+                    diagnostics.secondaryResonanceFrequencyMHz?.let {
+                        String.format("%.3f MHz", it)
+                    }
+                } else {
+                    null
+                },
             bandwidthText = String.format("%.3f MHz", diagnostics.estimatedBandwidthMHz),
             bandwidthAt15Text = String.format("%.3f MHz", diagnostics.estimatedBandwidthAt15MHz),
             matchingQualityText = diagnostics.matchingQuality.name,

@@ -8,6 +8,7 @@ import com.example.antennalab_v1.domain.testing.MismatchSeverity
 import com.example.antennalab_v1.domain.testing.ReactanceTrend
 import com.example.antennalab_v1.domain.testing.SweepDiagnosticsEngine
 import com.example.antennalab_v1.domain.testing.SweepShape
+import com.example.antennalab_v1.domain.testing.findResonances
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import org.junit.Assert.assertEquals
@@ -84,8 +85,9 @@ class SweepDiagnosticsEngineTest {
 
         assertEquals(1.1, d.minimumSwr, tol)
         assertEquals(12.0, d.minimumSwrFrequencyMHz, tol)
-        // primary resonance = min |reactance| point (also 12.0 here)
+        // One reactance crossing (cap −15 → ind +18); resonance = the null at 12.0.
         assertEquals(12.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(1, d.resonanceCountEstimate)
         // SWR≤2.0 span: 13.0 − 11.0
         assertEquals(2.0, d.estimatedBandwidthMHz, tol)
         // SWR≤1.5 span: single in-band point → 0.0
@@ -94,9 +96,10 @@ class SweepDiagnosticsEngineTest {
 
     @Test
     fun resonanceFrequencyDivergesFromMinSwr_andBandwidthBoundaryIsInclusive() {
-        // Hand-derived:
+        // Hand-derived — resonance (a reactance crossing) sits at a DIFFERENT
+        // frequency than the min-SWR point:
         //  - min SWR 1.2 at 10.0 MHz
-        //  - min |reactance| = 1 at 11.0 MHz → resonance 11.0 (DIFFERENT freq)
+        //  - one crossing (ind +30 → cap −40); null = min |X| = 1 at 11.0 → resonance 11.0
         //  - SWR≤2.0 in-band: 10.0 (1.2) and 11.0 (exactly 2.0, inclusive) → span 1.0
         //    (were 2.0 exclusive, 11.0 would drop and the span would be 0.0)
         //  - SWR≤1.5 in-band: only 10.0 → span 0.0
@@ -105,15 +108,119 @@ class SweepDiagnosticsEngineTest {
                 listOf(
                     point(10.0, swr = 1.2, reactance = 30.0),
                     point(11.0, swr = 2.0, reactance = 1.0),
-                    point(12.0, swr = 2.5, reactance = 40.0)
+                    point(12.0, swr = 2.5, reactance = -40.0)
                 )
             )
         )
         assertEquals(1.2, d.minimumSwr, tol)
         assertEquals(10.0, d.minimumSwrFrequencyMHz, tol)
         assertEquals(11.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(1, d.resonanceCountEstimate)
         assertEquals(1.0, d.estimatedBandwidthMHz, tol)
         assertEquals(0.0, d.estimatedBandwidthAt15MHz, tol)
+    }
+
+    // ==================================================================
+    // §10b — count and detector reconciled to ONE source of truth
+    // ==================================================================
+
+    @Test
+    fun flatMatchedLoad_reportsZeroResonances_notNoiseRipple() {
+        // A calibrated 50Ω load: SWR ~1.0 with tiny ripple, reactance ~0 with tiny
+        // ripple (all |X| < X_GUARD). The OLD count counted every SWR-noise wiggle
+        // that sat near a reactance null → 15 on the bench. The reconciled detector
+        // finds NO reactance crossing → 0. Regression pin for the §10b over-count.
+        val d = SweepDiagnosticsEngine.analyzeSweep(
+            sweep(
+                listOf(
+                    point(10.0, swr = 1.00, reactance = 1.5),
+                    point(11.0, swr = 1.02, reactance = -2.0),
+                    point(12.0, swr = 1.00, reactance = 2.0),
+                    point(13.0, swr = 1.03, reactance = -1.0),
+                    point(14.0, swr = 1.00, reactance = 1.0),
+                    point(15.0, swr = 1.02, reactance = -2.0),
+                    point(16.0, swr = 1.00, reactance = 2.5),
+                    point(17.0, swr = 1.03, reactance = -1.5),
+                    point(18.0, swr = 1.00, reactance = 1.0),
+                    point(19.0, swr = 1.02, reactance = -2.0),
+                    point(20.0, swr = 1.00, reactance = 1.5)
+                )
+            )
+        )
+        assertEquals(0, d.resonanceCountEstimate)
+        assertEquals(0.0, d.resonanceFrequencyMHz, tol)
+        assertNull(d.secondaryResonanceFrequencyMHz)
+        assertEquals(SweepShape.FLAT_RESPONSE, d.sweepShape)
+    }
+
+    @Test
+    fun cleanSingleDip_countMatchesDetector() {
+        // One clean resonance: count is exactly 1 AND the detected resonance is the
+        // crossing null. Count and detector agree that one resonance exists.
+        val d = SweepDiagnosticsEngine.analyzeSweep(canonicalDip())
+        assertEquals(1, d.resonanceCountEstimate)
+        assertEquals(12.0, d.resonanceFrequencyMHz, tol)
+        // Never a detected resonance the count denies, nor vice-versa.
+        assertTrue((d.resonanceCountEstimate > 0) == (d.resonanceFrequencyMHz != 0.0))
+    }
+
+    @Test
+    fun realResonance_countAndDetectorAgree_notZeroWithDetected() {
+        // The §10b under-count shape: the min-SWR sample (11.0, |X|=28) and the
+        // reactance null (12.0) are DIFFERENT frequencies, so the old conjunction
+        // (SWR-dip AND |X|≤20 at one sample) counted 0 while the detector reported a
+        // resonance. Reconciled: one crossing → count 1, primary at the null. They
+        // cannot contradict.
+        val d = SweepDiagnosticsEngine.analyzeSweep(
+            sweep(
+                listOf(
+                    point(10.0, swr = 2.5, reactance = 30.0),
+                    point(11.0, swr = 2.104, reactance = 28.0),
+                    point(12.0, swr = 2.3, reactance = 1.0),
+                    point(13.0, swr = 2.4, reactance = -25.0)
+                )
+            )
+        )
+        assertEquals(1, d.resonanceCountEstimate)
+        assertEquals(12.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(11.0, d.minimumSwrFrequencyMHz, tol) // detector ≠ min-SWR, and that's fine
+    }
+
+    // ---- findResonances directly (the single pure detector) ----------
+
+    @Test
+    fun findResonances_emptyOnFlatNearZeroReactance() {
+        val flat = listOf(
+            point(10.0, reactance = 2.0),
+            point(11.0, reactance = -2.0),
+            point(12.0, reactance = 1.0),
+            point(13.0, reactance = -1.0),
+            point(14.0, reactance = 2.0)
+        )
+        assertTrue(findResonances(flat).isEmpty())
+    }
+
+    @Test
+    fun findResonances_oneNullForSingleCrossing() {
+        val r = findResonances(canonicalDip().points)
+        assertEquals(1, r.size)
+        assertEquals(12.0, r.first().frequencyMHz, tol)
+    }
+
+    @Test
+    fun findResonances_twoNullsForTwoCrossings() {
+        val twoCrossings = listOf(
+            point(10.0, reactance = 25.0),
+            point(11.0, reactance = 0.0),
+            point(12.0, reactance = -25.0),
+            point(13.0, reactance = -25.0),
+            point(14.0, reactance = 0.0),
+            point(15.0, reactance = 25.0)
+        )
+        val r = findResonances(twoCrossings)
+        assertEquals(2, r.size)
+        assertEquals(11.0, r[0].frequencyMHz, tol)
+        assertEquals(14.0, r[1].frequencyMHz, tol)
     }
 
     @Test
@@ -168,14 +275,16 @@ class SweepDiagnosticsEngineTest {
     @Test
     fun singlePoint_physicalOutputsHandDerived_andSizeGatedFieldsUnknown() {
         // One point at 12.0, swr 1.3, reactance 3.
-        //  - min SWR 1.3 at 12.0; resonance 12.0; both bandwidths 0.0 (single in-band)
+        //  - min SWR 1.3 at 12.0; both bandwidths 0.0 (single in-band)
+        //  - a lone point cannot exhibit a reactance crossing → NO resonance
+        //    detected (count 0, resonance 0.0), consistent with the count.
         val d = SweepDiagnosticsEngine.analyzeSweep(
             sweep(listOf(point(12.0, swr = 1.3, reactance = 3.0)))
         )
         assertTrue(d.hasUsableData)
         assertEquals(1.3, d.minimumSwr, tol)
         assertEquals(12.0, d.minimumSwrFrequencyMHz, tol)
-        assertEquals(12.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(0.0, d.resonanceFrequencyMHz, tol)
         assertEquals(0.0, d.estimatedBandwidthMHz, tol)
         assertEquals(0.0, d.estimatedBandwidthAt15MHz, tol)
         assertNull(d.secondaryResonanceFrequencyMHz)
@@ -186,63 +295,57 @@ class SweepDiagnosticsEngineTest {
     }
 
     // ==================================================================
-    // Secondary resonance (hand-derived selection)
+    // Secondary resonance — the SECOND reactance crossing (single source)
     // ==================================================================
 
     @Test
-    fun secondaryResonance_picksFarNearNullReactancePoint() {
-        // step 1.0, freq 10..16. Primary resonance (min |reactance|) = 12.0 (0.5).
-        // Separation threshold = 3×step = 3.0 → far points need |f−12| ≥ 3.0 (f≤9 or f≥15).
-        // Far candidates: 15.0 (|8|) and 16.0 (|22|); min |reactance| = 15.0, and 8 ≤ 25.
+    fun secondaryResonance_populatedWhenTwoCrossingsExist() {
+        // Two crossings: ind +25 → cap −25 (null 0 at 12.0), then cap −25 → ind +25
+        // (null 0 at 14.0). Both nulls |X|=0 → tie; primary keeps the first (12.0),
+        // secondary is the other crossing (14.0).
         val d = SweepDiagnosticsEngine.analyzeSweep(
             sweep(
                 listOf(
-                    point(10.0, swr = 2.0, reactance = 20.0),
-                    point(11.0, swr = 1.8, reactance = 10.0),
-                    point(12.0, swr = 1.1, reactance = 0.5),
-                    point(13.0, swr = 1.9, reactance = 12.0),
-                    point(14.0, swr = 2.5, reactance = 30.0),
-                    point(15.0, swr = 1.7, reactance = 8.0),
-                    point(16.0, swr = 2.6, reactance = 22.0)
+                    point(10.0, swr = 2.0, reactance = 25.0),
+                    point(11.0, swr = 1.5, reactance = 12.0),
+                    point(12.0, swr = 1.1, reactance = 0.0),
+                    point(13.0, swr = 1.5, reactance = -12.0),
+                    point(14.0, swr = 1.2, reactance = 0.0),
+                    point(15.0, swr = 1.6, reactance = 12.0),
+                    point(16.0, swr = 2.4, reactance = 25.0)
                 )
             )
         )
-        assertEquals(15.0, d.secondaryResonanceFrequencyMHz!!, tol)
+        assertEquals(2, d.resonanceCountEstimate)
+        assertEquals(12.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(14.0, d.secondaryResonanceFrequencyMHz!!, tol)
     }
 
     @Test
-    fun secondaryResonance_nullWhenFarCandidatesReactanceTooHigh() {
-        // Same layout but every far point has |reactance| > 25 → takeIf drops it.
-        val d = SweepDiagnosticsEngine.analyzeSweep(
-            sweep(
-                listOf(
-                    point(10.0, swr = 2.0, reactance = 20.0),
-                    point(11.0, swr = 1.8, reactance = 10.0),
-                    point(12.0, swr = 1.1, reactance = 0.5),
-                    point(13.0, swr = 1.9, reactance = 12.0),
-                    point(14.0, swr = 2.5, reactance = 30.0),
-                    point(15.0, swr = 1.7, reactance = 40.0),
-                    point(16.0, swr = 2.6, reactance = 50.0)
-                )
-            )
-        )
+    fun secondaryResonance_nullWhenOnlyOneCrossing() {
+        // canonicalDip has exactly one crossing → primary only, secondary null.
+        val d = SweepDiagnosticsEngine.analyzeSweep(canonicalDip())
+        assertEquals(1, d.resonanceCountEstimate)
         assertNull(d.secondaryResonanceFrequencyMHz)
     }
 
     @Test
-    fun secondaryResonance_nullWhenFewerThanFivePoints() {
-        // canonicalDip has 5 points but no point far enough from the primary →
-        // also null; use a 4-point sweep to hit the explicit size guard.
+    fun secondaryResonance_nullWhenReactanceNeverLeavesGuardBand() {
+        // Every |reactance| < X_GUARD (5 Ω) → no side ever established → no
+        // crossings at all, so neither primary nor secondary is detected.
         val d = SweepDiagnosticsEngine.analyzeSweep(
             sweep(
                 listOf(
-                    point(10.0, swr = 2.0, reactance = 20.0),
-                    point(11.0, swr = 1.2, reactance = 1.0),
-                    point(12.0, swr = 1.9, reactance = 12.0),
-                    point(13.0, swr = 2.5, reactance = 25.0)
+                    point(10.0, swr = 1.2, reactance = 2.0),
+                    point(11.0, swr = 1.1, reactance = -1.0),
+                    point(12.0, swr = 1.2, reactance = 1.5),
+                    point(13.0, swr = 1.1, reactance = -2.0),
+                    point(14.0, swr = 1.2, reactance = 1.0)
                 )
             )
         )
+        assertEquals(0, d.resonanceCountEstimate)
+        assertEquals(0.0, d.resonanceFrequencyMHz, tol)
         assertNull(d.secondaryResonanceFrequencyMHz)
     }
 
@@ -331,22 +434,26 @@ class SweepDiagnosticsEngineTest {
 
     @Test
     fun sweepShape_multipleDips_andResonanceCount() {
-        // Two interior local dips (swr ≤ 3.0, |reactance| ≤ 20).
+        // Two genuine resonances: reactance crosses zero at each SWR dip
+        // (ind→null@11→cap, then cap→null@14→ind). A real multi-resonant
+        // antenna behaves this way; count = crossings = 2.
         val d = SweepDiagnosticsEngine.analyzeSweep(
             sweep(
                 listOf(
-                    point(10.0, swr = 2.8),
-                    point(11.0, swr = 1.2),
-                    point(12.0, swr = 2.8),
-                    point(13.0, swr = 2.9),
-                    point(14.0, swr = 1.3),
-                    point(15.0, swr = 2.8),
-                    point(16.0, swr = 3.0)
+                    point(10.0, swr = 2.8, reactance = 25.0),
+                    point(11.0, swr = 1.2, reactance = 0.0),
+                    point(12.0, swr = 2.8, reactance = -25.0),
+                    point(13.0, swr = 2.9, reactance = -25.0),
+                    point(14.0, swr = 1.3, reactance = 0.0),
+                    point(15.0, swr = 2.8, reactance = 25.0),
+                    point(16.0, swr = 3.0, reactance = 25.0)
                 )
             )
         )
         assertEquals(SweepShape.MULTIPLE_DIPS, d.sweepShape)
         assertEquals(2, d.resonanceCountEstimate)
+        assertEquals(11.0, d.resonanceFrequencyMHz, tol)
+        assertEquals(14.0, d.secondaryResonanceFrequencyMHz!!, tol)
     }
 
     @Test
@@ -447,19 +554,21 @@ class SweepDiagnosticsEngineTest {
 
     @Test
     fun likelyCondition_complexMultiResonance() {
+        // Two genuine resonances (reactance crosses zero at each dip) → MULTIPLE_DIPS.
         val d = SweepDiagnosticsEngine.analyzeSweep(
             sweep(
                 listOf(
-                    point(10.0, swr = 2.8),
-                    point(11.0, swr = 1.2),
-                    point(12.0, swr = 2.8),
-                    point(13.0, swr = 2.9),
-                    point(14.0, swr = 1.3),
-                    point(15.0, swr = 2.8),
-                    point(16.0, swr = 3.0)
+                    point(10.0, swr = 2.8, reactance = 25.0),
+                    point(11.0, swr = 1.2, reactance = 0.0),
+                    point(12.0, swr = 2.8, reactance = -25.0),
+                    point(13.0, swr = 2.9, reactance = -25.0),
+                    point(14.0, swr = 1.3, reactance = 0.0),
+                    point(15.0, swr = 2.8, reactance = 25.0),
+                    point(16.0, swr = 3.0, reactance = 25.0)
                 )
             )
         )
+        assertEquals(2, d.resonanceCountEstimate)
         assertEquals(LikelyCondition.COMPLEX_MULTI_RESONANCE, d.likelyCondition)
     }
 
@@ -573,19 +682,20 @@ class SweepDiagnosticsEngineTest {
 
     @Test
     fun summary_includesSecondaryResonanceLineWhenPresent() {
+        // Two reactance crossings → primary at 12.0, secondary at 14.0.
         val summary = SweepDiagnosticsEngine.analyzeSweep(
             sweep(
                 listOf(
-                    point(10.0, swr = 2.0, reactance = 20.0),
-                    point(11.0, swr = 1.8, reactance = 10.0),
-                    point(12.0, swr = 1.1, reactance = 0.5),
-                    point(13.0, swr = 1.9, reactance = 12.0),
-                    point(14.0, swr = 2.5, reactance = 30.0),
-                    point(15.0, swr = 1.7, reactance = 8.0),
-                    point(16.0, swr = 2.6, reactance = 22.0)
+                    point(10.0, swr = 2.0, reactance = 25.0),
+                    point(11.0, swr = 1.5, reactance = 12.0),
+                    point(12.0, swr = 1.1, reactance = 0.0),
+                    point(13.0, swr = 1.5, reactance = -12.0),
+                    point(14.0, swr = 1.2, reactance = 0.0),
+                    point(15.0, swr = 1.6, reactance = 12.0),
+                    point(16.0, swr = 2.4, reactance = 25.0)
                 )
             )
         ).summary
-        assertTrue(summary.contains("Secondary resonance estimate near 15.000 MHz."))
+        assertTrue(summary.contains("Secondary resonance estimate near 14.000 MHz."))
     }
 }

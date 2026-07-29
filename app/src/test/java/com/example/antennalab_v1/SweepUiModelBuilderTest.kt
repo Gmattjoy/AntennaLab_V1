@@ -336,6 +336,63 @@ class SweepUiModelBuilderTest {
     }
 
     // ------------------------------------------------------------------
+    // buildDiagnosticsUiModel — §10b display honesty
+    // ------------------------------------------------------------------
+
+    private fun diagPoint(freq: Double, swr: Double, reactance: Double) = SweepPoint(
+        frequencyMHz = freq,
+        swr = swr,
+        returnLossDb = -10.0,
+        resistance = 50.0,
+        reactance = reactance
+    )
+
+    private fun diagSweep(points: List<SweepPoint>) = SweepResult(
+        startFrequencyMHz = points.first().frequencyMHz,
+        endFrequencyMHz = points.last().frequencyMHz,
+        stepMHz = 1.0,
+        points = points
+    )
+
+    @Test
+    fun diagnostics_flatLoad_hidesResonanceText_soCountAndDetectorCannotContradict() {
+        // Flat matched load: count 0. The UI must NOT show a "Detected Resonance"
+        // alongside a count that says there is none.
+        val model = SweepUiModelBuilder.buildDiagnosticsUiModel(
+            diagSweep(
+                listOf(
+                    diagPoint(10.0, 1.00, 1.5),
+                    diagPoint(11.0, 1.02, -2.0),
+                    diagPoint(12.0, 1.00, 2.0),
+                    diagPoint(13.0, 1.03, -1.0),
+                    diagPoint(14.0, 1.00, 1.5)
+                )
+            )
+        )
+        assertEquals("0", model.resonanceCountText)
+        assertNull(model.resonanceText)
+        assertNull(model.secondaryResonanceText)
+    }
+
+    @Test
+    fun diagnostics_singleDip_showsResonanceTextMatchingCount() {
+        // One real resonance (reactance crossing at 12.0) → count 1 and a shown detection.
+        val model = SweepUiModelBuilder.buildDiagnosticsUiModel(
+            diagSweep(
+                listOf(
+                    diagPoint(10.0, 3.0, -40.0),
+                    diagPoint(11.0, 1.6, -15.0),
+                    diagPoint(12.0, 1.1, 2.0),
+                    diagPoint(13.0, 1.6, 18.0),
+                    diagPoint(14.0, 3.0, 45.0)
+                )
+            )
+        )
+        assertEquals("1", model.resonanceCountText)
+        assertEquals("12.000 MHz", model.resonanceText)
+    }
+
+    // ------------------------------------------------------------------
     // buildOperatorSweepFailureMessage — classifier
     // ------------------------------------------------------------------
 

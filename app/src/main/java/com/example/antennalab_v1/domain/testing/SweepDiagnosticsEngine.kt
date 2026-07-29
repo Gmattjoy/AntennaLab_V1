@@ -173,24 +173,35 @@ object SweepDiagnosticsEngine {
         }
 
         val minimumSwrPoint = findMinimumSwrPoint(result.points)
-        val resonancePoint = findResonancePoint(result.points)
-        val secondaryResonancePoint = findSecondaryResonancePoint(
-            points = result.points,
-            primaryResonancePoint = resonancePoint
-        )
+
+        // §10b: ONE resonance detector. count, primary and secondary are all
+        // derived from this single list, so they can never disagree about
+        // whether a resonance exists. See findResonances.
+        val resonances = findResonances(result.points)
+        val resonancePoint = resonances.minByOrNull { abs(it.reactance) }
+        val secondaryResonancePoint = resonances
+            .filter { it !== resonancePoint }
+            .minByOrNull { abs(it.reactance) }
+
+        // The closest approach to a reactance null (always present for a non-empty
+        // sweep). This is NOT the detected resonance — it feeds only the internal
+        // too-long/too-short/close-to-target TREND heuristic, which needs a reference
+        // frequency even when the antenna's resonance is out of band (no crossing).
+        // Keeping it separate is why count/Detected can never contradict.
+        val closestReactanceNullPoint = result.points.minByOrNull { abs(it.reactance) }
 
         val bandwidthAt20MHz = estimateBandwidthMHz(result.points, maxSwr = 2.0)
         val bandwidthAt15MHz = estimateBandwidthMHz(result.points, maxSwr = 1.5)
         val matchingQuality = classifyMatchingQuality(minimumSwrPoint?.swr ?: 0.0)
         val impedanceStability = classifyImpedanceStability(result.points)
-        val sweepShape = classifySweepShape(result.points)
+        val resonanceCountEstimate = resonances.size
+        val sweepShape = classifySweepShape(result.points, resonanceCountEstimate)
         val reactanceTrend = classifyReactanceTrend(result.points)
-        val resonanceCountEstimate = estimateResonanceCount(result.points)
         val mismatchSeverity = classifyMismatchSeverity(minimumSwrPoint?.swr ?: 0.0)
         val likelyCondition = classifyLikelyCondition(
             points = result.points,
             minimumSwrPoint = minimumSwrPoint,
-            resonancePoint = resonancePoint,
+            resonanceReferencePoint = closestReactanceNullPoint,
             sweepShape = sweepShape,
             reactanceTrend = reactanceTrend
         )
@@ -250,27 +261,79 @@ private fun findMinimumSwrPoint(points: List<SweepPoint>): SweepPoint? {
     return points.minByOrNull { it.swr }
 }
 
-private fun findResonancePoint(points: List<SweepPoint>): SweepPoint? {
-    return points.minByOrNull { abs(it.reactance) }
-}
+/*
+------------------------------------------------------------
+§10b — SINGLE RESONANCE DETECTOR (reconciles count with detector)
+------------------------------------------------------------
+A resonance is a reactance ZERO-CROSSING with prominence: the reactance
+transitions from clearly inductive to clearly capacitive (or vice-versa),
+passing through a null. Found by a hysteresis (Schmitt-trigger) walk so
+near-zero noise cannot register as a crossing.
 
-private fun findSecondaryResonancePoint(
-    points: List<SweepPoint>,
-    primaryResonancePoint: SweepPoint?
-): SweepPoint? {
-    if (points.size < 5 || primaryResonancePoint == null) {
-        return null
+resonanceCount, primary and secondary resonance are ALL derived from the
+list this returns, so they can never disagree about whether a resonance
+exists. Before this, three separate code paths answered "is there a
+resonance?" three incompatible ways: on a matched load the count counted
+SWR noise ripple (15 on a flat 50Ω load), and on a real antenna the count
+demanded an SWR-dip and a reactance-null at the SAME sample so it read 0
+while the min-|X| detector still reported one (§10b).
+------------------------------------------------------------
+*/
+
+/*
+X_GUARD_OHMS is THE dial of this fix — the one tuned number. It is the
+hysteresis guard band that separates real resonances from near-zero noise:
+a point only establishes an inductive/capacitive sign once |reactance|
+exceeds it, so a matched load hovering at ~0 Ω never establishes a sign and
+yields ZERO crossings, while a real antenna swinging tens of ohms through
+resonance yields one crossing per resonance.
+
+5 Ω sits between a CALIBRATED load's reactance noise floor (sub-ohm after
+correction — the bench load read RL 82 dB ⇒ |Γ|≈8e-5 ⇒ X≈0) and a real
+antenna's inductive↔capacitive excursion (tens of ohms). If a gentle real
+resonance is ever MISSED on the bench, THIS is the constant to lower; if a
+noisy uncalibrated load ever over-counts, raise it. It is the single knob —
+the rest of the fix is structural (one detector feeding one count).
+*/
+private const val X_GUARD_OHMS = 5.0
+
+internal fun findResonances(points: List<SweepPoint>): List<SweepPoint> {
+    if (points.size < 3) {
+        return emptyList()
     }
 
-    val frequencySeparationThresholdMHz = estimateFrequencyStepMHz(points) * 3.0
+    val resonances = mutableListOf<SweepPoint>()
+    var committedSign = 0
+    var anchorIndex = -1
 
-    return points
-        .filter { point ->
-            abs(point.frequencyMHz - primaryResonancePoint.frequencyMHz) >=
-                    frequencySeparationThresholdMHz
+    for (index in points.indices) {
+        val reactance = points[index].reactance
+        val sign = when {
+            reactance >= X_GUARD_OHMS -> 1
+            reactance <= -X_GUARD_OHMS -> -1
+            else -> 0 // dead-band: too near zero to establish a side (noise-robust)
         }
-        .minByOrNull { abs(it.reactance) }
-        ?.takeIf { abs(it.reactance) <= 25.0 }
+
+        if (sign == 0) {
+            continue
+        }
+
+        if (committedSign != 0 && sign != committedSign) {
+            // Genuine inductive↔capacitive transition since the last committed
+            // point: the resonance is the reactance null within that span.
+            val nullPoint = points
+                .subList(anchorIndex, index + 1)
+                .minByOrNull { abs(it.reactance) }
+            if (nullPoint != null) {
+                resonances += nullPoint
+            }
+        }
+
+        committedSign = sign
+        anchorIndex = index
+    }
+
+    return resonances
 }
 
 private fun estimateBandwidthMHz(
@@ -297,32 +360,6 @@ private fun estimateFrequencyStepMHz(points: List<SweepPoint>): Double {
     val sortedPoints = points.sortedBy { it.frequencyMHz }
     return (sortedPoints[1].frequencyMHz - sortedPoints[0].frequencyMHz)
         .coerceAtLeast(0.0)
-}
-
-private fun estimateResonanceCount(points: List<SweepPoint>): Int {
-    if (points.size < 3) {
-        return 0
-    }
-
-    var count = 0
-
-    for (index in 1 until points.lastIndex) {
-        val previousPoint = points[index - 1]
-        val currentPoint = points[index]
-        val nextPoint = points[index + 1]
-
-        val isLocalSwrDip = currentPoint.swr <= previousPoint.swr &&
-                currentPoint.swr <= nextPoint.swr &&
-                currentPoint.swr <= 3.0
-
-        val isNearReactanceNull = abs(currentPoint.reactance) <= 20.0
-
-        if (isLocalSwrDip && isNearReactanceNull) {
-            count++
-        }
-    }
-
-    return count
 }
 
 /*
@@ -364,7 +401,10 @@ private fun classifyImpedanceStability(
     }
 }
 
-private fun classifySweepShape(points: List<SweepPoint>): SweepShape {
+private fun classifySweepShape(
+    points: List<SweepPoint>,
+    resonanceCount: Int
+): SweepShape {
     if (points.size < 3) {
         return SweepShape.UNKNOWN
     }
@@ -373,7 +413,6 @@ private fun classifySweepShape(points: List<SweepPoint>): SweepShape {
     val minimumSwr = minimumPoint.swr
     val maximumSwr = points.maxOf { it.swr }
     val bandwidthAt20MHz = estimateBandwidthMHz(points, maxSwr = 2.0)
-    val resonanceCount = estimateResonanceCount(points)
 
     if ((maximumSwr - minimumSwr) < 0.35) {
         return SweepShape.FLAT_RESPONSE
@@ -433,11 +472,13 @@ private fun classifyMismatchSeverity(minimumSwr: Double): MismatchSeverity {
 private fun classifyLikelyCondition(
     points: List<SweepPoint>,
     minimumSwrPoint: SweepPoint?,
-    resonancePoint: SweepPoint?,
+    // Closest approach to a reactance null (min |X|), NOT the detected resonance —
+    // used purely as the trend reference frequency for too-long/too-short.
+    resonanceReferencePoint: SweepPoint?,
     sweepShape: SweepShape,
     reactanceTrend: ReactanceTrend
 ): LikelyCondition {
-    if (points.isEmpty() || minimumSwrPoint == null || resonancePoint == null) {
+    if (points.isEmpty() || minimumSwrPoint == null || resonanceReferencePoint == null) {
         return LikelyCondition.UNKNOWN
     }
 
@@ -453,16 +494,16 @@ private fun classifyLikelyCondition(
     val upperFrequency = points.maxOf { it.frequencyMHz }
     val midpointFrequency = (lowerFrequency + upperFrequency) / 2.0
 
-    if (minimumSwrPoint.swr <= 1.5 && abs(resonancePoint.reactance) <= 10.0) {
+    if (minimumSwrPoint.swr <= 1.5 && abs(resonanceReferencePoint.reactance) <= 10.0) {
         return LikelyCondition.CLOSE_TO_TARGET
     }
 
     return when {
-        resonancePoint.frequencyMHz < midpointFrequency &&
+        resonanceReferencePoint.frequencyMHz < midpointFrequency &&
                 reactanceTrend == ReactanceTrend.MOSTLY_CAPACITIVE ->
             LikelyCondition.LIKELY_TOO_LONG
 
-        resonancePoint.frequencyMHz > midpointFrequency &&
+        resonanceReferencePoint.frequencyMHz > midpointFrequency &&
                 reactanceTrend == ReactanceTrend.MOSTLY_INDUCTIVE ->
             LikelyCondition.LIKELY_TOO_SHORT
 
@@ -523,7 +564,7 @@ private fun buildSummary(
     likelyCondition: LikelyCondition,
     feedlineLossSuspicion: FeedlineLossSuspicion
 ): String {
-    if (minimumSwrPoint == null || resonancePoint == null) {
+    if (minimumSwrPoint == null) {
         return "No sweep diagnostics available."
     }
 
@@ -536,12 +577,16 @@ private fun buildSummary(
             )
         )
 
-        append(
-            String.format(
-                "Primary resonance estimate near %.3f MHz. ",
-                resonancePoint.frequencyMHz
+        // Only when a resonance was actually detected — a flat load has none, and
+        // the summary must not claim one the count denies.
+        if (resonancePoint != null) {
+            append(
+                String.format(
+                    "Primary resonance estimate near %.3f MHz. ",
+                    resonancePoint.frequencyMHz
+                )
             )
-        )
+        }
 
         if (secondaryResonancePoint != null) {
             append(

@@ -771,16 +771,33 @@ both directions on GOOD data.** A **calibrated 50 Ω load** reading `FLAT_RESPON
 `Impedance STABLE`, SWR 1.000 reported **`Resonance Count 15`** — a matched load has none.
 The same engine reported **0** on the uncalibrated antenna sweep *alongside* a detected and
 a secondary resonance. Not a noise artefact: it is a logic defect in the resonance-count
-classifier, independent of calibration quality. Not fixed today; needs its own task with
-hand-derived `SweepDiagnosticsEngine` cases.
+classifier, independent of calibration quality.
+
+**ITEM 2 RESOLVED-PENDING-HARDWARE (2026-07-29, off-bench).** Root cause: three separate
+code paths in `SweepDiagnosticsEngine` each answered "is there a resonance?" differently —
+count (local SWR-dip ∧ |X|≤20), primary (global min|X|, ungated), secondary (far near-null).
+They disagreed by construction. The 15-on-flat was the count tallying SWR noise ripple (a
+flat load keeps |X|≤20 everywhere, so every wiggle qualified); the 0-with-detected was the
+count demanding an SWR-dip and a reactance-null at the *same* sample while the ungated min|X|
+detector still reported one. Fixed by ONE detector `findResonances` (hysteresis reactance
+zero-crossing, guard `X_GUARD_OHMS = 5.0`) that count, primary and secondary all derive from —
+so they can never disagree; the too-long/too-short trend heuristic keeps its own separate
+min|X| "closest approach" reference (never surfaced as a detection). UI now hides the detected
+resonance when count is 0. Pure `findResonances` + tests: flat→0 (`flatMatchedLoad_reports…`),
+clean dip→count==detector (`cleanSingleDip_countMatchesDetector`), and the under-count shape
+(`realResonance_countAndDetectorAgree_notZeroWithDetected`). `X_GUARD_OHMS` is THE dial (doc'd
+at the constant): lower it if a gentle real resonance is ever missed on the bench.
+**Next bench re-run:** calibrated 50 Ω load → expect **Resonance Count 0** (was 15) and no
+Detected/Secondary shown; AR-771 → expect **count == number of detected resonances**. Log §11.
+
+**ITEM 1 STILL OPEN — separate UI-wording task (not this fix):**
 
 1. **Two different resonance numbers on one screen.** Sweep Summary showed
    *Resonant Frequency 144.790 MHz* (the minimum-SWR point, SWR 2.104) while Diagnostics
    showed *Detected Resonance 145.330* with *Secondary 145.030*. One is the min-SWR
-   frequency and the other a detected estimate, but the labels do not distinguish them and
-   an operator will read it as a contradiction.
-2. **`Resonance Count 0` alongside a Detected and a Secondary resonance** — self-inconsistent
-   on its face.
+   frequency (`SweepAnalyzer.getResonantFrequencyMHz`) and the other a detected estimate;
+   deliberately left separate — the labels need distinguishing, not the numbers unifying.
+2. **`Resonance Count 0` alongside a Detected and a Secondary resonance** — RESOLVED above.
 
 Also worth noting from the same run: on a partial sweep the cable-fault **"distance scale"
 is a function of which indices survive**, since it derives from the achieved span. This run
