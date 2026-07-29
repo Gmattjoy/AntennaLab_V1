@@ -6,10 +6,48 @@ state**, the **agreed direction** (decided in a design session — not to be re-
 a **phased rollout order**, and the **open questions** still to settle.
 
 - **Scope of this doc:** documentation only. No Compose, no production code.
-- **Status:** direction agreed 2026-07-29; rollout not yet started.
+- **Status:** Phases 0–2 DONE (2026-07-29). Phase 3 is the next entry point.
 - **How to use it:** each rollout phase below becomes its own plan-mode task. This doc is
   the shared reference each of those plans cites; update it as decisions land (mark items
   resolved, don't delete the history).
+
+---
+
+## Session handover (2026-07-29) — where to pick up
+
+**A UI day and a bench day are both pickable from here.**
+
+### Done — Phases 0–2 (suite 379 green, 0 failures)
+- **P0 · Design tokens + primitives.** `ui/theme/` `AntennaLabSpacing` / `AntennaLabTouch`
+  (`field = 64.dp` = the documented gloved dial) / `AntennaLabSemanticColors` (+ selector +
+  `LocalAntennaLabSemanticColors`) / `AntennaLabTheme` accessor, provided additively in `Theme.kt`.
+  Shared primitives: `ui/components/StatusPill`, `MetricCard`, `AppActionButton`. `DesignTokensTest`.
+- **P1 · Dashboard.** `DashboardScreen` replaced `HomeScreen` on the `"home"` route (the ⋮ overflow is
+  kept, so no route lost its entry point). Real-truth device/calibration status card ("App calibration ·
+  …"), three distinct quick actions (Measure now / New project / Identify antenna), recent projects with
+  async bounded badges. Pure `DashboardController` + tests.
+- **P2 · Device Connections.** Re-skinned onto the tokens; the state→chip mapping is the shared pure
+  `InstrumentStatusPresenter.buildStatusChips` that **both** the dashboard and this screen consume (the
+  anti-drift guarantee). Foregrounds PERMISSION_REQUIRED, the validation timeline, and app-calibration.
+  Connect/validate/permission logic + `BenchState` logging untouched. `DeviceConnectionsController` level
+  mappers + tests.
+
+### Next UI entry point — Phase 3 (shared chart components)
+The foundation for the Phase-4 Sweep Viewer: multi-chart grid cell, marker readout table
+(|Z|, R+jX, Q, Cs/Ls, RL, phase, band), amateur-band axis overlay, `.s1p` Touchstone export
+(see §2.3). **Do the pure extraction first:** pull chart/marker math into pure helpers (building on the
+existing `SweepGraphMath`) with unit tests before any Compose, same discipline as P0–P2.
+**Then Phase 4 (Sweep Viewer) will want the VNAs back** — the multi-chart grid, markers and `.s1p` export
+need real-data verification on hardware, so schedule P4 review against a bench session, not headless.
+
+### Still-open HARDWARE items (a bench day) — see `claude/hardware-bringup-litevna64.md`
+- **H4 identity / Block C** (§0 handover, §10c.6 next steps) — does the NanoVNA-H4 reach Full Support and
+  honour `sweepPoints=101` (C5), or free-run like the LiteVNA? Still unanswered, no corroboration.
+- **A3** — calibrate a real LiteVNA → Finish → **Save** → kill → reload; expect `CalRestore`
+  `decision=RESTORE reason=ok storedName='LiteVNA64 v0.3.3'`. Now runnable (the §10c.6 producer shipped).
+- **Block B** — reopen with the wrong hardware selected → expect `CLEAR reason=hardware-name-mismatch`.
+- Also re-verify off-bench fixes on silicon: §10c.7 (real sweep persists as real hardware), §10b resonance
+  count (50 Ω → 0; AR-771 count == detected).
 
 ---
 
