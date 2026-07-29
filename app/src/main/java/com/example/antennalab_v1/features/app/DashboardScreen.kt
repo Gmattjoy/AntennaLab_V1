@@ -86,11 +86,15 @@ fun DashboardScreen(
     }
 
     val cardModel = InstrumentStatusUiMapper.buildCardUiModel(context, selectedHardwareName)
+    // Resolve the SAME state the card title/subtitle used (cached session, else a freshly
+    // built one) so the pills can never disagree with the header — e.g. on a fresh open with
+    // no cached session, the card would otherwise show a built title but all-neutral pills.
     val sessionState = UsbSessionManager.getLatestInstrumentSessionState()
+        ?: UsbSessionManager.buildInstrumentSessionState(context, selectedHardwareName)
     val chips = DashboardController.buildStatusChips(
-        dataSourceKind = sessionState?.dataSourceKind,
-        calibrationReadiness = sessionState?.calibrationState?.readiness,
-        trust = sessionState?.measurementTrust
+        dataSourceKind = sessionState.dataSourceKind,
+        calibrationReadiness = sessionState.calibrationState.readiness,
+        trust = sessionState.measurementTrust
     )
 
     DashboardContent(
