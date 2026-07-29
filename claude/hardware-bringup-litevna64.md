@@ -691,6 +691,42 @@ exists, `decideCalibrationRestore`, the alias set, the restore policy and
 supply. Needs its own task (when to persist, on explicit Save or automatically; whether a
 STALE calibration should persist; interaction with `restoredFromStorage`).
 
+**RESOLVED-PENDING-HARDWARE (2026-07-29, off-bench).** Producer added:
+`domain/testing/StoredCalibrationProducer`. Decisions:
+- **Trigger:** wizard `onFinish` folds a live calibration into `ProjectData.calibrationData`
+  **IN MEMORY** (`ProjectPageScreen`/`AppRootScreen`), reported "Calibration captured. Save
+  project to keep it." NO auto-disk-write — it persists on the operator's next explicit Save,
+  exactly like design/hardware/notes edits (`ProjectPageScreen.kt:303-407`). **Known boundary:**
+  calibrate → force-kill without Save loses it, consistent with any other unsaved edit.
+- **Name:** producer normalises the stored name to
+  `EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).displayName` — the
+  SAME resolver the restore path uses — so writer and reader share one vocabulary and the
+  alias fix becomes reachable.
+- **Gate:** VALID only (`isPersistable` = VALID + fully captured + usable correction). STALE /
+  INVALID / partial never persist. Trust is not stored; restore re-derives it from the live
+  session.
+- **`restoredFromStorage`:** written `false` (fresh capture); confirmed no functional consumer.
+- **Loop proven in-process** (no hardware): `AppRootControllerTest
+  .producerCapture_thenDecideCalibrationRestore_RESTORES_loopCloses` — producer writes, then
+  `decideCalibrationRestore` on that same `ProjectData` returns RESTORE. Gate guarded by
+  `StoredCalibrationProducerTest
+  .staleOrInvalidCalibration_isNotPersisted_captureIntoProjectLeavesStoredSessionNull`. Plus a
+  RESTORE_IF_COMPATIBLE-in-range RESTORE and a cross-family CLEAR pin. A3 is therefore verified
+  in principle; the bench only confirms it on silicon.
+
+**A3 / Block B — now testable next bench day (exact steps):**
+1. **A3 (persist + restore):** attach LiteVNA, calibrate to VALID in the wizard → Finish
+   (expect "Calibration captured. Save project to keep it.") → **Save the project** → kill →
+   reload → `adb logcat -s CalRestore` should read
+   `decision=RESTORE reason=ok storedName='LiteVNA64 v0.3.3' effective=LITEVNA64_V0_3_3`, and
+   the shared session shows the calibration re-registered (VALID with the LiteVNA attached).
+2. **No-Save boundary:** calibrate → Finish → **do NOT Save** → kill → reload → expect
+   `decision=CLEAR reason=no-stored-calibration` (the accepted lose-on-no-Save boundary).
+3. **Block B (mismatch):** with a stored LiteVNA cal, reopen with the wrong hardware selected →
+   expect `decision=CLEAR reason=hardware-name-mismatch`.
+Record in §11. Still open after this: restore-precedence collision (a stored cal re-registers
+over a live one on project open — unchanged pre-existing behaviour, own task).
+
 ### 10c.2 TDR preview cannot locate a fault — the metres are span, not distance
 
 Proven by A2: **124.24 m on the 50 Ω load AND 124.24 m on the AR-771.** Identical for a

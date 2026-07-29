@@ -1,5 +1,6 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.testing.StoredCalibrationProducer
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppRootController
 import com.example.antennalab_v1.features.app.CalibrationRestoreAction
@@ -12,8 +13,12 @@ import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectMeta
 import com.example.antennalab_v1.model.ProjectSource
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
+import com.example.antennalab_v1.model.testing.InstrumentCalibrationState
+import com.example.antennalab_v1.model.testing.OslCalibrationCoefficients
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -268,6 +273,110 @@ class AppRootControllerTest {
             calEndMHz = 1000.0
         )
         assertEquals(CalibrationRestoreAction.RESTORE, AppRootController.decideCalibrationRestore(project))
+    }
+
+    // ------------------------------------------------------------------
+    // §10c.6 — producer → reader, the loop closes in-process
+    //
+    // The whole reason this task exists: prove the calibration PRODUCER writes a
+    // stored session the RESTORE reader accepts, without hardware. If these pass,
+    // A3 is verified in principle and the bench day only confirms it on silicon.
+    // ------------------------------------------------------------------
+
+    /** A live VALID LiteVNA calibration, as a completed wizard capture would leave it. */
+    private fun liveValidLiteVnaCalibration(
+        startMHz: Double = 1.0,
+        endMHz: Double = 30.0
+    ) = InstrumentCalibrationState(
+        readiness = CalibrationReadiness.VALID,
+        calibrationSession = CalibrationSession(
+            // DRIVER LABEL — the producer must normalise this to the canonical name.
+            hardwareDisplayName = "LiteVNA64 HW 64-0.3.3 FW v1.4.06",
+            startFrequencyMHz = startMHz,
+            endFrequencyMHz = endMHz,
+            openCaptured = true,
+            shortCaptured = true,
+            loadCaptured = true,
+            capturedSessionKey = "LIVE_SESSION_KEY",
+            correction = OslCalibrationCoefficients(
+                frequencyHz = listOf(14_200_000L),
+                directivityRe = listOf(0.0),
+                directivityIm = listOf(0.0),
+                sourceMatchRe = listOf(0.0),
+                sourceMatchIm = listOf(0.0),
+                reflectionTrackingRe = listOf(1.0),
+                reflectionTrackingIm = listOf(0.0)
+            )
+        ),
+        statusSummary = "valid"
+    )
+
+    @Test
+    fun producerCapture_thenDecideCalibrationRestore_RESTORES_loopCloses() {
+        val project = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+
+        // WRITER: producer folds the live calibration into the project (in memory).
+        val captured = StoredCalibrationProducer.captureIntoProject(
+            project = project,
+            liveCalibration = liveValidLiteVnaCalibration(),
+            nowEpochMs = 123L
+        )
+        val stored = captured.calibrationData.storedCalibrationSession
+        assertNotNull(stored)
+        assertEquals("LiteVNA64 v0.3.3", stored!!.hardwareDisplayName)
+
+        // READER: that same ProjectData, fed straight to the restore decision, RESTORES.
+        assertEquals(
+            CalibrationRestoreAction.RESTORE,
+            AppRootController.decideCalibrationRestore(captured)
+        )
+    }
+
+    @Test
+    fun producerCapture_restoreIfCompatibleInRange_RESTORES() {
+        val project = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3,
+            calibrationData = ProjectCalibrationData(
+                restorePolicy = CalibrationRestorePolicy.RESTORE_IF_COMPATIBLE
+            )
+        )
+
+        // Span 1..30 MHz covers the 14.2 MHz target → passes the range gate.
+        val captured = StoredCalibrationProducer.captureIntoProject(
+            project = project,
+            liveCalibration = liveValidLiteVnaCalibration(startMHz = 1.0, endMHz = 30.0),
+            nowEpochMs = 123L
+        )
+
+        assertEquals(
+            CalibrationRestoreAction.RESTORE,
+            AppRootController.decideCalibrationRestore(captured)
+        )
+    }
+
+    @Test
+    fun producerCapture_decidedAgainstDifferentHardware_CLEARS_nameVocabularyPinnedBothWays() {
+        val project = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+        val captured = StoredCalibrationProducer.captureIntoProject(
+            project = project,
+            liveCalibration = liveValidLiteVnaCalibration(),
+            nowEpochMs = 123L
+        )
+
+        // The producer wrote the LiteVNA canonical name; decided against a NanoVNA
+        // effective instrument it must CLEAR (hardware-name-mismatch) — the alias
+        // sets never bleed across families.
+        assertEquals(
+            CalibrationRestoreAction.CLEAR,
+            AppRootController.decideCalibrationRestore(captured, TestHardwareProfile.NANOVNA_H4)
+        )
     }
 
     // ------------------------------------------------------------------

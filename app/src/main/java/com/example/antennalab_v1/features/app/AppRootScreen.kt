@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
+import com.example.antennalab_v1.domain.testing.StoredCalibrationProducer
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
 import com.example.antennalab_v1.features.lab.LabTestTemplates
@@ -272,6 +273,22 @@ fun AppRootScreen() {
                     UsbSessionManager.registerCalibrationSession(session)
                 },
                 onFinish = {
+                    // §10c.6 producer: fold a live VALID calibration into the
+                    // effective project IN MEMORY (no disk write). Skip entirely
+                    // when there is no real project (the RF-test-mode throwaway is
+                    // only used when effectiveProject() is null).
+                    effectiveProject()?.let { base ->
+                        val captured = StoredCalibrationProducer.captureIntoProject(
+                            project = base,
+                            liveCalibration = UsbSessionManager.getLatestInstrumentCalibrationState(),
+                            nowEpochMs = System.currentTimeMillis()
+                        )
+                        if (activeProjectOverride.value != null) {
+                            activeProjectOverride.value = captured
+                        } else {
+                            currentProject.value = captured
+                        }
+                    }
                     screen.value = "project"
                     projectResumeIntoSweep.value = true
                 },

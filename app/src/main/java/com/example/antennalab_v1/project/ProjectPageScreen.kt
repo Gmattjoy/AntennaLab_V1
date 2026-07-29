@@ -65,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.domain.testing.HardwareSweepCapability
+import com.example.antennalab_v1.domain.testing.StoredCalibrationProducer
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.domain.testing.UsbVnaTransportStatus
 import com.example.antennalab_v1.features.app.AppTopRightMenu
@@ -198,9 +199,25 @@ fun ProjectPageScreen(
                 UsbSessionManager.registerCalibrationSession(updatedSession)
             },
             onFinish = {
+                // §10c.6 producer: fold a live VALID calibration into the project
+                // IN MEMORY (no disk write) — it persists on the operator's next
+                // explicit Save like any other edit. Not-persistable captures leave
+                // the project untouched and keep the plain "updated" message.
+                val captured = StoredCalibrationProducer.captureIntoProject(
+                    project = workingProject,
+                    liveCalibration = UsbSessionManager.getLatestInstrumentCalibrationState(),
+                    nowEpochMs = System.currentTimeMillis()
+                )
+                val didPersist = captured !== workingProject
+                if (didPersist) {
+                    workingProject = captured
+                    onProjectChanged(captured)
+                }
                 calibrationSession = buildWizardCalibrationSession(workingProject)
                 showCalibrationWizard = false
-                actionMessage = "Calibration updated."
+                actionMessage =
+                    if (didPersist) "Calibration captured. Save project to keep it."
+                    else "Calibration updated."
             },
             onCancel = {
                 calibrationSession = buildWizardCalibrationSession(workingProject)
