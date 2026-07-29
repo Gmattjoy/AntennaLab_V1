@@ -6,6 +6,7 @@ import com.example.antennalab_v1.features.app.DeviceConnectionsController
 import com.example.antennalab_v1.model.HardwareConnectionState
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.MeasurementTrustLevel
+import com.example.antennalab_v1.ui.components.AppStatusLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -232,5 +233,39 @@ class DeviceConnectionsControllerTest {
         assertEquals("Timed Out", label(liteTimedOut = true))
         assertEquals("Partial", label(liteIdentityConfirmed = true))
         assertEquals("Pending", label())
+    }
+
+    // ------------------------------------------------------------------
+    // Operational state → status-pill level (Phase 2 presentation)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun connectionLevel_encodesEveryState() {
+        assertEquals(AppStatusLevel.POSITIVE, DeviceConnectionsController.connectionLevel(HardwareConnectionState.READY))
+        assertEquals(AppStatusLevel.CAUTION, DeviceConnectionsController.connectionLevel(HardwareConnectionState.PERMISSION_REQUIRED))
+        assertEquals(AppStatusLevel.CAUTION, DeviceConnectionsController.connectionLevel(HardwareConnectionState.BUSY))
+        assertEquals(AppStatusLevel.NEGATIVE, DeviceConnectionsController.connectionLevel(HardwareConnectionState.ERROR))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.connectionLevel(HardwareConnectionState.DEVICE_DETECTED))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.connectionLevel(HardwareConnectionState.NOT_CONNECTED))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.connectionLevel(null))
+    }
+
+    @Test
+    fun permissionAndTransportLevels() {
+        assertEquals(AppStatusLevel.POSITIVE, DeviceConnectionsController.permissionLevel(true))
+        assertEquals(AppStatusLevel.CAUTION, DeviceConnectionsController.permissionLevel(false))
+        assertEquals(AppStatusLevel.POSITIVE, DeviceConnectionsController.transportLevel(true))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.transportLevel(false))
+    }
+
+    @Test
+    fun validationLevel_tracksTheTimeline() {
+        assertEquals(AppStatusLevel.POSITIVE, DeviceConnectionsController.validationLevel("Passed"))
+        assertEquals(AppStatusLevel.POSITIVE, DeviceConnectionsController.validationLevel("Ready"))
+        assertEquals(AppStatusLevel.CAUTION, DeviceConnectionsController.validationLevel("Running"))
+        assertEquals(AppStatusLevel.CAUTION, DeviceConnectionsController.validationLevel("Partial"))
+        assertEquals(AppStatusLevel.NEGATIVE, DeviceConnectionsController.validationLevel("Timed Out"))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.validationLevel("Pending"))
+        assertEquals(AppStatusLevel.NEUTRAL, DeviceConnectionsController.validationLevel("Not Required"))
     }
 }

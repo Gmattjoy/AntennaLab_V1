@@ -91,7 +91,7 @@ fun DashboardScreen(
     // no cached session, the card would otherwise show a built title but all-neutral pills.
     val sessionState = UsbSessionManager.getLatestInstrumentSessionState()
         ?: UsbSessionManager.buildInstrumentSessionState(context, selectedHardwareName)
-    val chips = DashboardController.buildStatusChips(
+    val chips = InstrumentStatusPresenter.buildStatusChips(
         dataSourceKind = sessionState.dataSourceKind,
         calibrationReadiness = sessionState.calibrationState.readiness,
         trust = sessionState.measurementTrust
@@ -116,7 +116,7 @@ fun DashboardScreen(
 private fun DashboardContent(
     statusTitle: String,
     statusSubtitle: String,
-    chips: DashboardController.DashboardStatusChips,
+    chips: InstrumentStatusPresenter.InstrumentStatusChips,
     actions: List<DashboardController.DashboardActionSpec>,
     cards: List<DashboardController.DashboardProjectCard>,
     badges: Map<String, DashboardController.DashboardProjectBadge>,
@@ -237,11 +237,11 @@ private fun DashboardContent(
 /* ---- Previews: fabricated state, no Context / no IO ---- */
 
 private fun previewState(): Triple<
-    DashboardController.DashboardStatusChips,
+    InstrumentStatusPresenter.InstrumentStatusChips,
     List<DashboardController.DashboardProjectCard>,
     Map<String, DashboardController.DashboardProjectBadge>
     > {
-    val chips = DashboardController.buildStatusChips(
+    val chips = InstrumentStatusPresenter.buildStatusChips(
         dataSourceKind = com.example.antennalab_v1.model.testing.InstrumentDataSourceKind.REAL_INSTRUMENT,
         calibrationReadiness = com.example.antennalab_v1.model.testing.CalibrationReadiness.VALID,
         trust = com.example.antennalab_v1.model.testing.MeasurementTrustLevel.TRUSTED

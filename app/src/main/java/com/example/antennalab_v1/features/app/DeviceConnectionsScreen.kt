@@ -31,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.DriverProfileRegistry
@@ -52,8 +54,16 @@ import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.model.DriverProfile
 import com.example.antennalab_v1.model.HardwareConnectionState
 import com.example.antennalab_v1.model.UserHardwareConfig
+import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
+import com.example.antennalab_v1.model.testing.MeasurementTrustLevel
 import com.example.antennalab_v1.model.testing.UsbHardwareSession
+import com.example.antennalab_v1.ui.components.AppActionButton
+import com.example.antennalab_v1.ui.components.AppActionVariant
+import com.example.antennalab_v1.ui.components.MetricCard
+import com.example.antennalab_v1.ui.components.StatusPill
+import com.example.antennalab_v1.ui.theme.AntennaLabTheme
+import com.example.antennalab_v1.ui.theme.AntennaLab_V1Theme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -203,19 +213,44 @@ fun DeviceConnectionsScreen(
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
                 .padding(padding)
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(AntennaLabTheme.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.lg)
         ) {
-            InstrumentStatusCard(
-                model = statusCardModel,
-                onOpenDetails = onOpenInstrumentDetails
+            val validationLabel = buildValidationLabel(
+                isLiteProfile = isLiteProfile,
+                liveInstrumentReady = liveInstrumentReady,
+                liteValidationRunning = liteValidationRunning,
+                liteIdentityConfirmed = liteIdentityConfirmed,
+                liteRegisterConfirmed = liteRegisterConfirmed,
+                liteTimedOut = liteTimedOut
+            )
+            val statusChips = InstrumentStatusPresenter.buildStatusChips(
+                dataSourceKind = instrumentState?.dataSourceKind,
+                calibrationReadiness = instrumentState?.calibrationState?.readiness,
+                trust = instrumentState?.measurementTrust
             )
 
-            CompactDataPanel(
-                title = "Preparation Workflow",
-                highlighted = true
+            // --- Instrument status: SAME shared mapping as the dashboard card ---
+            MetricCard(
+                title = statusCardModel.title,
+                subtitle = statusCardModel.subtitle,
+                onClick = onOpenInstrumentDetails
             ) {
+                Column(
+                    modifier = Modifier.padding(top = AntennaLabTheme.spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
+                ) {
+                    StatusPill(statusChips.dataSource.label, statusChips.dataSource.level)
+                    StatusPill(statusChips.calibration.label, statusChips.calibration.level)
+                    StatusPill(statusChips.trust.label, statusChips.trust.level)
+                }
+            }
+
+            // --- Connection & validation: next-step guidance + operational pills.
+            // Foregrounds PERMISSION_REQUIRED (caution) and the validation timeline. ---
+            MetricCard(title = "Connection & validation") {
                 Text(
+                    modifier = Modifier.padding(top = AntennaLabTheme.spacing.xs),
                     text = buildNextHardwareStepText(
                         connectionState = connectionState,
                         permissionGranted = permissionGranted,
@@ -230,120 +265,75 @@ fun DeviceConnectionsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                CompactDataGridRow(
-                    "Connection",
-                    connectionState?.name ?: "UNKNOWN",
-                    "Permission",
-                    if (permissionGranted) "Granted" else "Required"
-                )
-                CompactDataGridRow(
-                    "Session",
-                    if (sessionOpen) "Open" else "Closed",
-                    "Transport",
-                    if (transportReady) "Ready" else "Not Ready"
-                )
-                CompactDataGridRow(
-                    "Validation",
-                    buildValidationLabel(
-                        isLiteProfile = isLiteProfile,
-                        liveInstrumentReady = liveInstrumentReady,
-                        liteValidationRunning = liteValidationRunning,
-                        liteIdentityConfirmed = liteIdentityConfirmed,
-                        liteRegisterConfirmed = liteRegisterConfirmed,
-                        liteTimedOut = liteTimedOut
-                    ),
-                    "Trust",
-                    trustText
-                )
-                CompactDataGridRow(
-                    "Calibration",
-                    calibrationStateLabel,
-                    "Data Source",
-                    instrumentState?.dataSourceKind?.name ?: "UNKNOWN"
-                )
+                Column(
+                    modifier = Modifier.padding(top = AntennaLabTheme.spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
+                ) {
+                    StatusPill(
+                        "Connection · ${connectionState?.name?.replace("_", " ") ?: "Unknown"}",
+                        DeviceConnectionsController.connectionLevel(connectionState)
+                    )
+                    StatusPill(
+                        if (permissionGranted) "Permission · Granted" else "Permission · Required",
+                        DeviceConnectionsController.permissionLevel(permissionGranted)
+                    )
+                    StatusPill(
+                        if (transportReady) "Transport · Ready" else "Transport · Not ready",
+                        DeviceConnectionsController.transportLevel(transportReady)
+                    )
+                    StatusPill(
+                        "Validation · $validationLabel",
+                        DeviceConnectionsController.validationLevel(validationLabel)
+                    )
+                }
             }
 
-            CompactDataPanel(
-                title = "Operator Controls"
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // --- Controls: side effects PRESERVED verbatim; only the button
+            // component changes (AppActionButton; Grant Permission = accent). ---
+            MetricCard(title = "Controls") {
+                Column(
+                    modifier = Modifier.padding(top = AntennaLabTheme.spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
                 ) {
-                    PrimaryActionButton(
-                        text = "Refresh",
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    AppActionButton(text = "Refresh", variant = AppActionVariant.STANDARD) {
                         usbHardwareSession = UsbSessionManager.refreshCurrentSessionState(
                             context = context,
                             selectedHardwareName = selectedProfileLabel
                         )
                     }
 
-                    SecondaryActionButton(
-                        text = "Back",
-                        modifier = Modifier.weight(1f),
-                        onClick = onBack
-                    )
-                }
-
-                if (showRequestPermission || showConnect || showDisconnect) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        if (showRequestPermission) {
-                            PrimaryActionButton(
-                                text = "Grant Permission",
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                usbHardwareSession =
-                                    UsbPermissionManager.requestPermission(
-                                        context = context,
-                                        selectedHardwareName = selectedProfileLabel
-                                    )
-                            }
-                        }
-
-                        if (showConnect) {
-                            PrimaryActionButton(
-                                text = "Connect Device",
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                usbHardwareSession =
-                                    UsbSessionManager.openFirstDetectedSession(
-                                        context = context,
-                                        selectedHardwareName = selectedProfileLabel
-                                    )
-                            }
-                        }
-
-                        if (showDisconnect) {
-                            SecondaryActionButton(
-                                text = "Disconnect Device",
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                usbHardwareSession =
-                                    UsbSessionManager.closeSession(
-                                        context = context,
-                                        selectedHardwareName = selectedProfileLabel
-                                    )
-                            }
+                    if (showRequestPermission) {
+                        AppActionButton(text = "Grant Permission", variant = AppActionVariant.PRIMARY) {
+                            usbHardwareSession =
+                                UsbPermissionManager.requestPermission(
+                                    context = context,
+                                    selectedHardwareName = selectedProfileLabel
+                                )
                         }
                     }
-                }
 
-                if (showValidateLiteVna) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        PrimaryActionButton(
-                            text = "Validate Device",
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                    if (showConnect) {
+                        AppActionButton(text = "Connect Device", variant = AppActionVariant.PRIMARY) {
+                            usbHardwareSession =
+                                UsbSessionManager.openFirstDetectedSession(
+                                    context = context,
+                                    selectedHardwareName = selectedProfileLabel
+                                )
+                        }
+                    }
+
+                    if (showDisconnect) {
+                        AppActionButton(text = "Disconnect Device", variant = AppActionVariant.STANDARD) {
+                            usbHardwareSession =
+                                UsbSessionManager.closeSession(
+                                    context = context,
+                                    selectedHardwareName = selectedProfileLabel
+                                )
+                        }
+                    }
+
+                    if (showValidateLiteVna) {
+                        AppActionButton(text = "Validate Device", variant = AppActionVariant.PRIMARY) {
                             UsbSessionManager.startLiteVnaBringUpIfNeeded(
                                 context = context,
                                 selectedHardwareName = selectedProfileLabel
@@ -355,20 +345,23 @@ fun DeviceConnectionsScreen(
                             )
                         }
                     }
-                }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    SecondaryActionButton(
+                    AppActionButton(
                         text = "Instrument Details / Troubleshooting",
-                        modifier = Modifier.fillMaxWidth(),
+                        variant = AppActionVariant.STANDARD,
                         onClick = onOpenInstrumentDetails
+                    )
+
+                    AppActionButton(
+                        text = "Back",
+                        variant = AppActionVariant.STANDARD,
+                        onClick = onBack
                     )
                 }
             }
 
-            CompactDataPanel(title = "Device Model") {
+            MetricCard(title = "Device model") {
+                Spacer(modifier = Modifier.height(AntennaLabTheme.spacing.sm))
                 ExposedDropdownMenuBox(
                     expanded = profileDropdownExpanded,
                     onExpandedChange = {
@@ -430,24 +423,21 @@ fun DeviceConnectionsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AntennaLabTheme.spacing.sm))
 
-                CompactDataGridRow(
-                    "Family",
-                    selectedDriverProfile.hardwareFamily.name,
-                    "Protocol",
-                    selectedDriverProfile.protocolType.name
-                )
-                CompactDataGridRow(
-                    "Transport",
-                    selectedDriverProfile.transportType.name,
-                    "Support",
-                    selectedDriverProfile.supportTier.name
+                Text(
+                    text = "${selectedDriverProfile.hardwareFamily.name} · " +
+                        "${selectedDriverProfile.protocolType.name} · " +
+                        "${selectedDriverProfile.transportType.name} · " +
+                        selectedDriverProfile.supportTier.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            CompactDataPanel(title = "Readiness Summary") {
+            MetricCard(title = "Readiness summary") {
                 Text(
+                    modifier = Modifier.padding(top = AntennaLabTheme.spacing.xs),
                     text = instrumentState?.calibrationStatusSummary
                         ?: "No calibration session is currently registered.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -607,4 +597,67 @@ private fun SecondaryActionButton(
     ) {
         Text(text)
     }
+}
+
+/* ----------------------------------------------------------------------
+   Previews — the bench-confusing states, rendered through the REAL mappers
+   (InstrumentStatusPresenter + DeviceConnectionsController), so what you see
+   is exactly what the screen produces for these states. Both modes.
+   ---------------------------------------------------------------------- */
+
+@Composable
+private fun StatePreviewGroup(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        content()
+    }
+}
+
+@Composable
+private fun DeviceStatesPreviewContent() {
+    val degradedLive = InstrumentStatusPresenter.buildStatusChips(
+        dataSourceKind = InstrumentDataSourceKind.REAL_INSTRUMENT,
+        calibrationReadiness = CalibrationReadiness.NOT_STARTED,
+        trust = MeasurementTrustLevel.DEGRADED
+    )
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier.padding(AntennaLabTheme.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.lg)
+        ) {
+            StatePreviewGroup("Permission required (no auto-launch)") {
+                StatusPill(
+                    "Connection · Permission required",
+                    DeviceConnectionsController.connectionLevel(HardwareConnectionState.PERMISSION_REQUIRED)
+                )
+                StatusPill("Permission · Required", DeviceConnectionsController.permissionLevel(false))
+            }
+            StatePreviewGroup("Validation timeline") {
+                StatusPill("Validation · Running", DeviceConnectionsController.validationLevel("Running"))
+                StatusPill("Validation · Timed Out", DeviceConnectionsController.validationLevel("Timed Out"))
+                StatusPill("Validation · Passed", DeviceConnectionsController.validationLevel("Passed"))
+            }
+            StatePreviewGroup("Live + degraded trust + uncalibrated (yesterday's bench)") {
+                StatusPill(degradedLive.dataSource.label, degradedLive.dataSource.level)
+                StatusPill(degradedLive.calibration.label, degradedLive.calibration.level)
+                StatusPill(degradedLive.trust.label, degradedLive.trust.level)
+            }
+        }
+    }
+}
+
+@Preview(name = "Device states — dark", showBackground = true, widthDp = 360)
+@Composable
+private fun DeviceStatesDarkPreview() {
+    AntennaLab_V1Theme(darkTheme = true) { DeviceStatesPreviewContent() }
+}
+
+@Preview(name = "Device states — light", showBackground = true, widthDp = 360)
+@Composable
+private fun DeviceStatesLightPreview() {
+    AntennaLab_V1Theme(darkTheme = false) { DeviceStatesPreviewContent() }
 }

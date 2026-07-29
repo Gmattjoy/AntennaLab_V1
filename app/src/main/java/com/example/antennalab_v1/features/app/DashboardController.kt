@@ -2,9 +2,6 @@ package com.example.antennalab_v1.features.app
 
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
-import com.example.antennalab_v1.model.testing.CalibrationReadiness
-import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
-import com.example.antennalab_v1.model.testing.MeasurementTrustLevel
 import com.example.antennalab_v1.ui.components.AppStatusLevel
 import java.util.Locale
 
@@ -50,44 +47,10 @@ object DashboardController {
     )
 
     // ------------------------------------------------------------------
-    // Device / calibration status chips — from the LIVE session truth.
-    // Calibration is labelled unambiguously as the APP's (never a bare
-    // "Calibrated"), the anti-confusion point of the whole card.
+    // Device / calibration status chips: moved to the shared, single-source
+    // InstrumentStatusPresenter.buildStatusChips (consumed by BOTH the
+    // dashboard and Device Connections, so they cannot diverge).
     // ------------------------------------------------------------------
-
-    data class DashboardStatusChip(val label: String, val level: AppStatusLevel)
-
-    data class DashboardStatusChips(
-        val dataSource: DashboardStatusChip,
-        val calibration: DashboardStatusChip,
-        val trust: DashboardStatusChip
-    )
-
-    fun buildStatusChips(
-        dataSourceKind: InstrumentDataSourceKind?,
-        calibrationReadiness: CalibrationReadiness?,
-        trust: MeasurementTrustLevel?
-    ): DashboardStatusChips = DashboardStatusChips(
-        dataSource = when (dataSourceKind) {
-            InstrumentDataSourceKind.REAL_INSTRUMENT -> DashboardStatusChip("Live", AppStatusLevel.POSITIVE)
-            InstrumentDataSourceKind.SIMULATED -> DashboardStatusChip("Simulated", AppStatusLevel.NEUTRAL)
-            InstrumentDataSourceKind.NONE, null -> DashboardStatusChip("No instrument", AppStatusLevel.NEUTRAL)
-        },
-        calibration = when (calibrationReadiness) {
-            CalibrationReadiness.VALID -> DashboardStatusChip("App calibration · Valid", AppStatusLevel.POSITIVE)
-            CalibrationReadiness.STALE -> DashboardStatusChip("App calibration · Stale", AppStatusLevel.CAUTION)
-            CalibrationReadiness.IN_PROGRESS -> DashboardStatusChip("App calibration · In progress", AppStatusLevel.CAUTION)
-            CalibrationReadiness.INVALID -> DashboardStatusChip("App calibration · Invalid", AppStatusLevel.NEGATIVE)
-            CalibrationReadiness.NOT_STARTED, null -> DashboardStatusChip("App calibration · Not started", AppStatusLevel.NEUTRAL)
-        },
-        trust = when (trust) {
-            MeasurementTrustLevel.TRUSTED -> DashboardStatusChip("Trusted", AppStatusLevel.POSITIVE)
-            MeasurementTrustLevel.DEGRADED -> DashboardStatusChip("Degraded", AppStatusLevel.CAUTION)
-            MeasurementTrustLevel.PARTIAL -> DashboardStatusChip("Partial", AppStatusLevel.CAUTION)
-            MeasurementTrustLevel.SIMULATED -> DashboardStatusChip("Simulated", AppStatusLevel.NEUTRAL)
-            MeasurementTrustLevel.UNKNOWN, null -> DashboardStatusChip("Unknown", AppStatusLevel.NEUTRAL)
-        }
-    )
 
     // ------------------------------------------------------------------
     // Recent projects — cheap cards now, richer badges async.

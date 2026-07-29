@@ -37,6 +37,7 @@ import com.example.antennalab_v1.model.DriverProfile
 import com.example.antennalab_v1.model.HardwareConnectionState
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.MeasurementTrustLevel
+import com.example.antennalab_v1.ui.components.AppStatusLevel
 
 /*
 ########################################################################
@@ -139,6 +140,50 @@ object DeviceConnectionsController {
 
     fun calibrationStateLabel(readiness: CalibrationReadiness?): String {
         return readiness?.name ?: "NOT_STARTED"
+    }
+
+    /*
+    ------------------------------------------------------------
+    SECTION 1350
+    OPERATIONAL STATE → STATUS-PILL LEVEL (presentation)
+    ------------------------------------------------------------
+    PURPOSE
+    Map the EXISTING connection / permission / transport / validation
+    states onto the shared AppStatusLevel so the re-skin can colour-encode
+    them (esp. the bench-confusing PERMISSION_REQUIRED + validation
+    timeline). Pure — no behaviour change; the labels/gating logic above
+    is untouched.
+    ------------------------------------------------------------
+    */
+    fun connectionLevel(state: HardwareConnectionState?): AppStatusLevel {
+        return when (state) {
+            HardwareConnectionState.READY -> AppStatusLevel.POSITIVE
+            HardwareConnectionState.PERMISSION_REQUIRED -> AppStatusLevel.CAUTION
+            HardwareConnectionState.BUSY -> AppStatusLevel.CAUTION
+            HardwareConnectionState.ERROR -> AppStatusLevel.NEGATIVE
+            HardwareConnectionState.DEVICE_DETECTED,
+            HardwareConnectionState.NOT_CONNECTED,
+            null -> AppStatusLevel.NEUTRAL
+        }
+    }
+
+    fun permissionLevel(permissionGranted: Boolean): AppStatusLevel {
+        // Not-granted is the blocking Grant-Permission step → caution, not neutral.
+        return if (permissionGranted) AppStatusLevel.POSITIVE else AppStatusLevel.CAUTION
+    }
+
+    fun transportLevel(transportReady: Boolean): AppStatusLevel {
+        return if (transportReady) AppStatusLevel.POSITIVE else AppStatusLevel.NEUTRAL
+    }
+
+    /** Levels for the strings buildValidationLabel produces. */
+    fun validationLevel(validationLabel: String): AppStatusLevel {
+        return when (validationLabel) {
+            "Passed", "Ready" -> AppStatusLevel.POSITIVE
+            "Running", "Partial" -> AppStatusLevel.CAUTION
+            "Timed Out" -> AppStatusLevel.NEGATIVE
+            else -> AppStatusLevel.NEUTRAL // Pending, Not Required
+        }
     }
 
     /*

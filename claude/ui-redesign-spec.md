@@ -234,6 +234,18 @@ phases; commit per phase.
   `Theme.kt`; first shared primitive `ui/components/StatusPill.kt`; `TokenPreviews.kt` swatch sheet
   (light + dark); `DesignTokensTest` (5 tests) locking the touch floor / 4 dp grid / theme-aware
   semantic invariants. No screen touched. Light-mode semantic hex approved off the swatch.
+- 2026-07-29 — **Phase 2 landed (Device Connections + calibration surfacing).** Anti-drift: the
+  state→status-chip mapping is relocated (verbatim, behaviour-preserving) out of `DashboardController`
+  into the shared pure `features/app/InstrumentStatusPresenter.buildStatusChips`; BOTH the dashboard and
+  Device Connections now call that one function, so they cannot present the same `InstrumentSessionState`
+  differently. Device Connections re-skinned to `MetricCard` + `StatusPill` + `AppActionButton` + tokens;
+  it foregrounds PERMISSION_REQUIRED (caution + accent Grant Permission), the validation timeline
+  (Pending/Running/Passed/Timed Out as coloured pills via `DeviceConnectionsController.validationLevel`),
+  and "App calibration · …". **All connect/validate/permission side effects, the `BroadcastReceiver`, gating
+  predicates, `buildValidationLabel`, profile registration, and `BenchState` logging preserved verbatim.**
+  New pure `connection/permission/transport/validation` level mappers + tests; chip tests moved to
+  `InstrumentStatusPresenterTest` (same assertions). `AppActionButton.onClick` moved to last param
+  (trailing-lambda idiom). `@Preview`s of the bench-confusing states in both modes. Suite 379, 0 failures.
 - 2026-07-29 — **Phase 1 landed (Dashboard).** `DashboardScreen` replaces the `"home"` route's
   `HomeScreen` (now unused); the ⋮ overflow (`AppTopRightMenu`) is kept so no route loses its entry
   point. Device/calibration status card reads real `UsbSessionManager` truth via the existing

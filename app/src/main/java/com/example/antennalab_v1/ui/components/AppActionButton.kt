@@ -31,10 +31,10 @@ enum class AppActionVariant { PRIMARY, STANDARD }
 @Composable
 fun AppActionButton(
     text: String,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     variant: AppActionVariant = AppActionVariant.STANDARD,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    onClick: () -> Unit
 ) {
     val minHeight =
         if (variant == AppActionVariant.PRIMARY) AntennaLabTheme.touch.field
