@@ -1,9 +1,11 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.testing.CalibrationSessionFactory
 import com.example.antennalab_v1.domain.testing.StoredCalibrationProducer
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppRootController
 import com.example.antennalab_v1.features.app.CalibrationRestoreAction
+import com.example.antennalab_v1.features.testing.CalibrationWizardController
 import com.example.antennalab_v1.features.lab.LabTestTemplate
 import com.example.antennalab_v1.model.AntennaType
 import com.example.antennalab_v1.model.CalibrationRestorePolicy
@@ -15,6 +17,7 @@ import com.example.antennalab_v1.model.ProjectSource
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
+import com.example.antennalab_v1.model.testing.CalibrationStep
 import com.example.antennalab_v1.model.testing.InstrumentCalibrationState
 import com.example.antennalab_v1.model.testing.OslCalibrationCoefficients
 import org.junit.Assert.assertEquals
@@ -377,6 +380,85 @@ class AppRootControllerTest {
             CalibrationRestoreAction.CLEAR,
             AppRootController.decideCalibrationRestore(captured, TestHardwareProfile.NANOVNA_H4)
         )
+    }
+
+    // ------------------------------------------------------------------
+    // §10c.1 — wizard canonicalisation, closed-by-producer (test-pinned)
+    //
+    // The wizard's live session honestly carries the DRIVER LABEL
+    // ("LiteVNA64 HW 64-0.3.3 FW v1.4.06", stamped by
+    // CalibrationWizardController.buildCapturedStepSession from selectedHardwareName —
+    // it reflects the physically-attached device and is intentional for display).
+    // The producer canonicalises at persist, so the driver label never governs data
+    // survival. This pins BOTH halves through the REAL wizard-controller seam:
+    //   1. canonical on disk (NOT the driver label) + RESTORE
+    //   2. the transient live-session name is left UNCHANGED (driver label preserved)
+    // The canonical-on-disk half is also covered by the loop-closes test above (via a
+    // hand-built state); the new coverage here is half 2 and the real controller seam.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun wizardDriverLabelCapture_persistsCanonical_butLeavesLiveLabelIntact_10c1() {
+        val driverLabel = "LiteVNA64 HW 64-0.3.3 FW v1.4.06"
+        val liteProject = ProjectData(
+            designInput = com.example.antennalab_v1.model.DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+
+        // Capture OPEN/SHORT/LOAD through the REAL wizard-controller seam, exactly as
+        // the screen does — each step stamps the driver label onto the session.
+        var session = CalibrationSessionFactory.buildFreshSession(liteProject)
+        for (step in listOf(CalibrationStep.OPEN, CalibrationStep.SHORT, CalibrationStep.LOAD)) {
+            session = CalibrationWizardController.buildCapturedStepSession(
+                existingSession = session,
+                currentStep = step,
+                selectedHardwareName = driverLabel,
+                protocolFamily = "LITE_VNA_V2_STYLE",
+                instrumentIdentityText = "litevna",
+                captureTimeMs = 1_000L
+            )
+        }
+        // Attach usable OSL correction so the calibration is persistable (VALID gate).
+        session = session.copy(
+            correction = OslCalibrationCoefficients(
+                frequencyHz = listOf(14_200_000L),
+                directivityRe = listOf(0.0),
+                directivityIm = listOf(0.0),
+                sourceMatchRe = listOf(0.0),
+                sourceMatchIm = listOf(0.0),
+                reflectionTrackingRe = listOf(1.0),
+                reflectionTrackingIm = listOf(0.0)
+            )
+        )
+        // Precondition: the live session really does carry the driver label.
+        assertTrue(session.isFullyCaptured())
+        assertEquals(driverLabel, session.hardwareDisplayName)
+
+        val live = InstrumentCalibrationState(
+            readiness = CalibrationReadiness.VALID,
+            calibrationSession = session,
+            statusSummary = "valid"
+        )
+
+        val captured = StoredCalibrationProducer.captureIntoProject(
+            project = liteProject,
+            liveCalibration = live,
+            nowEpochMs = 123L
+        )
+
+        // Half 1 — canonical on disk, and the reader accepts it.
+        assertEquals(
+            "LiteVNA64 v0.3.3",
+            captured.calibrationData.storedCalibrationSession!!.hardwareDisplayName
+        )
+        assertEquals(
+            CalibrationRestoreAction.RESTORE,
+            AppRootController.decideCalibrationRestore(captured)
+        )
+
+        // Half 2 — the transient live-session name is untouched: the driver label
+        // survives for honest display; the producer does not mutate the live session.
+        assertEquals(driverLabel, live.calibrationSession!!.hardwareDisplayName)
     }
 
     // ------------------------------------------------------------------

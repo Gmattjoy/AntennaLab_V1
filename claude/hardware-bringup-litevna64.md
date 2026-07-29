@@ -576,7 +576,26 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 
 ## 10c. Findings from A2 (2026-07-24)
 
-### 10c.1 Calibration canonicalisation is BYPASSED by the wizard — OPEN
+### 10c.1 Calibration canonicalisation is BYPASSED by the wizard — RESOLVED (closed-by-producer, test-pinned)
+
+**RESOLVED (2026-07-29, off-bench) — no code change needed.** The data-survival risk this
+finding warned about ("a display label must not govern data survival") is closed at the
+PRODUCER: `StoredCalibrationProducer.captureIntoProject` (§10c.6, the sole writer of
+`storedCalibrationSession`) overwrites the name with the canonical
+`EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).displayName` at persist
+time. So `buildProfileDisplayLabel` could change and stored calibrations would still match —
+persistence no longer depends on the driver label. Verified the driver label now survives ONLY
+in transient/DISPLAY places (the live session `hardwareDisplayName`, and
+`SweepResult.calibrationLabel` = `"$hardwareName OSL"` at `SweepController:150`); neither is
+persisted (`ProjectSweepHistoryEntry` has no calibration-label field). **That display driver
+label is INTENTIONAL — it honestly reflects the physically-attached device — so do NOT
+"canonicalise" it later.** Pinned by `AppRootControllerTest
+.wizardDriverLabelCapture_persistsCanonical_butLeavesLiveLabelIntact_10c1`, which drives the real
+`CalibrationWizardController.buildCapturedStepSession` seam with the driver label and asserts both
+halves: canonical on disk + RESTORE, AND the live-session driver label left intact. Original
+finding retained below for history.
+
+
 
 Confirmed on hardware: a real OSL capture stores `hardwareDisplayName =
 "LiteVNA64 HW 64-0.3.3 FW v1.4.06"` — the **raw driver label**, not the canonical
