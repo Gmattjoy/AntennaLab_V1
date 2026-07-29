@@ -123,9 +123,18 @@ data class SweepResult(
     PURPOSE
     Allows stored sweeps to record which hardware produced the
     measurement.
+
+    A measuring driver MUST name itself here (see NanoVnaSweepProtocol
+    "USB_NANOVNA_DRIVER", SweepController "SIMULATED"). The default is
+    deliberately NEUTRAL — an empty string, NOT a concrete class like
+    "SIMULATED". A confident-wrong default is what let the LiteVNA driver
+    silently persist real sweeps as "SIMULATED" (§10c.7); a neutral
+    default means an omission is classified honestly at the save path
+    from the live data-source kind instead of lying. See
+    domain/testing/SweepHardwareIdentity.
     --------------------------------------------------------------------
     */
-    val hardwareProfile: String = "SIMULATED",
+    val hardwareProfile: String = "",
 
     /*
     --------------------------------------------------------------------

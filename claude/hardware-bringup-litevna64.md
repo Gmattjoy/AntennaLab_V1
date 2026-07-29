@@ -630,6 +630,27 @@ causes**; §8 fixed the support-tier one, this is the other, and it survived §8
 Fix (not today): set `hardwareProfile` in `LiteVnaSweepProtocol`, and change the model
 default to a neutral value so a future driver's omission fails loudly instead of lying.
 
+**RESOLVED (2026-07-29, off-bench).** Fixed driver-agnostically rather than per-driver:
+- `SweepResult.hardwareProfile` default changed `"SIMULATED"` → `""` (neutral). Only the
+  LiteVNA omission changes value; every other producer sets it explicitly. Verified: no
+  producer stamps a device-like name on a simulated source, and no `"SIMULATED"` equality
+  check mishandles empty as a wrong third state.
+- New pure resolver `domain/testing/SweepHardwareIdentity.resolvePersistedHardwareName` —
+  a named driver wins; otherwise the live `dataSourceKind` classifies (a real instrument
+  gets its `selectedHardwareName`, else a visible `"Unknown Instrument"` — never a false
+  `"SIMULATED"`). Wired into the save-path writer `SweepWorkspaceController.buildSweepHistoryEntry`
+  (+ `buildDiscoverySnapshot`); `SweepWorkspaceViewModel.runSweep` supplies the live
+  `dataSourceKind`/`selectedHardwareName` from `UsbSessionManager`.
+- Tests: `SweepHardwareIdentityTest` (all branches) + a §6 regression pin in
+  `SweepWorkspaceControllerTest` asserting a REAL_INSTRUMENT sweep persists as the real
+  device name and NOT `"SIMULATED"`. String persistence already covered by
+  `ProjectStorageRoundTripTest`. The live symptom (`SweepUiModelBuilder` telling the operator
+  a real sweep "is simulated") is fixed for free by the neutral default.
+- **NOT migrated:** yesterday's three records already saved as `Hardware: SIMULATED` stay
+  wrong on disk — the fix only affects newly-written entries. Do not trust the `hardwareName`
+  field on any pre-2026-07-29 saved sweep. LiteVNA driver left unlabelled on purpose (the
+  resolver covers it); the calibration producer (§10c.6) is still a separate task.
+
 ### 10c.8 The pattern, three times in two days: readers verified, writers not
 
 1. **Alias/calibration fix (§10c.6)** — correct fix, *no writer exists*, so the path is unreachable.

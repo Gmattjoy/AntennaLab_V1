@@ -269,13 +269,21 @@ class SweepWorkspaceViewModel(
         viewModelScope.launch {
             val currentStateSnapshot = workspaceState
 
+            // Capture the live session provenance BEFORE the sweep so the
+            // persisted history record can be classified honestly when the
+            // driver did not name itself (§10c.7): this is the same
+            // dataSourceKind BenchState reports as REAL_INSTRUMENT live.
+            val liveSession = UsbSessionManager.getLatestInstrumentSessionState()
+
             val outcome = withContext(Dispatchers.Default) {
                 runCatching {
                     SweepWorkspaceController.runSweep(
                         currentState = currentStateSnapshot,
                         startMHz = startMHz,
                         endMHz = endMHz,
-                        stepMHz = stepMHz
+                        stepMHz = stepMHz,
+                        liveDataSourceKind = liveSession?.dataSourceKind,
+                        liveHardwareName = liveSession?.selectedHardwareName
                     )
                 }
             }

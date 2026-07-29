@@ -7,6 +7,7 @@ import com.example.antennalab_v1.features.testing.TraceCompareMode
 import com.example.antennalab_v1.features.testing.WorkspaceMarkerTarget
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
+import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import org.junit.Assert.assertEquals
@@ -172,6 +173,62 @@ class SweepWorkspaceControllerTest {
         assertEquals(3, result.sweepHistory.size)
         // Newest sweep is at the front.
         assertEquals(result.currentSweep, result.sweepHistory.first())
+    }
+
+    // ------------------------------------------------------------------
+    // buildSweepHistoryEntry — §6/§10c.7 data-integrity pin
+    //
+    // A real LiteVNA sweep carries the driver's OMITTED (neutral, empty)
+    // hardwareProfile. Before the fix, the writer copied that verbatim and
+    // the old "SIMULATED" model default meant three genuine bench captures
+    // were persisted as Hardware: SIMULATED and survived save/reload. These
+    // pin that a REAL_INSTRUMENT sweep persists as REAL, never "SIMULATED".
+    // ------------------------------------------------------------------
+
+    /** A LiteVNA-shaped sweep: driver omitted hardwareProfile → neutral default. */
+    private fun driverUnnamedSweep() = SweepResult(
+        startFrequencyMHz = 144.5,
+        endFrequencyMHz = 145.49,
+        stepMHz = 0.01,
+        points = listOf(point(144.5, swr = 2.0), point(145.0, swr = 1.6))
+    )
+
+    @Test
+    fun buildSweepHistoryEntry_realInstrumentSweep_persistsAsReal_notSimulated() {
+        val entry = SweepWorkspaceController.buildSweepHistoryEntry(
+            currentState = SweepWorkspaceState(),
+            result = driverUnnamedSweep(),
+            liveDataSourceKind = InstrumentDataSourceKind.REAL_INSTRUMENT,
+            liveHardwareName = "LiteVNA64 v0.3.3"
+        )
+
+        // The exact §6 regression: this MUST NOT read "SIMULATED".
+        assertEquals("LiteVNA64 v0.3.3", entry.hardwareName)
+        assertFalse(entry.hardwareName.equals("SIMULATED", ignoreCase = true))
+    }
+
+    @Test
+    fun buildSweepHistoryEntry_realInstrumentSweep_unnamedSession_fallsBackToGenericReal() {
+        val entry = SweepWorkspaceController.buildSweepHistoryEntry(
+            currentState = SweepWorkspaceState(),
+            result = driverUnnamedSweep(),
+            liveDataSourceKind = InstrumentDataSourceKind.REAL_INSTRUMENT,
+            liveHardwareName = "   "
+        )
+
+        assertEquals("Real Instrument", entry.hardwareName)
+    }
+
+    @Test
+    fun buildSweepHistoryEntry_simulatedSweep_stillPersistsAsSimulated() {
+        val entry = SweepWorkspaceController.buildSweepHistoryEntry(
+            currentState = SweepWorkspaceState(),
+            result = driverUnnamedSweep().copy(hardwareProfile = "SIMULATED"),
+            liveDataSourceKind = InstrumentDataSourceKind.SIMULATED,
+            liveHardwareName = null
+        )
+
+        assertEquals("SIMULATED", entry.hardwareName)
     }
 
     // ------------------------------------------------------------------

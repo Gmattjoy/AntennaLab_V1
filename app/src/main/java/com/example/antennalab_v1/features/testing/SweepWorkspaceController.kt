@@ -49,10 +49,12 @@ SAFE EDIT AREA
 */
 
 import com.example.antennalab_v1.domain.testing.SweepController
+import com.example.antennalab_v1.domain.testing.SweepHardwareIdentity
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DiscoverySnapshot
 import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
+import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import kotlin.math.abs
@@ -140,7 +142,14 @@ object SweepWorkspaceController {
         startMHz: Double,
         endMHz: Double,
         stepMHz: Double,
-        maxHistorySize: Int = 24
+        maxHistorySize: Int = 24,
+        // Live session provenance, supplied by the ViewModel from
+        // UsbSessionManager. When a driver did not name itself, these
+        // classify the persisted record honestly (§10c.7) — the same
+        // dataSourceKind BenchState reports live. Default null keeps
+        // callers that do not thread a live session compiling.
+        liveDataSourceKind: InstrumentDataSourceKind? = null,
+        liveHardwareName: String? = null
     ): SweepWorkspaceState {
         val result = SweepController.runSweep(
             startMHz = startMHz,
@@ -156,14 +165,18 @@ object SweepWorkspaceController {
 
         val pendingHistoryEntry = buildSweepHistoryEntry(
             currentState = currentState,
-            result = result
+            result = result,
+            liveDataSourceKind = liveDataSourceKind,
+            liveHardwareName = liveHardwareName
         )
 
         val pendingDiscoverySnapshot =
             if (currentState.isDiscoveryMode) {
                 buildDiscoverySnapshot(
                     currentState = currentState,
-                    result = result
+                    result = result,
+                    liveDataSourceKind = liveDataSourceKind,
+                    liveHardwareName = liveHardwareName
                 )
             } else {
                 null
@@ -807,9 +820,13 @@ object SweepWorkspaceController {
         }.take(maxHistorySize.coerceAtLeast(1))
     }
 
-    private fun buildSweepHistoryEntry(
+    // internal (not private) so SweepWorkspaceControllerTest can drive the
+    // actual save-path writer directly and pin the §6 data-integrity fix.
+    internal fun buildSweepHistoryEntry(
         currentState: SweepWorkspaceState,
-        result: SweepResult
+        result: SweepResult,
+        liveDataSourceKind: InstrumentDataSourceKind? = null,
+        liveHardwareName: String? = null
     ): ProjectSweepHistoryEntry {
         val bestPoint = result.points.minByOrNull { it.swr }
 
@@ -820,7 +837,11 @@ object SweepWorkspaceController {
             } else {
                 ProjectSweepHistoryMode.PROJECT_TEST
             },
-            hardwareName = result.hardwareProfile.ifBlank { "Unknown Instrument" },
+            hardwareName = SweepHardwareIdentity.resolvePersistedHardwareName(
+                reportedProfile = result.hardwareProfile,
+                liveDataSourceKind = liveDataSourceKind,
+                liveHardwareName = liveHardwareName
+            ),
             sweepStartMHz = result.points.firstOrNull()?.frequencyMHz ?: 0.0,
             sweepEndMHz = result.points.lastOrNull()?.frequencyMHz ?: 0.0,
             bestFrequencyMHz = bestPoint?.frequencyMHz ?: 0.0,
@@ -845,14 +866,20 @@ object SweepWorkspaceController {
 
     private fun buildDiscoverySnapshot(
         currentState: SweepWorkspaceState,
-        result: SweepResult
+        result: SweepResult,
+        liveDataSourceKind: InstrumentDataSourceKind? = null,
+        liveHardwareName: String? = null
     ): DiscoverySnapshot {
         val bestPoint = result.points.minByOrNull { it.swr }
 
         return DiscoverySnapshot(
             capturedAtEpochMs = System.currentTimeMillis(),
             antennaClassificationGuess = currentState.discoveryAntennaClassification,
-            hardwareName = result.hardwareProfile.ifBlank { "Unknown Instrument" },
+            hardwareName = SweepHardwareIdentity.resolvePersistedHardwareName(
+                reportedProfile = result.hardwareProfile,
+                liveDataSourceKind = liveDataSourceKind,
+                liveHardwareName = liveHardwareName
+            ),
             sweepStartMHz = result.points.firstOrNull()?.frequencyMHz ?: 0.0,
             sweepEndMHz = result.points.lastOrNull()?.frequencyMHz ?: 0.0,
             bestFrequencyMHz = bestPoint?.frequencyMHz ?: 0.0,
