@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
 /*
 ########################################################################
@@ -99,9 +100,17 @@ fun AntennaLab_V1Theme(
             AntennaLabLightColorScheme
         }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // Additive: expose the extended semantic-colour tokens for the active theme
+    // flag (the app forces its own dark flag, so the set is chosen here, not from
+    // the system). Nothing consuming this yet in Phase 0, so rendering is unchanged;
+    // MaterialTheme's colourScheme/typography are applied exactly as before.
+    CompositionLocalProvider(
+        LocalAntennaLabSemanticColors provides antennaLabSemanticColors(darkTheme)
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

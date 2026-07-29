@@ -228,3 +228,9 @@ phases; commit per phase.
 ## 5. Change log
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
+- 2026-07-29 — **Phase 0 landed.** Token layer under `ui/theme/` (`AntennaLabSpacing`,
+  `AntennaLabTouch` with `field = 64.dp` as the documented gloved dial, `AntennaLabSemanticColors`
+  + `LocalAntennaLabSemanticColors` + selector, `AntennaLabTheme` accessor) provided additively in
+  `Theme.kt`; first shared primitive `ui/components/StatusPill.kt`; `TokenPreviews.kt` swatch sheet
+  (light + dark); `DesignTokensTest` (5 tests) locking the touch floor / 4 dp grid / theme-aware
+  semantic invariants. No screen touched. Light-mode semantic hex proposed, pending swatch review.
