@@ -108,7 +108,17 @@ Bench/VNA items: see `claude/hardware-bringup-litevna64.md`.
 
 - **H4 identity / Block C** (§0 handover, §10c.6 next steps) — does the NanoVNA-H4 reach Full Support and
   honour `sweepPoints=101` (C5), or free-run like the LiteVNA? Still unanswered, no corroboration.
+- **⚠ BOTH export tiers below require a VNA-PRODUCED SWEEP, not just an Android device**
+  (established off-bench 2026-07-30; full evidence in bring-up §10a-pre). The export card sits
+  inside `sweepResult?.let { … }` (`SweepGraphScreen.kt:376`, card at `:561`), so with no sweep
+  it is never composed — and a sweep cannot run without hardware, because `demoSweepAllowed`
+  needs `dataSourceKind == SIMULATED` (`SweepUiModelBuilder.kt:94-95`) while
+  `UsbSessionManager.kt:1088-1095` yields `NONE` when nothing is connected. The only debug
+  bypass (`debugSimulateCapture`) covers O/S/L capture, not sweeps. **Schedule export
+  verification against a bench session, not a headless one.** Removing this blocker is
+  bring-up §7.6 option 2 (a real debug simulated-sweep path).
 - **`.s1p` export, API 26–28 fallback tier — CODED, UNVERIFIED, PENDING DEVICE.** Phase 3 slice B.
+  **Doubly blocked off-bench: needs an API 26–28 device/emulator AND a VNA-produced sweep.**
   `MediaStore.Downloads` is API 29+, so on Android 8.0/8.1/9 the file goes to
   `getExternalFilesDir(DIRECTORY_DOWNLOADS)` and is shared via FileProvider instead. **This branch has
   never executed.** Its *tier decision* is unit-tested (`SweepExportPlanTest`, sdkInt 26/27/28 → 

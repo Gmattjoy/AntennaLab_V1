@@ -393,6 +393,47 @@ trust remaining `Degraded` after a `VALID` calibration *would* be a defect.
   `fullSpanMHz > 0.0` — but `bandwidthMHz` is the SWR≤2.0 span, which is necessarily **0**
   whenever the minimum SWR exceeds 2.0. Dead branch: `MODERATE` can never be returned.
 
+### 7.6 The sweep-locked message tells the operator to do something impossible — **LOG ONLY, do not fix yet**
+
+Found 2026-07-30 off-bench, while trying to reach the Slice B `.s1p` export on a phone
+with no VNA attached (Ulefone Armor 27T, API 35).
+
+When the run button is locked, `SweepUiModelBuilder.kt:143` prints:
+
+> "Sweep is locked. Return to System → Device Connections until transport is ready **or a
+> safe simulated path is selected**."
+
+**There is no simulated path to select.** Device Connections offers exactly five driver
+profiles — NanoVNA-H (Default Shell), NanoVNA-H4 (Default Shell), two LiteVNA64
+HW 64-0.3.3 FW v1.4.06 entries, and Generic ASCII Serial VNA. All five are real hardware
+drivers; none is a simulated/demo path. Confirmed by reading the on-device profile list,
+not by inspection alone.
+
+Nor *can* one be selected while disconnected. `UsbSessionManager.kt:1088-1095`:
+
+```kotlin
+connectionInfo.state == HardwareConnectionState.NOT_CONNECTED -> InstrumentDataSourceKind.NONE
+else                                                          -> InstrumentDataSourceKind.SIMULATED
+```
+
+`SIMULATED` is reachable only when a device **is** connected but not fully usable. Nothing
+plugged in short-circuits to `NONE`, and `SweepUiModelBuilder.kt:94-95` gates
+`demoSweepAllowed` on `dataSourceKind == SIMULATED`. So the second half of the instruction
+is unreachable by construction.
+
+**Severity: minor** — nothing is broken or mis-measured, and the honest half of the message
+("until transport is ready") is correct and actionable. But it actively sends an operator
+hunting through Device Connections for a control that does not exist, which is how ~20
+minutes went off-bench on 2026-07-30.
+
+**Design call, deliberately NOT taken here** — two options, pick one when convenient:
+1. Drop the false clause, so the message only promises what exists; or
+2. Add a real debug-only simulated-sweep path (a `dataSourceKind = SIMULATED` override, or
+   a "load demo sweep" affordance), which would also unblock §10's export items off-bench.
+
+Option 2 is the more useful of the two — see §10. Do not fix as a drive-by; it touches the
+run-contract gating.
+
 ---
 
 ## 8. CONFIRMED 2026-07-24 — bring-up times out on healthy hardware (BLOCKER)
@@ -527,6 +568,42 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 
 - [ ] **OSL calibration at 145 MHz** (14.2 MHz passed — see §6)
 - [ ] **NanoVNA-H4, entirely** (§9)
+- [ ] **`.s1p` export IO, API 29+ tier (MediaStore public Downloads)** — Slice B.
+      **REQUIRES A VNA-PRODUCED SWEEP, not just any Android device.** Established
+      2026-07-30: the export card is unreachable off-bench (see the note below), so this
+      cannot be signed off on a bare handset no matter how modern. Steps once a VNA is
+      attached: run a sweep → "Save .s1p" → status must name `Downloads/AntennaLab` → file
+      present there → Share to one target → header reads `# Hz S RI R 50` and the first
+      data column is whole Hz. The `IS_PENDING` set-then-clear is what makes the file
+      visible; if it regresses the entry exists but is permanently invisible, which no unit
+      test can catch.
+- [ ] **`.s1p` export IO, API 26-28 tier (app-specific dir + FileProvider)** — Slice B.
+      **DOUBLY BLOCKED off-bench: needs an API 26-28 device/emulator AND a VNA-produced
+      sweep.** This branch has never executed; only its tier *decision* is unit-tested
+      (`SweepExportPlanTest`: sdkInt 26/27/28 → `APP_SPECIFIC`, `isPublicDownloads = false`).
+      Verify specifically that the status wording does **NOT** claim a public Downloads
+      save — the honesty labelling is the entire reason the tier is distinguished.
+
+### 10a-pre. Why the export items cannot be closed off-bench (2026-07-30)
+
+Attempted on a VNA-less handset and **found not verifiable**, which is a property of the
+entry point rather than a defect in the export code:
+
+- The export card lives inside `sweepResult?.let { result -> … }` —
+  `SweepGraphScreen.kt:376`, card at `:561`. No sweep result means the card is never
+  composed. It is not hidden or disabled; it does not exist.
+- A sweep cannot be run without hardware. `demoSweepAllowed` requires
+  `dataSourceKind == SIMULATED` (`SweepUiModelBuilder.kt:94-95`), and
+  `UsbSessionManager.kt:1088-1095` returns `NONE` — not `SIMULATED` — when nothing is
+  connected. `SIMULATED` needs a device connected-but-not-fully-usable.
+- The only debug bypass in the app is `debugSimulateCapture`
+  (`CalibrationWizardScreen.kt:90`), which simulates **O/S/L calibration capture only**,
+  not a sweep. There is no debug simulated-sweep route.
+
+Net: the export path (both tiers) stays **CODED, UNVERIFIED, PENDING DEVICE**, and the
+gating device is a **VNA**, not the phone. §7.6 option 2 (a real debug simulated-sweep
+path) would remove this blocker and let the export IO be exercised off-bench; until then
+export verification must be scheduled against a bench session.
 - [x] **`device_filter.xml` VID/PID against real units — ANSWERED 2026-07-24, and the
       declared IDs are WRONG for the LiteVNA64.** The real unit reports:
 
