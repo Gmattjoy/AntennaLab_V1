@@ -32,11 +32,30 @@ a **phased rollout order**, and the **open questions** still to settle.
   Connect/validate/permission logic + `BenchState` logging untouched. `DeviceConnectionsController` level
   mappers + tests.
 
-### Next UI entry point — Phase 3 (shared chart components)
-The foundation for the Phase-4 Sweep Viewer: multi-chart grid cell, marker readout table
-(|Z|, R+jX, Q, Cs/Ls, RL, phase, band), amateur-band axis overlay, `.s1p` Touchstone export
-(see §2.3). **Do the pure extraction first:** pull chart/marker math into pure helpers (building on the
-existing `SweepGraphMath`) with unit tests before any Compose, same discipline as P0–P2.
+### Phase 3 (shared chart components) — IN PROGRESS
+**Slice A · pure helpers + tests — DONE (2026-07-30, suite 443 green, 0 failures, +64 tests).**
+No Compose, no existing file touched; three additive source files:
+- `model/AmateurBand.kt` — `AmateurBand` + `IaruRegion`, pure data.
+- `domain/analysis/AmateurBandPlan.kt` — all three IARU region tables, `bandAt` /
+  `bandLabelAt` / `bandsOverlapping` (the axis-overlay lookup). `DEFAULT_REGION = REGION_3`
+  is the single constant to flip. Doc comment is explicit that these are region-level
+  allocations, **not** a legal band-plan reference (country/licence limits are narrower).
+- `domain/testing/SweepMarkerMath.kt` — the §2.3 readout row: |Z|, R+jX, Q, series-equivalent
+  Cs/Ls (auto-scaled pF/nF, nH/µH), RL, phase, band, as raw values **and** display strings via
+  `buildMarkerReadout`. Γ comes from `OslCalibrationEngine.gammaFromPoint` — the same exact
+  R/X→Γ path `CalibrationCorrector` uses — so phase does not depend on
+  `SweepPoint.s11PhaseDegrees` being populated.
+- `domain/testing/TouchstoneExport.kt` — `buildS1p` (pure string building, no IO) +
+  `suggestFileName`. Carries provenance comments incl. calibration state and the
+  incomplete-sweep count, so an exported file stays auditable.
+
+**Slice B · Compose + delivery — NEXT.** Multi-chart grid cell, the marker readout table,
+the band overlay rendering, and getting the `.s1p` bytes off the device (FileProvider +
+`res/xml/file_paths.xml` + manifest entry + share sheet). The existing CSV "export" is only an
+on-screen preview panel — no file/share infrastructure exists yet, and CSV should ride the same
+seam once built. CSV row building is currently inline in the Composable; extract it to a pure
+builder alongside `TouchstoneExport` when wiring this.
+
 **Then Phase 4 (Sweep Viewer) will want the VNAs back** — the multi-chart grid, markers and `.s1p` export
 need real-data verification on hardware, so schedule P4 review against a bench session, not headless.
 
@@ -250,10 +269,22 @@ phases; commit per phase.
    layout.
 3. **Which charts are "essential" in Simple mode**, and are they capability-dependent
    (e.g. Smith only when `supportsSmithChart`)?
-4. **Amateur-band overlay data source & scope** — which band plan / region, and how it
-   renders across very wide vs very narrow spans without clutter.
-5. **.s1p export fidelity** — S11 only vs S11+S21 when available; frequency units and format
-   header conventions; where the file lands (share sheet vs project storage).
+4. ~~**Amateur-band overlay data source & scope**~~ — **RESOLVED (2026-07-30, Phase 3 slice A).**
+   All three IARU regions ship as pure data (`domain/analysis/AmateurBandPlan`) with
+   `DEFAULT_REGION = REGION_3` (Melbourne). Rationale: it is a static table either way, and a
+   single-region table has no concept to extend, so adding regions later would mean reworking
+   the model — pay the trivial cost once. Region-level allocations only, explicitly not a legal
+   reference. *Still open (rendering, not data):* how the overlay draws across very wide vs
+   very narrow spans without clutter — settle in slice B against real layouts.
+5. ~~**.s1p export fidelity**~~ — **RESOLVED (2026-07-30, Phase 3 slice A).** S11 only, because
+   `.s1p` is by definition a one-port file and cannot carry S21; `.s2p` would need the full
+   2×2 set (S11 S21 S12 S22) and both devices measure forward S21 only, so a valid `.s2p` is
+   not producible without fabricating terms. Closed by the file format, not by preference.
+   Header `# Hz S RI R 50` (NanoVNA-Saver's own convention, per §2.3), frequency in whole Hz,
+   6-decimal RI pairs, CRLF. *Still open:* delivery — the plan of record is a real file via
+   FileProvider + share sheet in slice B (a `.s1p` that cannot leave the device is useless,
+   since the point is loading it into NanoVNA-Saver or a simulator), but no file/share
+   infrastructure exists yet, so this is not built.
 6. **Dashboard "Measure now" target** when no instrument/calibration is present — does it
    route to a simulated sweep, to Device Connections, or offer a choice?
 7. **Touch-target exact values** (primary vs secondary vs dense-table rows) — pin numbers in
@@ -266,6 +297,8 @@ phases; commit per phase.
 ## 5. Change log
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
+- 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked
+  resolved with rationale. Suite 379 → 443 green.
 - 2026-07-29 — **Phase 0 landed.** Token layer under `ui/theme/` (`AntennaLabSpacing`,
   `AntennaLabTouch` with `field = 64.dp` as the documented gloved dial, `AntennaLabSemanticColors`
   + `LocalAntennaLabSemanticColors` + selector, `AntennaLabTheme` accessor) provided additively in
