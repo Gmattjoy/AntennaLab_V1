@@ -2,6 +2,17 @@
 
 Android app for antenna design, calculation, project management, and VNA-based sweep testing/tuning. Aimed at novice antenna builders through advanced radio operators — an antenna engineering workspace, not just a calculator.
 
+## Working style
+One task at a time, auto-accept edits (no manual per-file approval), commit after each change, verify via build + in-app testing. Short direct answers.
+
+After completing any implementation phase, automatically stage and commit the change (code + any relevant control docs) with a descriptive message. Do not wait for user confirmation to commit and do not present a "commit this" suggestion — just do it and move to the next step.
+
+## Control docs
+These carry the detail deliberately kept out of this file. Read the relevant one before starting work in its area; update it as decisions land.
+- `TESTING_ROADMAP.md` — test-suite inventory, priorities, extraction backlog. Work top-down; check off items as completed.
+- `claude/ui-redesign-spec.md` — anchor doc for the app-wide UI redesign: current state, agreed direction (not to be re-litigated), phased rollout. Phases 0–2 done; **Phase 3 (shared chart components) is the next entry point.** Each phase is its own plan-mode task.
+- `claude/hardware-bringup-litevna64.md` — bench procedure + device-in-loop results log.
+
 ## Tech stack
 - Kotlin 2.2.10, Jetpack Compose (Material3, Compose BOM 2024.09.00)
 - Android Gradle Plugin 9.1.0, Gradle wrapper
@@ -10,12 +21,12 @@ Android app for antenna design, calculation, project management, and VNA-based s
 - Package: `com.example.antennalab_v1`
 
 ## Build / test
-- Build debug: `./gradlew assembleDebug`
-- Unit tests: `./gradlew test`
-- Instrumented tests: `./gradlew connectedAndroidTest` (needs device/emulator)
-- Real unit tests: `OslCalibrationEngineTest`, `CalibrationCorrectorTest` (plain JVM, calibration math); `ProjectStorageRoundTripTest`, `ProjectIndexManagerTest`, `DiscoverySnapshotPersistenceTest` (Robolectric, save/load + index serialization); `SweepWorkspaceControllerTest` (workspace state mutation + marker-tool logic, real simulated sweep path); `CalibrationSessionLogicTest` (Robolectric, calibration wizard session registration into `UsbSessionManager` + `CalibrationSession` readiness/matching helpers); `CreateAntennaWizardControllerTest` (create-antenna wizard flow logic — antenna-type mapping, live calc-request assembly, readiness lines, finish gating + starter-project assembly, Step 3 frequency/continue/status/description helpers); `CreateAntennaWizardNavigatorTest` (plain JVM, wizard step navigation + antenna-family/frequency-method state transitions); `ProjectWorkspaceControllerTest` (Robolectric, ProjectPageScreen workspace logic — sweep-return merge, calibration-session building via `UsbSessionManager`, workflow guidance, formatting); `DesignWorkspaceControllerTest` (plain JVM, DesignWorkspaceScreen display logic — summary sections, conditional calculated-results lines, mm formatting); `LoadProjectControllerTest` (plain JVM, LoadProjectScreen/Project Manager logic — initial list resolution, frequency/last-edited formatting, stored-calibration derivation); `EnvironmentalModelTest` + `SWRPredictionEngineTest` (plain JVM, prediction domain — per-influence resonance shifts and their combination into PredictedPerformance); `DeviceConnectionsControllerTest` (plain JVM, DeviceConnectionsScreen hardware-selection logic — default profile, LiteVNA validation state machine, trust/calibration labels, button gating, operator guidance); `InstrumentStatusUiMapperTest` (Robolectric, instrument-status presentation — per-field label mappers over InstrumentSessionState plus a Context-coupled smoke test of buildCardUiModel/buildDetailsUiModel); `AppRootControllerTest` (plain JVM, AppRootScreen project/calibration logic — ProjectData factories, template application, wizard finish normalization, calibration-wizard session building, stored-calibration restore-policy decision); `CalibrationSessionFactoryTest` (plain JVM, the shared `domain/testing/CalibrationSessionFactory` both AppRootController and ProjectWorkspaceController delegate to — unified target ±0.5 MHz fresh span with hardware clamping, reuse-vs-fresh decision); `CalibrationWizardControllerTest` (plain JVM, CalibrationWizardScreen OSL capture state machine — step derivation, capture step size, per-step session build, and the applyCapturedStandard fold that computes the correction once all three standards are captured); `SweepGraphMathTest` (plain JVM, the pure sweep graph math moved out of SweepGraphWidgets §17-18 into the shared `SweepGraphMath` — display value/S21, axis bounds/scale/labels/ticks/titles, bandwidth, and the TDR cable-fault preview; also the single home for the de-duplicated getDisplayValue/estimateBandwidthAtOrBelowSwr; and the SWR display-axis clamp at `SWR_DISPLAY_CEILING` = 100, which caps the graph Y-axis maximum so absurd near-total-reflection SWR points don't blow the scale to millions — display-only, raw sweep data untouched; and `resolveSweepWindow`/`resolveEffectiveIsLiteVna` — the sweep span/step math (LiteVNA ±0.5 MHz/0.01, NanoVNA ±0.25/0.02, clamped to hardware limits) plus the live-instrument-wins-else-project precedence for deciding LiteVNA-ness); `SweepUiModelBuilderTest` (plain JVM, the pure decision/formatting logic extracted out of `SweepWorkspaceViewModel.buildUiModel` into `SweepUiModelBuilder` — run-contract decision engine buildSweepRunContract, operator failure-message classifier, current-sweep source label, selected-path label, fallback-reason text, discovery UiModel + antenna-classification label formatting); `Step1AntennaTypeControllerTest` (plain JVM, the guided Step 1 wizard intake logic extracted out of `Step1AntennaTypeScreen` into `Step1AntennaTypeController` — the recommendAntennaFamily rules engine with branch precedence, and the isFrequencySectionComplete/isServiceSectionComplete/canProceed gating predicates); `SweepAnalyzerTest` (plain JVM, the resonance-detection engine — findMinimumSWR/getResonantFrequencyMHz over empty/single/tie/unordered sweeps); `SweepDiagnosticsEngineTest` (plain JVM, the summary-metrics engine `SweepDiagnosticsEngine.analyzeSweep` — hand-derived min-SWR/resonance/bandwidth spans incl. the exactly-2.0 inclusive boundary, secondary-resonance selection, empty/single-point degenerate input, and characterization of every classifier + the summary string; physical outputs hand-derived, not mirrored from the engine); `LiteVnaFifoReadBudgetTest` (plain JVM, the pure LiteVNA FIFO read-budget math in `domain/testing/LiteVnaFifoReadBudget` — records→bytes→backstop read passes + wall-clock budget at a given USB packet size, `fifoRecordCount`, and the count-driven `shouldContinueFifoAccumulation` stop predicate; the blocking USB IO stays device-only); `LiteVnaFifoParserTest` (plain JVM, the pure LiteVNA valuesFIFO decode in `domain/testing/LiteVnaFifoParser` — parseLiteVnaFifoRecords/selectDirectRecords/analyzeFreqIndices — driven by a REAL captured 3232-byte FIFO payload fixture `test/resources/litevna/fifo_145mhz_101req.b64`; reproduces the "40/101" parse in pure JVM and locks the free-running-sweep diagnosis: decode is correct (freqIndex @0x18), but the device free-runs ~201 points so freqIndex scatters 0..193 and the direct-index filter keeps ~40; also covers `DistinctInRangeAccumulator` — the sweep-reconstruction seam that collects distinct in-range freqIndex across many reads: converges to all points from stride-sampled input, and terminates honestly naming any starved index when a point never arrives). Scaffolding only elsewhere (ExampleUnitTest / ExampleInstrumentedTest).
-- Robolectric is set up (`testImplementation(libs.robolectric)`, `testOptions.unitTests.isIncludeAndroidResources = true`, emulated SDK pinned to 34 in `app/src/test/resources/robolectric.properties`). Use `@RunWith(RobolectricTestRunner::class)` for tests needing a real `Context` / Android framework classes (e.g. `org.json`); the first run downloads the SDK jar (needs network).
-- Windows: set `JAVA_HOME` to Android Studio's bundled JDK (e.g. `C:\Program Files\Android\Android Studio\jbr`) before running gradlew.
+Windows: set `JAVA_HOME` to Android Studio's bundled JDK (e.g. `C:\Program Files\Android\Android Studio\jbr`) first. Use `.\gradlew.bat` from PowerShell; the `./gradlew` form only works via the Bash tool.
+- Build debug: `.\gradlew.bat assembleDebug`
+- Unit tests: `.\gradlew.bat test`
+- Instrumented tests: `.\gradlew.bat connectedAndroidTest` (needs device/emulator)
+
+Test layout: plain JVM for pure logic; Robolectric for anything needing a real `Context` or Android framework classes (e.g. `org.json`) — `@RunWith(RobolectricTestRunner::class)`, emulated SDK pinned to 34 in `app/src/test/resources/robolectric.properties`, first run downloads the SDK jar (needs network). Current inventory and per-area coverage live in `TESTING_ROADMAP.md` — do not duplicate the list here.
 
 ## Architecture
 
@@ -27,14 +38,23 @@ Wizard → ProjectData → CalculationEngine → CalculatedDesign → ProjectPag
 
 Layers under `app/src/main/java/com/example/antennalab_v1/`:
 - `model/` — pure data only. NO UI logic, NO Android framework refs, NO calculation logic.
-- `domain/` — calculation, analysis, testing logic (`CalculationEngine`, `SweepController`, `SweepAnalyzer`, USB/VNA drivers)
-- `features/` — UI screens/workflows (wizard, testing, lab, app, workspace)
+- `domain/` — calculation, analysis, testing logic (`CalculationEngine`, `SweepController`, `SweepAnalyzer`, USB/VNA drivers). Subpackages: `analysis`, `calculator`, `prediction`, `testing`.
+- `features/` — UI screens/workflows (`app`, `lab`, `project`, `testing`, `wizard`, `workspace`)
 - `project/` — main workspace hub (`ProjectPageScreen`)
 - `storage/` — save/load (`ProjectStorage`, `ProjectIndexManager`)
-- `ui/theme/` — Compose theme
+- `ui/theme/` + `ui/components/` — design system (see below)
 
 Hardware is capability-based, not hardcoded:
 `ProjectData.testHardwareProfile` → capability profile → controls which UI features show (Smith chart, S21 estimate, TDR preview, CSV export, marker types, sweep frequency limits, OSL calibration). Supports NanoVNA-H4 and LiteVNA64 v0.3.3. Add new hardware by extending the capability profile — do NOT branch the UI.
+
+`domain/testing/EffectiveHardwareResolver` is the single resolution point for "which hardware is actually measuring" (three-tier: validated live → selected+open live → project → deterministic default). Route capability reads through it. Design-time reads (hardware selector, build-sheet text, persistence, factory defaults) deliberately still use `project.testHardwareProfile`.
+
+## Design system (UI)
+Established by UI redesign Phases 0–2. New UI consumes these rather than hardcoding values or re-deriving state labels:
+- Tokens in `ui/theme/`: `AntennaLabSpacing`, `AntennaLabTouch` (`field = 64.dp` — the documented gloved dial), `AntennaLabSemanticColors` (+ `LocalAntennaLabSemanticColors`), reached via the `AntennaLabTheme` accessor; provided additively in `Theme.kt`.
+- Shared primitives in `ui/components/`: `StatusPill`, `MetricCard`, `AppActionButton`.
+- **Anti-drift rule:** instrument state → chip mapping is the shared pure `InstrumentStatusPresenter.buildStatusChips`, consumed by both the dashboard and Device Connections. Add a state there, not per-screen.
+- **Calibration honesty (non-negotiable):** calibration state shown in the UI is ALWAYS labelled as the APP's calibration, never ambiguous with the device's own — the known confusion trap for NanoVNA-Saver users.
 
 ## Calibration (OSL)
 
@@ -74,43 +94,20 @@ CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoeffici
   registers via `registerSimulatedCalibrationSession` (marks VALID); the sweep
   workspace's "Inject calibration error" chip (`SweepController.debugInjectCalibrationError`)
   passes the simulated sweep through that error network so correction can be verified
-  end-to-end. Unit tests: `OslCalibrationEngineTest`, `CalibrationCorrectorTest`.
+  end-to-end.
 - **Philosophy**: flag, don't reject — an uncalibrated (or partial) sweep still runs
   and is flagged, never discarded.
-- **Hardware validation**: OSL ran against a real **LiteVNA64 at 14.2 MHz and PASSED**
-  (correction applied, state VALID, readiness "Live Ready"). Still unverified: OSL at
-  145 MHz, and NanoVNA-H4 entirely. See `claude/hardware-bringup-litevna64.md`.
 
 ## Conventions
 - Respect layer boundaries strictly — no calc logic in `features/`, no UI/Android refs in `model/`
+- **Extract-and-test pattern** (how new work gets written): pull non-UI decision logic out of large Compose screens into pure controllers, leaving thin private wrappers in the Composable so call sites don't move, then cover with JVM/Robolectric tests against the real `ProjectData` model and shared `UsbSessionManager` truth — **no Android mocking**. For a new UI phase, do the pure extraction and its tests *before* any Compose.
 - Match the real file tree exactly — never invent files or assume a file exists because it's referenced
 - Use plan mode before touching `ProjectData`, the capability system, or anything spanning multiple files
-- Large files to handle carefully (all >35KB): `UsbSessionManager.kt`, `SweepGraphWidgets.kt`, `UsbVnaCommandChannel.kt`, `ProjectStorage.kt`, `ProjectPageScreen.kt`
+- Large files to handle carefully (>35KB): `UsbSessionManager.kt` (74KB), `UsbVnaCommandChannel.kt` (67KB), `ProjectStorage.kt` (52KB), `SweepGraphWidgets.kt` (51KB), `ProjectPageScreen.kt` (45KB), `SweepGraphScreen.kt` (44KB), `SweepToolsWidgets.kt` (36KB). Several are the roadmap's pending extraction targets.
+- `DEBUGGING_PLAYBOOK.kt` and `SystemArchitecture.kt` in the root package are prose docs in `.kt` files, not code — the playbook describes the prescribed pipeline-tracing method for bug hunts.
 
 ## Known gaps / to verify
-- USB host support IS now declared: `<uses-feature android:name="android.hardware.usb.host" android:required="false">` + a `USB_DEVICE_ATTACHED` intent filter on `MainActivity`, filtered by `res/xml/device_filter.xml`. The filter currently matches VID `0x0483`/PID `0x5740` (ST CDC — NanoVNA-H4 / LiteVNA64); verify against real hardware and widen if a unit reports different IDs.
-- Test coverage is still thin: OSL calibration math + `ProjectStorage` save/load serialization are covered, but most of the app (UI, sweep pipeline, wizard flow) has none. Robolectric is now available to cover Context-dependent code.
-- OSL calibration IS verified against real LiteVNA64 hardware (14.2 MHz pass). Still unverified: OSL at 145 MHz; NanoVNA-H4 entirely; `device_filter.xml` VID/PID against real units. Bench procedure + results log: `claude/hardware-bringup-litevna64.md`.
-- ~~Capability profile follows the STALE project profile~~ **RESOLVED** — `domain/testing/EffectiveHardwareResolver` is now the single resolution point for "which hardware is actually measuring" (three-tier: validated live → selected+open live → project → default). Every capability consumer routes through it; design-time reads (hardware selector, build-sheet text, persistence, factory defaults) deliberately still use `project.testHardwareProfile`. Biggest fix was a verified OSL calibration being silently discarded on load (driver label vs capability displayName never matched); also the TDR velocity factor (0.66 vs 0.82, ~24% distance error) and the frequency clamp. See bring-up doc §7.1.
-- **LiteVNA64 v0.3.3 cannot be forced to a host-set point count (KNOWN LIMITATION).**
-  The USB `sweepPoints` register (0x20) is accepted/read-back correctly but the device
-  keeps free-running its native ~201-point sweep (confirmed against DiSlord firmware:
-  writing 0 to valuesFIFO 0x30 only *flushes* the queue — it does NOT restart/reset the
-  sweep; sweeps free-run on hardware timers; there is no single-shot/pause/hold USB
-  command). readFIFO returns only ~2-3 records/call (~28 rec/s) while the sweep produces
-  ~330 pts/s, so we can never drain one coherent pass — even aggressive back-to-back
-  reads sample at a stride (~30) across 0..200, not sequentially. Current behaviour:
-  `UsbVnaCommandChannel.runLiteVnaConfiguredSweepRead` reconstructs the sweep by
-  collecting DISTINCT in-range freqIndex across many jittered reads
-  (`DistinctInRangeAccumulator`), completing on all-present OR a wall-clock budget
-  (`computeDistinctCollectionBudgetMs`), then honestly reports the partial count (e.g.
-  ~77/101 in ~44 s) — a real, correctly-frequenced but lower-resolution sweep, flagged
-  incomplete (flag-don't-reject). Forcing the full requested count on this firmware is
-  not achievable over USB; revisit if a future firmware adds a single-shot/hold command.
-
-##.Working style: One task at a time, auto-accept edits (no manual per-file approval), commit after each change, verify via build + in-app testing. Short direct answers.
-
-After completing any implementation phase, automatically stage and commit the change (code + any relevant control docs, e.g. ANTENNALAB_V1_* files) with a descriptive message. Do not wait for user confirmation to commit and do not present a "commit this" suggestion — just do it and move to the next step
-
-## Roadmap
-Current testing/hardening plan and priorities: see TESTING_ROADMAP.md. Work top-down; check off items as completed.
+- **Hardware still unverified:** OSL at 145 MHz; NanoVNA-H4 entirely (does it reach Full Support and honour `sweepPoints=101`, or free-run like the LiteVNA?); `device_filter.xml` VID/PID against real units. OSL **passed** on a real LiteVNA64 at 14.2 MHz (correction applied, VALID, "Live Ready"). Open bench items and procedure: `claude/hardware-bringup-litevna64.md`.
+- USB host support IS declared: `<uses-feature android:name="android.hardware.usb.host" android:required="false">` + a `USB_DEVICE_ATTACHED` intent filter on `MainActivity`, filtered by `res/xml/device_filter.xml` (currently VID `0x0483` / PID `0x5740` — ST CDC; widen if a unit reports different IDs).
+- **LiteVNA64 v0.3.3 cannot be forced to a host-set point count (KNOWN LIMITATION, not a bug to re-diagnose).** The `sweepPoints` register (0x20) reads back correctly but the device free-runs its native ~201-point sweep; writing 0 to valuesFIFO (0x30) only *flushes*, and the firmware has no single-shot/pause/hold command. readFIFO drains far slower than the sweep produces points, so one coherent pass is unobtainable. `UsbVnaCommandChannel.runLiteVnaConfiguredSweepRead` therefore reconstructs the sweep by collecting DISTINCT in-range freqIndex across many reads (`DistinctInRangeAccumulator`), completes on all-present or a wall-clock budget, and honestly reports the partial count (e.g. ~77/101 in ~44 s) — real, correctly-frequenced, lower-resolution, flagged incomplete. Revisit only if a future firmware adds single-shot/hold. Full diagnosis: bring-up doc.
+- Cleanup pending: `app/src/main/java/com/example/antennalab_v1/list.txt` is a committed Windows `dir` dump inside the source package and should be deleted.
