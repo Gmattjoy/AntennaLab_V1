@@ -103,9 +103,24 @@ deliberately kept as a separate task.
 **Then Phase 4 (Sweep Viewer) will want the VNAs back** — the multi-chart grid, markers and `.s1p` export
 need real-data verification on hardware, so schedule P4 review against a bench session, not headless.
 
-### Still-open HARDWARE items (a bench day) — see `claude/hardware-bringup-litevna64.md`
+### Still-open DEVICE-VERIFICATION items — treat every one as unproven, not assumed-good
+Bench/VNA items: see `claude/hardware-bringup-litevna64.md`.
+
 - **H4 identity / Block C** (§0 handover, §10c.6 next steps) — does the NanoVNA-H4 reach Full Support and
   honour `sweepPoints=101` (C5), or free-run like the LiteVNA? Still unanswered, no corroboration.
+- **`.s1p` export, API 26–28 fallback tier — CODED, UNVERIFIED, PENDING DEVICE.** Phase 3 slice B.
+  `MediaStore.Downloads` is API 29+, so on Android 8.0/8.1/9 the file goes to
+  `getExternalFilesDir(DIRECTORY_DOWNLOADS)` and is shared via FileProvider instead. **This branch has
+  never executed.** Its *tier decision* is unit-tested (`SweepExportPlanTest`, sdkInt 26/27/28 → 
+  `APP_SPECIFIC`, `isPublicDownloads = false`), but the IO, the FileProvider grant, and the share
+  hand-off have not run once. Needs an API 26–28 device or emulator. Verify specifically that the status
+  wording does **not** claim a Downloads save on this tier — the honesty labelling is the whole reason
+  the tier is distinguished, and it is exactly what a silent regression would break.
+  Same standing as H4 identity: no corroboration yet.
+- **`.s1p` export, API 29+ tier — CODED, UNVERIFIED, PENDING DEVICE.** Sweep → Export .s1p → file really
+  appears in `Downloads/AntennaLab` → share sheet delivers it → header reads `# Hz S RI R 50` and the
+  first data column is whole Hz. The `IS_PENDING` set/clear is the step that makes the file visible;
+  if it regresses the entry exists but is permanently invisible, which no unit test can catch.
 - **A3** — calibrate a real LiteVNA → Finish → **Save** → kill → reload; expect `CalRestore`
   `decision=RESTORE reason=ok storedName='LiteVNA64 v0.3.3'`. Now runnable (the §10c.6 producer shipped).
 - **Block B** — reopen with the wrong hardware selected → expect `CLEAR reason=hardware-name-mismatch`.
