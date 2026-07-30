@@ -1,6 +1,6 @@
 # Resume here — session snapshot
 
-Last updated: 2026-07-30 (office day). Overwritten each session; this is the
+Last updated: 2026-07-30 (office day). Updated in place each session; this is the
 cold-start entry point.
 
 ## State
@@ -23,6 +23,52 @@ grep -ho 'tests="[0-9]*"' app/build/test-results/testDebugUnitTest/*.xml
 
 Sum those, and confirm the task line reads `> Task :app:testDebugUnitTest`
 without `UP-TO-DATE`. Check the report file mtimes are from this run.
+
+---
+
+## Where things live
+
+Each topic has ONE home of record. This file points at them; it does not copy
+them, so nothing here can drift out of sync with the source.
+
+| Topic | Home |
+|---|---|
+| Bench procedure, findings, per-run results | `claude/hardware-bringup-litevna64.md` |
+| — next bench day handover | §0 |
+| — closed: ~201-point free-run (known HW limit) | §5 |
+| — Findings: capability profile, TDR layers, trust | §7 (7.1–7.5) |
+| — Findings from A2, incl. the data-integrity one | §10c (10c.1–10c.8) |
+| — 50 Ω load / AR-771 test-antenna behaviour | §10c.5, §10b |
+| — per-run results table | §11 |
+| Test inventory, priorities, extraction backlog | `TESTING_ROADMAP.md` |
+| Working rules (one task, plan mode, Robolectric) | `TESTING_ROADMAP.md` § Working rules |
+| Architecture, layer rules, build/test, conventions | `CLAUDE.md` |
+| UI redesign: state, direction, phases, open questions | `claude/ui-redesign-spec.md` |
+
+### Finding numbers → where they are
+
+The numbered Findings are cited in commit messages and conversation but are not
+all in one section, and **the numbering is not applied consistently across the two
+docs** — #6 and #10 are labelled in the bring-up doc itself, while #7 and #8 are
+numbered only in the roadmap and appear in the bring-up doc as unlabelled
+write-ups. Verified against the tree:
+
+- **#6** — real LiteVNA sweeps persisted as `Hardware: SIMULATED` (data
+  integrity). Labelled in the bring-up §10c.7 heading itself.
+- **#7** — capability profile followed the STALE project profile. **RESOLVED**
+  via `domain/testing/EffectiveHardwareResolver` (single resolution point,
+  three-tier). Numbered in `TESTING_ROADMAP.md` § "▶ Next up"; the write-up is
+  bring-up §7.1, which carries the title but **not** the number. §7.3
+  back-references it as "same disease as Finding #7".
+- **#8** — LiteVNA incomplete sweep + parser filtering. Closed as interim plus a
+  known hardware limitation. Numbered in `TESTING_ROADMAP.md` Priority 4
+  (checklist items) and § "▶ Next up"; the subject matter is bring-up §5, which
+  is **not** labelled with the number.
+- **#10** — does the NanoVNA-H4 honour `sweepPoints=101`, or free-run like the
+  LiteVNA? **Still unanswered, no independent corroboration.** Labelled in
+  bring-up §0 (Step 3) and §9b. Same item as the H4 entry under OPEN below.
+- **There is no Finding #9** — recorded so nobody hunts for one. (Grepping the
+  tree for it now matches only this line.)
 
 ---
 

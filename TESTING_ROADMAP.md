@@ -220,7 +220,13 @@ ProjectStorageRoundTripTest pattern.
 - One task at a time; commit after each; keep the full suite green.
 - UI/production-code changes: use plan mode, approve before applying.
 - Test files / mechanical edits: auto-accept is fine.
-- Update the CLAUDE.md test inventory after each new test batch.
+- Update the baseline at the top of THIS file after each new test batch. Do not
+  re-add a test inventory to CLAUDE.md — it was removed there (`669a2ab`) because
+  it went stale on every commit; this file is its single home.
+- Read the suite total from the JUnit XML, never the console: `./gradlew test`
+  reports BUILD SUCCESSFUL with tasks UP-TO-DATE and runs zero tests when inputs
+  are unchanged. Use `testDebugUnitTest --rerun`, then sum
+  `grep -ho 'tests="[0-9]*"' app/build/test-results/testDebugUnitTest/*.xml`.
 - Robolectric conventions: `@RunWith(RobolectricTestRunner::class)` when a test
   needs real Context / Android framework (e.g. org.json). First run downloads
   the SDK jar (needs network). Windows: set JAVA_HOME to Android Studio's
