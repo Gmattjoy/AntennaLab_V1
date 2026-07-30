@@ -7,13 +7,21 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: 281 tests, 0 failures. Controllers extracted so far:
-SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
-ProjectWorkspaceController, DesignWorkspaceController, LoadProjectController,
-DeviceConnectionsController, AppRootController, CalibrationSessionFactory,
-CalibrationWizardController, SweepUiModelBuilder, Step1AntennaTypeController. Also
-covered: InstrumentStatusUiMapper (was already extracted; per-field mappers made
-`internal` and tested).
+Current baseline: **379 tests across 35 classes, 0 failures / 0 errors / 0 skipped**
+(verified by a forced `testDebugUnitTest --rerun` on 2026-07-30). Controllers extracted
+so far: SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
+CreateAntennaWizardNavigator, ProjectWorkspaceController, DesignWorkspaceController,
+LoadProjectController, DeviceConnectionsController, AppRootController,
+CalibrationSessionFactory, CalibrationWizardController, SweepUiModelBuilder,
+Step1AntennaTypeController, DashboardController, SweepGraphMath. Also covered:
+InstrumentStatusUiMapper + InstrumentStatusPresenter (already extracted; per-field
+mappers made `internal` and tested), EffectiveHardwareResolver, StoredCalibrationProducer,
+SweepHardwareIdentity, IdentityProbeRouting, BenchStateLog, DesignTokens.
+
+When updating this number, get it from the reports rather than the console summary —
+`./gradlew test` reports UP-TO-DATE without running anything if nothing changed:
+`grep -ho 'tests="[0-9]*"' app/build/test-results/testDebugUnitTest/*.xml` (sum), after
+a `--rerun`.
 
 ### ▶ Next up (2026-07-24)
 The LiteVNA hardware/sweep-pipeline saga is closed (Finding #8 + parts; interim
