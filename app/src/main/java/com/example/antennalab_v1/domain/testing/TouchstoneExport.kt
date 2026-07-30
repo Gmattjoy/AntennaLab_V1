@@ -107,25 +107,24 @@ object TouchstoneExport {
     Suggested filename
     EDIT SECTION 1003
     --------------------------------------------------------------------
-    Caller supplies the project name and a timestamp — this object stays
-    pure, so it does NOT read the clock.
+    Convenience overload for callers with no SweepResult in hand;
+    delegates to SweepExportNaming so there is ONE naming implementation
+    rather than two that drift. Prefer
+    SweepExportNaming.buildFileName(projectName, result, timestamp) when a
+    sweep is available — that form adds the centre frequency.
 
-    Sanitises to a conservative set safe on external storage and in a
-    share-sheet target; an empty or fully-stripped name falls back to
-    "sweep" rather than producing a dotfile.
+    Still clock-free: the caller supplies the timestamp label.
     --------------------------------------------------------------------
     */
-    fun suggestFileName(projectName: String, timestampLabel: String): String {
-        val safeProject = sanitise(projectName).ifBlank { "sweep" }
-        val safeStamp = sanitise(timestampLabel)
-        val stem = if (safeStamp.isBlank()) safeProject else "${safeProject}_$safeStamp"
-        return "$stem.$FILE_EXTENSION"
-    }
-
-    private fun sanitise(raw: String): String =
-        raw.trim()
-            .replace(Regex("[^A-Za-z0-9._-]+"), "_")
-            .trim('_')
+    fun suggestFileName(projectName: String, timestampLabel: String): String =
+        SweepExportNaming.buildFileName(
+            projectName = projectName,
+            // No sweep in hand, so no frequency segment — a non-positive
+            // centre frequency drops it.
+            centreFrequencyMHz = 0.0,
+            timestampLabel = timestampLabel,
+            extension = FILE_EXTENSION
+        )
 
     private fun instrumentLabel(result: SweepResult): String =
         result.hardwareProfile.ifBlank { "unknown" }

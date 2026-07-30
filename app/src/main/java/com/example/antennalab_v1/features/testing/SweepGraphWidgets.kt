@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.TestHardwareProfile
@@ -1054,7 +1055,13 @@ fun SweepScalarTraceView(
     instrumentTextSecondary: Color,
     instrumentBlue: Color,
     instrumentMagenta: Color,
-    instrumentGreen: Color
+    instrumentGreen: Color,
+    /*
+    Plot height. Defaults to the original 240.dp so every existing call
+    site is unchanged; the Phase-3 chart grid passes a smaller value to
+    fit a cell.
+    */
+    heightDp: Dp = 240.dp
 ) {
     val points = result.points
     val currentValues = points.map { getDisplayValue(it, mode) }
@@ -1108,7 +1115,7 @@ fun SweepScalarTraceView(
             Column(
                 modifier = Modifier
                     .width(56.dp)
-                    .height(240.dp)
+                    .height(heightDp)
                     .padding(end = 8.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
@@ -1124,7 +1131,7 @@ fun SweepScalarTraceView(
             ScalarTraceGraphCanvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(heightDp),
                 surfaceColor = instrumentSurfaceVariant,
                 borderColor = instrumentDivider,
                 gridColor = instrumentDivider.copy(alpha = 0.85f),
@@ -1328,7 +1335,13 @@ fun SweepSmithChartView(
     instrumentAccent: Color,
     instrumentTextSecondary: Color,
     markerAColor: Color,
-    markerBColor: Color
+    markerBColor: Color,
+    /*
+    Plot height. Defaults to the original 280.dp so every existing call
+    site is unchanged; the Phase-3 chart grid passes a smaller value to
+    fit a cell.
+    */
+    heightDp: Dp = 280.dp
 ) {
     val points = result.points
     val widgetAccent = MaterialTheme.colorScheme.primary
@@ -1336,7 +1349,7 @@ fun SweepSmithChartView(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp)
+            .height(heightDp)
             .border(1.dp, instrumentDivider, RoundedCornerShape(14.dp)),
         color = instrumentSurfaceVariant,
         shape = RoundedCornerShape(14.dp)

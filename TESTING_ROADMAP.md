@@ -7,9 +7,10 @@ the Composable so call sites don't move), then cover with JVM/Robolectric tests
 against the real `ProjectData` model and shared `UsbSessionManager` truth — no
 Android mocking.
 
-Current baseline: **443 tests across 38 classes, 0 failures / 0 errors / 0 skipped**
-(2026-07-30, after UI Phase 3 slice A added AmateurBandPlan / SweepMarkerMath /
-TouchstoneExport + 64 tests). Controllers extracted
+Current baseline: **489 tests across 41 classes, 0 failures / 0 errors / 0 skipped**
+(2026-07-30, after UI Phase 3 slice B added SweepExportNaming / SweepExportPlan /
+ChartLayoutMath + 46 tests; slice A added AmateurBandPlan / SweepMarkerMath /
+TouchstoneExport + 64). Controllers extracted
 so far: SweepWorkspaceController, CalibrationSessionLogic, CreateAntennaWizardController,
 CreateAntennaWizardNavigator, ProjectWorkspaceController, DesignWorkspaceController,
 LoadProjectController, DeviceConnectionsController, AppRootController,

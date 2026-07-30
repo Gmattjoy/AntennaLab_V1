@@ -49,12 +49,56 @@ No Compose, no existing file touched; three additive source files:
   `suggestFileName`. Carries provenance comments incl. calibration state and the
   incomplete-sweep count, so an exported file stays auditable.
 
-**Slice B · Compose + delivery — NEXT.** Multi-chart grid cell, the marker readout table,
-the band overlay rendering, and getting the `.s1p` bytes off the device (FileProvider +
-`res/xml/file_paths.xml` + manifest entry + share sheet). The existing CSV "export" is only an
-on-screen preview panel — no file/share infrastructure exists yet, and CSV should ride the same
-seam once built. CSV row building is currently inline in the Composable; extract it to a pure
-builder alongside `TouchstoneExport` when wiring this.
+**Slice B · Compose + delivery — CODE DONE, DEVICE VERIFICATION OUTSTANDING (2026-07-30,
+suite 489 green, 0 failures, +46 tests).**
+
+*Delivery (save-to-Downloads then share).* Decision layer is pure and tested:
+- `domain/testing/SweepExportNaming.kt` — the single naming home
+  (`<project>_<centre freq>_<timestamp>.s1p`, sanitising, truncation, `nextAvailableName`
+  collision suffixing). `TouchstoneExport.suggestFileName` now delegates here.
+- `domain/testing/SweepExportPlan.kt` — the API-tier decision as a pure function of `sdkInt`.
+- `storage/SweepExportWriter.kt` — executes a plan; no decisions of its own.
+- Manifest `<provider>` for `androidx.core.content.FileProvider` +
+  `res/xml/file_paths.xml` (scoped to the app-specific Downloads dir only).
+  **No storage permission added** — verified against the merged manifest.
+
+**⚠ minSdk 26 vs `MediaStore.Downloads` (API 29+).** The original "public Downloads via
+MediaStore, no legacy `WRITE_EXTERNAL_STORAGE`" is impossible on Android 8.0/8.1/9. Resolved
+as two tiers: **API 29+** MediaStore public Downloads (`Download/AntennaLab`), sharing the
+`content://` URI MediaStore returns — FileProvider not involved. **API 26–28** app-specific
+`getExternalFilesDir(DIRECTORY_DOWNLOADS)` (no permission since API 19), shared via
+FileProvider. `Outcome.Saved.isPublicDownloads` carries which happened and the UI states it
+plainly — it must never claim a public save on the fallback tier.
+
+*Compose components* (previews only, NOT wired into the viewer — that is Phase 4):
+`features/testing/charts/` — `SweepChartGrid` (capability-gated, wraps the EXISTING
+`SweepScalarTraceView` / `SweepSmithChartView` rather than redrawing), `PhaseTraceCell`
+(the only genuinely new renderer), `MarkerReadoutTable`, `BandAxisOverlay`. All thin: every
+value is computed in `domain/` first. `domain/analysis/ChartLayoutMath.kt` holds band-span
+fractions, the fixed phase axis, grid shape, and `availableChartKinds` capability gating.
+
+*One existing-UI touch:* an "Export .s1p" card in `SweepGraphScreen` beside the CSV preview,
+so save+share is reachable for device verification. Plus additive `heightDp` params on the two
+existing chart views (defaults preserve current behaviour; they hardcoded 240/280.dp and so
+could not be sized into a grid cell).
+
+**`ChartKind` is deliberately NOT `SweepDisplayMode`.** That enum has no PHASE value and
+`SweepGraphMath.getDisplayValue` is an exhaustive `when` over it, so adding one would ripple
+through ~7 files and drag the axis math in (phase wants a fixed −180..180 axis, unlike every
+auto-scaled SWR/RL/R/X axis). **Unifying the two is a Phase 4 decision** — take it when the
+viewer's chart set is settled, not before.
+
+**STILL UNVERIFIED — needs a handset, do this before trusting export:**
+1. API 29+ device: sweep → Export .s1p → file really appears in `Downloads/AntennaLab` →
+   share sheet delivers it → header reads `# Hz S RI R 50`, first data column is whole Hz.
+2. **API 26–28 device/emulator (the riskiest branch):** confirm the wording does NOT claim a
+   public Downloads save, and that FileProvider sharing actually works. This tier has never
+   run; the tier *decision* is unit-tested but the IO is not.
+3. Android Studio preview pane for the four components (grid sizing, overlay clutter).
+
+*Deferred, unchanged:* CSV row building is still inline in the Composable. It should ride the
+same `SweepExportWriter` seam and move to a pure builder beside `TouchstoneExport` —
+deliberately kept as a separate task.
 
 **Then Phase 4 (Sweep Viewer) will want the VNAs back** — the multi-chart grid, markers and `.s1p` export
 need real-data verification on hardware, so schedule P4 review against a bench session, not headless.
@@ -283,8 +327,9 @@ phases; commit per phase.
    Header `# Hz S RI R 50` (NanoVNA-Saver's own convention, per §2.3), frequency in whole Hz,
    6-decimal RI pairs, CRLF. *Still open:* delivery — the plan of record is a real file via
    FileProvider + share sheet in slice B (a `.s1p` that cannot leave the device is useless,
-   since the point is loading it into NanoVNA-Saver or a simulator), but no file/share
-   infrastructure exists yet, so this is not built.
+   since the point is loading it into NanoVNA-Saver or a simulator). **Now BUILT in slice B
+   as save-to-Downloads-then-share, two API tiers** (see the Phase 3 entry above) — code
+   complete and unit-tested, but not yet exercised on a handset.
 6. **Dashboard "Measure now" target** when no instrument/calibration is present — does it
    route to a simulated sweep, to Device Connections, or offer a choice?
 7. **Touch-target exact values** (primary vs secondary vs dense-table rows) — pin numbers in
@@ -299,6 +344,9 @@ phases; commit per phase.
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked
   resolved with rationale. Suite 379 → 443 green.
+- 2026-07-30 — Phase 3 slice B: Android delivery layer (two API tiers, FileProvider, share
+  sheet) + the four shared chart components, previews only. Suite 443 → 489 green. Device
+  verification of the export path is outstanding; the API 26–28 tier has never run.
 - 2026-07-29 — **Phase 0 landed.** Token layer under `ui/theme/` (`AntennaLabSpacing`,
   `AntennaLabTouch` with `field = 64.dp` as the documented gloved dial, `AntennaLabSemanticColors`
   + `LocalAntennaLabSemanticColors` + selector, `AntennaLabTheme` accessor) provided additively in

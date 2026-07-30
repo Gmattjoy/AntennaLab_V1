@@ -1,5 +1,6 @@
 package com.example.antennalab_v1.features.testing
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,11 @@ import com.example.antennalab_v1.model.toHardwareCapabilityProfile
 import com.example.antennalab_v1.model.toHardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
+import com.example.antennalab_v1.storage.SweepExportWriter
+import com.example.antennalab_v1.ui.components.AppActionButton
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 enum class SweepDisplayMode {
     SWR,
@@ -548,6 +554,14 @@ fun SweepGraphScreen(
                         showS21Estimate = measurementCapabilities.supportsS21
                     )
                 }
+
+                // Phase 3 slice B: the one reachable entry point for .s1p
+                // export, so the save+share path can be verified on a device.
+                // The Phase-4 viewer decides where this finally lives.
+                S1pExportCard(
+                    result = result,
+                    projectName = project.meta.projectName
+                )
             }
 
             SweepEngineeringDetailsCard(
@@ -890,6 +904,98 @@ private fun CsvPreviewCard(result: SweepResult, showS21Estimate: Boolean) {
         instrumentTextPrimary = InstrumentTextPrimary,
         instrumentTextSecondary = InstrumentTextSecondary
     )
+}
+
+/*
+--------------------------------------------------------------------
+.s1p export
+--------------------------------------------------------------------
+Saves the current sweep as Touchstone and then offers a share sheet.
+
+All decisions are made elsewhere: SweepExportPlan picks the API tier and
+the filename, TouchstoneExport renders the text, SweepExportWriter does
+the IO. This composable reads the clock (the correct layer for it, since
+the pure helpers must stay clock-free), calls the writer, and reports
+what happened.
+
+The status line reflects WHERE the file actually landed. On API 26-28
+there is no MediaStore Downloads and the file goes to app-specific
+storage, so the wording must not claim a public save.
+--------------------------------------------------------------------
+*/
+@Composable
+private fun S1pExportCard(result: SweepResult, projectName: String) {
+    val context = LocalContext.current
+    var status by remember(result) { mutableStateOf<String?>(null) }
+    var saved by remember(result) {
+        mutableStateOf<SweepExportWriter.Outcome.Saved?>(null)
+    }
+
+    InstrumentCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SharedInstrumentSectionHeader(
+                text = "Touchstone export",
+                instrumentAccent = InstrumentAccent
+            )
+            SharedInstrumentMutedText(
+                text = "One-port .s1p (S11 only) with the app's calibration state " +
+                    "recorded in the file header.",
+                instrumentTextSecondary = InstrumentTextSecondary
+            )
+
+            AppActionButton(
+                text = "Save .s1p",
+                enabled = result.points.isNotEmpty(),
+                onClick = {
+                    val stamp = SimpleDateFormat("yyyy-MM-dd'T'HHmm", Locale.ROOT)
+                        .format(Date())
+                    when (
+                        val outcome = SweepExportWriter.saveS1p(
+                            context = context,
+                            result = result,
+                            projectName = projectName,
+                            timestampLabel = stamp
+                        )
+                    ) {
+                        is SweepExportWriter.Outcome.Saved -> {
+                            saved = outcome
+                            status = if (outcome.isPublicDownloads) {
+                                "Saved to Downloads/AntennaLab as ${outcome.displayName}."
+                            } else {
+                                "Saved to this app's storage as ${outcome.displayName}. " +
+                                    "Android ${Build.VERSION.SDK_INT} has no public " +
+                                    "Downloads API without a storage permission, so use " +
+                                    "Share to move it off the device."
+                            }
+                        }
+
+                        is SweepExportWriter.Outcome.Failed -> {
+                            saved = null
+                            status = "Save failed: ${outcome.reason}"
+                        }
+                    }
+                }
+            )
+
+            saved?.let { savedFile ->
+                AppActionButton(
+                    text = "Share",
+                    onClick = {
+                        context.startActivity(
+                            SweepExportWriter.buildShareIntent(savedFile)
+                        )
+                    }
+                )
+            }
+
+            status?.let { message ->
+                SharedInstrumentMutedText(
+                    text = message,
+                    instrumentTextSecondary = InstrumentTextSecondary
+                )
+            }
+        }
+    }
 }
 
 @Composable

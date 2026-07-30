@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider paths for sharing exported sweep files.
+
+    Only needed on API 26-28, where MediaStore.Downloads does not exist and
+    the app writes to its own external files directory instead (no runtime
+    permission required). On API 29+ MediaStore hands back a shareable
+    content:// URI directly and this provider is not involved.
+
+    Scope is deliberately narrow: the Downloads subdirectory of the
+    app-specific external files dir, nothing else. Do NOT widen this to
+    <external-path> or the app's whole files dir — that would expose more
+    than the export feature needs.
+-->
+<paths>
+    <external-files-path
+        name="antennalab_exports"
+        path="Download/" />
+</paths>
