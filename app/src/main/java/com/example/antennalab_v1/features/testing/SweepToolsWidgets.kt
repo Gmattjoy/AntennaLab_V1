@@ -49,7 +49,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -69,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.domain.testing.SweepCsvExport
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import kotlin.math.abs
@@ -584,8 +584,16 @@ fun SweepCsvPreviewPanel(
         instrumentSurface = instrumentSurface,
         instrumentDivider = instrumentDivider
     ) {
+        /*
+        Do NOT add Modifier.verticalScroll here. This panel renders inside
+        SweepGraphScreen's outer Column(Modifier.verticalScroll), which measures
+        its children with maxHeight = Infinity; a nested vertical scroller then
+        fails checkScrollableContainerConstraints and throws
+        "Vertically scrollable component was measured with an infinity maximum
+        height constraints". It is not needed either — this is a PREVIEW, capped
+        at 40 rows below, and the outer scroll already reaches all of it.
+        */
         Column(
-            modifier = Modifier.verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             SharedInstrumentSectionHeader(
@@ -595,6 +603,15 @@ fun SweepCsvPreviewPanel(
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
+            )
+
+            // Provenance first: without it a simulated sweep's CSV is
+            // indistinguishable from a real measurement. Built purely in
+            // domain/testing/SweepCsvExport so it stays testable and agrees
+            // with the .s1p instrument line.
+            SharedInstrumentMutedText(
+                text = SweepCsvExport.buildProvenanceHeader(result),
+                instrumentTextSecondary = instrumentTextSecondary
             )
 
             SharedInstrumentMutedText(

@@ -507,4 +507,216 @@ class SweepUiModelBuilderTest {
         assertTrue(model.canReturnWithoutSaving)
         assertEquals("ready", model.actionStatusText)
     }
+
+    // ------------------------------------------------------------------
+    // Debug simulated-sweep gate (no device attached)
+    //
+    // Without this path a sweep is unreachable with nothing plugged in:
+    // demoSweepAllowed needs dataSourceKind == SIMULATED, but UsbSessionManager
+    // yields NONE when disconnected. Release safety is asserted here rather
+    // than left to the Compose BuildConfig.DEBUG branch.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun debugSim_unlocksDemoSweepWithNothingConnected() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertTrue(contract.runEnabled)
+        assertEquals("Run Demo Sweep", contract.runButtonText)
+        assertFalse(contract.runUsesRealInstrument)
+    }
+
+    @Test
+    fun debugSim_toggleOffLeavesTheSweepLocked() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = false
+        )
+        assertFalse(contract.runEnabled)
+        assertEquals("Run Sweep Locked", contract.runButtonText)
+    }
+
+    @Test
+    fun debugSim_isImpossibleInAReleaseBuildEvenWithTheFlagSet() {
+        // THE load-bearing assertion. If this regresses, a release build can be
+        // talked into offering synthetic data as a normal sweep.
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = false,
+            debugSimulatedSweepEnabled = true
+        )
+        assertFalse(contract.runEnabled)
+        assertEquals("Run Sweep Locked", contract.runButtonText)
+        assertFalse(contract.runUsesSimulation)
+    }
+
+    @Test
+    fun debugSim_cannotDisplaceARealReadyInstrument() {
+        // Step 0 of the provenance chain: a real instrument still wins, so the
+        // toggle can only ADD a sweep where there would be none.
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = liveReadySession(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertEquals("Run Live Sweep", contract.runButtonText)
+        assertTrue(contract.runUsesRealInstrument)
+        assertFalse(contract.runUsesSimulation)
+    }
+
+    @Test
+    fun debugSim_liveWinsOverAnOtherwiseOpenDemoPath() {
+        /*
+        Pins the `runUsesSimulation = demoSweepAllowed && !liveSweepAllowed`
+        guard. The assertion above it (cannotDisplaceARealReadyInstrument) can
+        pass for the WRONG reason — it cannot tell "live won" apart from "the
+        demo path was never open". Steps 1 and 2 establish that both gates are
+        genuinely open on these exact inputs, which is what makes step 3
+        load-bearing.
+        */
+
+        // 1. The debug toggle really does raise demoSweepAllowed on its own.
+        val demoOnly = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertTrue(demoOnly.runUsesSimulation)
+
+        // 2. A ready instrument really does raise liveSweepAllowed on its own.
+        val liveOnly = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = liveReadySession(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false
+        )
+        assertTrue(liveOnly.runUsesRealInstrument)
+
+        // 3. With BOTH open, live takes precedence and the two stay mutually
+        // exclusive — the contract must never report a real measurement as
+        // synthetic.
+        val both = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = liveReadySession(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertTrue(both.runUsesRealInstrument)
+        assertFalse(both.runUsesSimulation)
+        assertEquals("Run Live Sweep", both.runButtonText)
+    }
+
+    @Test
+    fun debugSim_doesNotOverrideASweepAlreadyRunning() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = true,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertFalse(contract.runEnabled)
+        assertEquals("Sweep Running...", contract.runButtonText)
+    }
+
+    @Test
+    fun debugSim_paramsDefaultToOffSoExistingCallSitesAreUnchanged() {
+        // Regression guard for the pre-existing baseline: omitting both params
+        // must behave exactly as before they existed.
+        val withDefaults = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false
+        )
+        val explicitlyOff = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = false,
+            debugSimulatedSweepEnabled = false
+        )
+        assertEquals(explicitlyOff, withDefaults)
+        assertFalse(withDefaults.runEnabled)
+    }
+
+    @Test
+    fun debugSim_preExistingSimulatedSessionRouteStillWorksWithTheToggleOff() {
+        // A device attached but unusable already yielded SIMULATED; the new
+        // params must not have disturbed that path.
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(
+                dataSourceKind = InstrumentDataSourceKind.SIMULATED,
+                connectionState = HardwareConnectionState.READY,
+                sessionOpen = true
+            ),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = false
+        )
+        assertTrue(contract.runEnabled)
+        assertEquals("Run Demo Sweep", contract.runButtonText)
+    }
+
+    @Test
+    fun debugSim_statusTextMarksTheDataAsSyntheticAndStamped() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = true
+        )
+        assertTrue(contract.statusText.contains("SYNTHETIC"))
+        assertTrue(contract.statusText.contains("SIMULATED"))
+    }
+
+    // ------------------------------------------------------------------
+    // Lock message must not promise something the build cannot deliver
+    // (bring-up doc §7.6)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun lockMessage_inReleaseBuildDoesNotOfferASimulatedPath() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = false,
+            debugSimulatedSweepEnabled = false
+        )
+        // The old text sent users to Device Connections to pick a simulated path
+        // that does not exist there.
+        assertFalse(contract.statusText.contains("simulated path"))
+        assertFalse(contract.statusText.contains("Device Connections"))
+        assertTrue(contract.statusText.contains("Connect an instrument"))
+    }
+
+    @Test
+    fun lockMessage_inDebugBuildPointsAtTheRealToggle() {
+        val contract = SweepUiModelBuilder.buildSweepRunContract(
+            instrumentSessionState = session(),
+            latestFailureMessage = null,
+            sweepRunInProgress = false,
+            isDebugBuild = true,
+            debugSimulatedSweepEnabled = false
+        )
+        assertFalse(contract.statusText.contains("simulated path"))
+        assertTrue(contract.statusText.contains("Debug tools"))
+        assertTrue(contract.statusText.contains("Simulated sweep"))
+    }
 }
