@@ -569,17 +569,35 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 - [ ] **OSL calibration at 145 MHz** (14.2 MHz passed — see §6)
 - [ ] **NanoVNA-H4, entirely** (§9)
 - [ ] **`.s1p` export IO, API 29+ tier (MediaStore public Downloads)** — Slice B.
-      **REQUIRES A VNA-PRODUCED SWEEP, not just any Android device.** Established
-      2026-07-30: the export card is unreachable off-bench (see the note below), so this
-      cannot be signed off on a bare handset no matter how modern. Steps once a VNA is
-      attached: run a sweep → "Save .s1p" → status must name `Downloads/AntennaLab` → file
-      present there → Share to one target → header reads `# Hz S RI R 50` and the first
-      data column is whole Hz. The `IS_PENDING` set-then-clear is what makes the file
-      visible; if it regresses the entry exists but is permanently invisible, which no unit
-      test can catch.
+      **PARTIAL as of 2026-08-04 — the write path is verified; two sub-items remain.**
+      This tier **no longer needs a VNA**: the debug simulated-sweep route (see §10a-pre)
+      supplies a sweep off-bench, so it is reachable on any API 29+ device or emulator.
+      That supersedes the 2026-07-30 "REQUIRES A VNA-PRODUCED SWEEP" claim.
+
+      **VERIFIED — emulator API 36, 2026-08-04:**
+      - file lands in `Downloads/AntennaLab`;
+      - filename ends **`.s1p`, not `.s1p.txt`** — the MediaStore MIME-omit fix holds on a
+        real device (declaring `text/plain` on insert made Android rename the file);
+      - header reads `# Hz S RI R 50`;
+      - first frequency column is whole Hz (`309750000`);
+      - provenance reads `! Instrument: SIMULATED` / `! Calibration: none (uncalibrated)`.
+
+      The `IS_PENDING` set-then-clear therefore works — the file was visible to
+      MediaStore/`adb`, which is the failure mode no unit test can catch.
+
+      **NOT YET VERIFIED — these keep the item open:**
+      - [ ] **post-save status wording** — must name `Downloads/AntennaLab` and must not
+            misreport which tier ran;
+      - [ ] **share hand-off** — `ACTION_SEND` to a real target. This is the *only* place
+            `plan.mimeType` (`text/plain`) is used, and it is deliberately not what goes
+            to MediaStore on insert; the two must stay separate.
 - [ ] **`.s1p` export IO, API 26-28 tier (app-specific dir + FileProvider)** — Slice B.
-      **DOUBLY BLOCKED off-bench: needs an API 26-28 device/emulator AND a VNA-produced
-      sweep.** This branch has never executed; only its tier *decision* is unit-tested
+      **STILL FULLY OPEN — this branch has never executed.** As of 2026-08-04 the debug-sim
+      route removes the *"needs a VNA"* half of the old double blocker, but **not** the
+      other half: it still needs an **API 26-28 device or emulator**, and none exists here
+      (the only AVD is `Medium_Phone_API_36.1`). API 29+ takes the MediaStore branch
+      exclusively, so no amount of testing on a modern emulator can reach this path.
+      Only its tier *decision* is unit-tested
       (`SweepExportPlanTest`: sdkInt 26/27/28 → `APP_SPECIFIC`, `isPublicDownloads = false`).
       Verify specifically that the status wording does **NOT** claim a public Downloads
       save — the honesty labelling is the entire reason the tier is distinguished.
@@ -601,6 +619,12 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 
 ### 10a-pre. Why the export items cannot be closed off-bench (2026-07-30)
 
+> **⚠ SUPERSEDED IN PART, 2026-08-04 (`1089e32`).** The blocker described below was real
+> when written, and has since been **removed**: there IS now a debug simulated-sweep
+> route. The diagnosis is kept because it is still the correct explanation of *why* the
+> export card is unreachable without a sweep. See the correction under the third bullet
+> and the revised Net at the end of this section.
+
 Attempted on a VNA-less handset and **found not verifiable**, which is a property of the
 entry point rather than a defect in the export code:
 
@@ -614,11 +638,24 @@ entry point rather than a defect in the export code:
 - The only debug bypass in the app is `debugSimulateCapture`
   (`CalibrationWizardScreen.kt:90`), which simulates **O/S/L calibration capture only**,
   not a sweep. There is no debug simulated-sweep route.
+  **← FALSE as of `1089e32` (2026-08-04). There IS one now.** §7.6 option 2 was built: a
+  **"Simulated sweep (no device)"** toggle in the Sweep Viewer's Debug Tools card, which
+  reuses `runSimulatedSweep` and stamps the result `SIMULATED` end-to-end (CSV preview,
+  `.s1p` header, sweep history). It was used this session to produce a sweep and exercise
+  the **API 29+ export IO with no VNA attached**.
+  **Debug-only and release-gated, two independent ways:** the card is inside
+  `if (BuildConfig.DEBUG)` in `SweepGraphScreen`, and the pure run-contract gate ANDs in
+  `isDebugBuild` (`SweepUiModelBuilder.buildSweepRunContract`), so a stuck flag cannot
+  unlock a release build. Pinned by
+  `debugSim_isImpossibleInAReleaseBuildEvenWithTheFlagSet`.
 
-Net: the export path (both tiers) stays **CODED, UNVERIFIED, PENDING DEVICE**, and the
-gating device is a **VNA**, not the phone. §7.6 option 2 (a real debug simulated-sweep
-path) would remove this blocker and let the export IO be exercised off-bench; until then
-export verification must be scheduled against a bench session.
+Net (**revised 2026-08-04**): the gating device is **no longer a VNA** for the API 29+
+tier — the debug-sim route makes it reachable off-bench, and its write path is now
+verified (see §10). What remains is *not* VNA-gated either: the post-save status wording
+and the share hand-off, both of which are ordinary UI checks on any API 29+ device. The
+**API 26-28 tier is still blocked**, but on an API 26-28 emulator, not on a VNA. Original
+2026-07-30 wording, now superseded: *"the export path (both tiers) stays CODED,
+UNVERIFIED, PENDING DEVICE, and the gating device is a VNA, not the phone."*
 - [x] **`device_filter.xml` VID/PID against real units — ANSWERED 2026-07-24, and the
       declared IDs are WRONG for the LiteVNA64.** The real unit reports:
 
