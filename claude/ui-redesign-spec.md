@@ -108,7 +108,8 @@ Bench/VNA items: see `claude/hardware-bringup-litevna64.md`.
 
 - **H4 identity / Block C** (§0 handover, §10c.6 next steps) — does the NanoVNA-H4 reach Full Support and
   honour `sweepPoints=101` (C5), or free-run like the LiteVNA? Still unanswered, no corroboration.
-- **⚠ BOTH export tiers below require a VNA-PRODUCED SWEEP, not just an Android device**
+- **⚠ SUPERSEDED 2026-08-04 — see correction below.** ~~BOTH export tiers below
+  require a VNA-PRODUCED SWEEP, not just an Android device~~
   (established off-bench 2026-07-30; full evidence in bring-up §10a-pre). The export card sits
   inside `sweepResult?.let { … }` (`SweepGraphScreen.kt:376`, card at `:561`), so with no sweep
   it is never composed — and a sweep cannot run without hardware, because `demoSweepAllowed`
