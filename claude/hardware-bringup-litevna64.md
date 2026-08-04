@@ -583,6 +583,21 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
       (`SweepExportPlanTest`: sdkInt 26/27/28 → `APP_SPECIFIC`, `isPublicDownloads = false`).
       Verify specifically that the status wording does **NOT** claim a public Downloads
       save — the honesty labelling is the entire reason the tier is distinguished.
+- [ ] **Real LiteVNA wins over debug-sim** (this session's "Step 5", added 2026-08-04) —
+      with the **debug-sim toggle ON** and a real LiteVNA attached and ready, confirm the
+      sweep still runs **live**: button reads "Run Live Sweep", the result is stamped with
+      the real hardware name (not `SIMULATED`), and `runUsesSimulation` is false. The pure
+      guard is `runUsesSimulation = demoSweepAllowed && !liveSweepAllowed`
+      (`SweepUiModelBuilder`), JVM-pinned by
+      `debugSim_liveWinsOverAnOtherwiseOpenDemoPath`.
+      **The emulator CANNOT verify this.** `Medium_Phone_API_36.1`'s USB session sits in
+      ERROR, which yields `dataSourceKind == SIMULATED` by itself — so sim is reachable
+      without the toggle and there is **no live path to displace**. Needs a real device.
+      What the emulator *did* confirm (2026-08-04) is the toggle's **own wiring**: enabling
+      it switched the status text to the `debugSimulatedSweepActive` branch ("DEBUG: no
+      instrument attached … SYNTHETIC"), proving the hoisted Compose state re-derives the
+      run contract on toggle. That is a separate property from live-displacement, which
+      stays open.
 
 ### 10a-pre. Why the export items cannot be closed off-bench (2026-07-30)
 

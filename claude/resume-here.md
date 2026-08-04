@@ -1,14 +1,34 @@
 # Resume here — session snapshot
 
-Last updated: 2026-07-30 (office day). Updated in place each session; this is the
+Last updated: 2026-08-04 (office day). Updated in place each session; this is the
 cold-start entry point.
 
 ## State
 
-- `main` at **730a112**, pushed, working tree clean.
-- Suite **489 tests / 0 failures / 0 errors / 0 skipped**, 41 classes.
-- Session type: **OFFICE DAY** — no VNA hardware attached. UI Phase 3 (chart
-  components + `.s1p` export delivery layer).
+- `main` at **1089e32**, pushed, working tree clean.
+- Suite **506 tests / 0 failures / 0 errors / 0 skipped**.
+- Session type: **OFFICE DAY** — no VNA hardware attached. Off-bench export path
+  (debug-sim sweep, provenance headers, MediaStore MIME fix) + a latent crash fix.
+
+### Landed 2026-08-04
+
+- **`b5b525d` — nested-scroller crash in the CSV preview panel, FIXED.**
+  `SweepCsvPreviewPanel`'s `Column` carried `verticalScroll` nested under
+  `SweepGraphScreen`'s outer `verticalScroll` (`:282`), which hands down an
+  infinite max-height; `checkScrollableContainerConstraints` then threw
+  `IllegalStateException`. De-nested — the preview is capped at 40 rows and never
+  needed independent scroll. **Latent pre-existing bug:** the panel is gated on
+  `sweepResult != null`, so it was unreachable off-bench until the debug-sim
+  toggle made it reachable. Emulator API 36 repro passed — preview opens, pid
+  stable, crash buffer empty.
+- **`1089e32` — the off-bench export batch:** debug-sim toggle, CSV + `.s1p`
+  provenance headers, lock-message fix, MediaStore MIME `.txt` fix, and the
+  `runUsesSimulation = demoSweepAllowed && !liveSweepAllowed` live-wins guard.
+- **Known accepted seam — `b5b525d` does not compile alone.**
+  `SweepToolsWidgets.kt` legitimately belongs to both changes, and whole-file
+  staging carried the `SweepCsvExport` import into commit 1 while the class itself
+  lands in commit 2. The tip builds clean. History deliberately **not** rewritten;
+  bisect across that seam is not a workflow used here. Do not offer to rebase it.
 
 ### Reading the suite total — XML only
 
@@ -162,6 +182,27 @@ assumed-good. Tracked in `claude/ui-redesign-spec.md` under "Still-open
 DEVICE-VERIFICATION items" — that section was retitled from "Still-open HARDWARE
 items" this session, because the old heading let a coded-but-never-run IO path
 sit outside the list and read as done.
+
+### Two stale verification assumptions — CORRECTED 2026-08-04
+
+1. **There is no CSV file export. Do not write a step that pulls a CSV file.**
+   The "Export CSV" button in the Controls strip is a preview **toggle** — it
+   flips to "Hide CSV" and shows the on-screen panel. CSV *file* export is Slice C
+   and is **unbuilt**: `domain/testing/SweepCsvExport.kt` is a provenance-header
+   builder only (its own header says so), and CSV row building is still inline in
+   `SweepCsvPreviewPanel`. So any step phrased "pull the CSV file and confirm the
+   `# hardware=` / `calibrated=` line" is **not performable** — that line exists
+   on screen, not on disk.
+   **Provenance-on-disk is verified through the `.s1p` writer instead**, which
+   carries the matching `! Instrument: SIMULATED` and `! Calibration: none
+   (uncalibrated)` lines. The two formats are deliberately kept in agreement.
+2. **"Real sweep wins over sim" (this session's "Step 5") is NOT dischargeable on
+   the current emulator.** `Medium_Phone_API_36.1`'s USB session sits in **ERROR**,
+   and that state yields `dataSourceKind == SIMULATED` on its own — so the
+   simulated path is reachable *without* the debug toggle, and there is no live
+   path present for a real instrument to displace. The emulator therefore cannot
+   stand in for this check. It stays genuinely **hardware-pending**; see bring-up
+   §10.
 
 - **Export, API 29+ tier.** Run a sweep (simulated is fine) → Export .s1p →
   confirm the status names public Downloads → file really appears in
