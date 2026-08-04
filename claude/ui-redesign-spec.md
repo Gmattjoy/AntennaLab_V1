@@ -117,20 +117,48 @@ Bench/VNA items: see `claude/hardware-bringup-litevna64.md`.
   bypass (`debugSimulateCapture`) covers O/S/L capture, not sweeps. **Schedule export
   verification against a bench session, not a headless one.** Removing this blocker is
   bring-up §7.6 option 2 (a real debug simulated-sweep path).
+
+  > **⚠ CORRECTED 2026-08-04 (`1089e32`) — the paragraph above is superseded; kept as the
+  > record of why the card was unreachable.** Three changes:
+  > 1. **There IS a debug simulated-sweep route now.** "Simulated sweep (no device)" in the
+  >    Sweep Viewer's Debug Tools card reuses `runSimulatedSweep` and stamps the result
+  >    `SIMULATED` end-to-end (CSV preview, `.s1p` header, sweep history). Release-gated two
+  >    ways: the card sits inside `if (BuildConfig.DEBUG)`, and the pure gate ANDs in
+  >    `isDebugBuild` (`SweepUiModelBuilder.buildSweepRunContract`). It was used this session
+  >    to exercise the **API 29+ export IO with no VNA attached**.
+  > 2. **API 29+ therefore no longer needs a VNA** — it is reachable on any API 29+ device or
+  >    emulator. API 26–28 still needs an API 26–28 emulator (see its bullet below).
+  > 3. **"Removing this blocker is bring-up §7.6 option 2" — that option is BUILT, not
+  >    pending.** The debug-sim toggle *is* option 2, shipped in `1089e32`.
+  >
+  > Status of record for both tiers: **bring-up §10**. Keep the two docs in step.
 - **`.s1p` export, API 26–28 fallback tier — CODED, UNVERIFIED, PENDING DEVICE.** Phase 3 slice B.
-  **Doubly blocked off-bench: needs an API 26–28 device/emulator AND a VNA-produced sweep.**
+  **STILL FULLY OPEN (re-confirmed 2026-08-04): needs an API 26–28 device/emulator.** The
+  debug-sim route removes the *"needs a VNA"* half of the old double blocker but **not** this
+  half, and none such AVD exists here (only `Medium_Phone_API_36.1`).
   `MediaStore.Downloads` is API 29+, so on Android 8.0/8.1/9 the file goes to
-  `getExternalFilesDir(DIRECTORY_DOWNLOADS)` and is shared via FileProvider instead. **This branch has
+  `getExternalFilesDir(DIRECTORY_DOWNLOADS)` and is shared via FileProvider instead — which also
+  means API 29+ takes the MediaStore branch exclusively, so no amount of testing on a modern
+  emulator can ever reach this path. **This branch has
   never executed.** Its *tier decision* is unit-tested (`SweepExportPlanTest`, sdkInt 26/27/28 → 
   `APP_SPECIFIC`, `isPublicDownloads = false`), but the IO, the FileProvider grant, and the share
   hand-off have not run once. Needs an API 26–28 device or emulator. Verify specifically that the status
   wording does **not** claim a Downloads save on this tier — the honesty labelling is the whole reason
   the tier is distinguished, and it is exactly what a silent regression would break.
-  Same standing as H4 identity: no corroboration yet.
-- **`.s1p` export, API 29+ tier — CODED, UNVERIFIED, PENDING DEVICE.** Sweep → Export .s1p → file really
-  appears in `Downloads/AntennaLab` → share sheet delivers it → header reads `# Hz S RI R 50` and the
-  first data column is whole Hz. The `IS_PENDING` set/clear is the step that makes the file visible;
-  if it regresses the entry exists but is permanently invisible, which no unit test can catch.
+  Same standing as H4 identity: no corroboration yet. Status of record: bring-up §10.
+- **`.s1p` export, API 29+ tier — PARTIAL as of 2026-08-04; the write path is verified.** Was
+  "CODED, UNVERIFIED, PENDING DEVICE"; no longer VNA-gated (see the correction above).
+  **VERIFIED on emulator API 36:** file lands in `Downloads/AntennaLab`; filename ends **`.s1p`,
+  not `.s1p.txt`** (the MediaStore MIME-omit fix holds on-device); header reads `# Hz S RI R 50`;
+  first frequency column is whole Hz (`309750000`); provenance reads `! Instrument: SIMULATED` /
+  `! Calibration: none (uncalibrated)`. The `IS_PENDING` set/clear therefore works — that is the
+  step that makes the file visible, and if it regresses the entry exists but is permanently
+  invisible, which no unit test can catch.
+  **STILL OPEN — these keep the item on this list:** (a) the **post-save status wording**, which
+  must name `Downloads/AntennaLab` and must not misreport the tier; (b) the **share hand-off**
+  (`ACTION_SEND` to a real target) — the only place `plan.mimeType` (`text/plain`) is used, and
+  deliberately not what goes to MediaStore on insert. Neither is VNA-gated.
+  Full detail and sub-checkboxes: bring-up §10.
 - **A3** — calibrate a real LiteVNA → Finish → **Save** → kill → reload; expect `CalRestore`
   `decision=RESTORE reason=ok storedName='LiteVNA64 v0.3.3'`. Now runnable (the §10c.6 producer shipped).
 - **Block B** — reopen with the wrong hardware selected → expect `CLEAR reason=hardware-name-mismatch`.
