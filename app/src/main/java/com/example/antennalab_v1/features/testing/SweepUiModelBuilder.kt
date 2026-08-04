@@ -81,7 +81,27 @@ object SweepUiModelBuilder {
     fun buildSweepRunContract(
         instrumentSessionState: InstrumentSessionState,
         latestFailureMessage: String?,
-        sweepRunInProgress: Boolean
+        sweepRunInProgress: Boolean,
+        /*
+        --------------------------------------------------------------------
+        DEBUG SIMULATED SWEEP (no device attached)
+        --------------------------------------------------------------------
+        Without these, a sweep is unreachable with nothing plugged in:
+        demoSweepAllowed needs dataSourceKind == SIMULATED, and
+        UsbSessionManager yields NONE (not SIMULATED) when disconnected. That
+        made the whole sweep screen — and the .s1p export inside it —
+        untestable off-bench.
+
+        Release safety is a property of THIS pure function, not only of a
+        Compose branch: isDebugBuild is ANDed in, so even a stuck flag cannot
+        unlock a release build. Callers pass BuildConfig.DEBUG.
+
+        Both default to false so every existing call site and test keeps its
+        current behaviour exactly.
+        --------------------------------------------------------------------
+        */
+        isDebugBuild: Boolean = false,
+        debugSimulatedSweepEnabled: Boolean = false
     ): SweepRunContract {
         val calibrationState = instrumentSessionState.calibrationState
 
@@ -91,8 +111,11 @@ object SweepUiModelBuilder {
                     (instrumentSessionState.supportTier == "Full Support" ||
                             instrumentSessionState.supportTier == "Partial Support")
 
+        val debugSimulatedSweepActive = isDebugBuild && debugSimulatedSweepEnabled
+
         val demoSweepAllowed =
-            instrumentSessionState.dataSourceKind == InstrumentDataSourceKind.SIMULATED
+            instrumentSessionState.dataSourceKind == InstrumentDataSourceKind.SIMULATED ||
+                    debugSimulatedSweepActive
 
         val blockReason = when {
             sweepRunInProgress -> "Sweep is currently running."
@@ -137,17 +160,35 @@ object SweepUiModelBuilder {
                 "Live instrument path is ready. Sweep will use the current real transport path with calibration valid for this session."
             liveSweepAllowed && calibrationState.trustDowngraded ->
                 "Live instrument path is ready, but calibration trust is downgraded. Sweep will still run and should be interpreted with caution."
+            debugSimulatedSweepActive ->
+                "DEBUG: no instrument attached. This sweep is SYNTHETIC — it is stamped SIMULATED everywhere it is saved or exported."
             demoSweepAllowed ->
                 "Real transport is not ready. Running now will use simulated sweep data."
+            /*
+            The old text sent operators to Device Connections to select "a safe
+            simulated path" that does not exist there — that screen offers only
+            real hardware drivers, and dataSourceKind cannot be SIMULATED while
+            disconnected. See bring-up doc §7.6. Both branches below promise
+            only what the build can actually deliver.
+            */
+            isDebugBuild ->
+                "Sweep is locked. Connect an instrument, or enable Debug tools → Simulated sweep (no device) below to run synthetic data."
             else ->
-                "Sweep is locked. Return to System → Device Connections until transport is ready or a safe simulated path is selected."
+                "Sweep is locked. Connect an instrument and wait for transport to be ready."
         }
 
         return SweepRunContract(
             runButtonText = runButtonText,
             runEnabled = !sweepRunInProgress && (liveSweepAllowed || demoSweepAllowed),
             runUsesRealInstrument = liveSweepAllowed,
-            runUsesSimulation = demoSweepAllowed,
+            /*
+            Live wins. These two were previously mutually exclusive — a session
+            cannot be REAL_INSTRUMENT and SIMULATED at once — but the debug
+            toggle can raise demoSweepAllowed while a real instrument is also
+            ready. Without this guard the contract would report a live run as
+            simulated, matching runButtonText's precedence but contradicting it.
+            */
+            runUsesSimulation = demoSweepAllowed && !liveSweepAllowed,
             statusText = statusText,
             blockReason = blockReason,
             calibrationStateLabel = calibrationStateLabel,

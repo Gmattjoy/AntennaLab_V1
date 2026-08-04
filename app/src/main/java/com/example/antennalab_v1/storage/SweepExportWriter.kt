@@ -132,7 +132,20 @@ object SweepExportWriter {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, plan.displayName)
-            put(MediaStore.Downloads.MIME_TYPE, plan.mimeType)
+            /*
+            MIME_TYPE is deliberately NOT set here.
+
+            Verified on a device (API 35, 2026-07-30): declaring "text/plain"
+            makes MediaStore enforce extension/MIME agreement and it silently
+            renames the file to "<name>.s1p.txt", because .s1p is not a known
+            extension for text/plain. That breaks the export outright —
+            NanoVNA-Saver and the simulators filter on .s1p.
+
+            Omitting it lets MediaStore infer from the display name and leaves
+            the filename intact. plan.mimeType is still used for the SHARE
+            intent, where advertising text/plain is what makes targets accept
+            the file; the two concerns are separate and must stay separate.
+            */
             put(MediaStore.Downloads.RELATIVE_PATH, plan.relativePath)
             put(MediaStore.Downloads.IS_PENDING, 1)
         }

@@ -12,6 +12,7 @@ import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassifier
 import com.example.antennalab_v1.domain.analysis.TuningSuggestionEngine
 import com.example.antennalab_v1.domain.analysis.TuningWorkflowBuilder
 import com.example.antennalab_v1.domain.testing.SweepAnalyzer
+import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.InstrumentStatusUiMapper
@@ -56,7 +57,16 @@ class SweepWorkspaceViewModel(
         context: Context,
         project: ProjectData,
         selectedHardwareName: String,
-        targetFrequencyMHz: Double
+        targetFrequencyMHz: Double,
+        /*
+        Passed in rather than read from SweepController inside this function.
+        The caller holds it as Compose state, so toggling the debug chip
+        invalidates the scope that calls buildUiModel and the run contract is
+        re-derived. Reading the static here instead would be an untracked read:
+        the chip lives in an inner content lambda with its own recompose scope,
+        so the outer scope would never re-run and the contract would go stale.
+        */
+        debugSimulatedSweepEnabled: Boolean = false
     ): SweepWorkspaceUiModel {
         val currentSweep = workspaceState.currentSweep
         val resonanceMHz = currentSweep?.let(SweepAnalyzer::getResonantFrequencyMHz)
@@ -135,7 +145,11 @@ class SweepWorkspaceViewModel(
         val sweepRunContract = SweepUiModelBuilder.buildSweepRunContract(
             instrumentSessionState = instrumentSessionState,
             latestFailureMessage = effectiveFailureMessage,
-            sweepRunInProgress = sweepRunInProgress
+            sweepRunInProgress = sweepRunInProgress,
+            // The gate ANDs these, so release builds cannot unlock the
+            // debug-simulated path even if the flag were somehow set.
+            isDebugBuild = BuildConfig.DEBUG,
+            debugSimulatedSweepEnabled = debugSimulatedSweepEnabled
         )
 
         return SweepWorkspaceUiModel(

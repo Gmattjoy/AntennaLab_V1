@@ -167,11 +167,25 @@ fun SweepGraphScreen(
     }
 
     val workspaceState = viewModel.workspaceState
+
+    /*
+    Hoisted ABOVE buildUiModel deliberately. The debug chip that writes it lives
+    in an inner content lambda with its own recompose scope, so if this state
+    were declared down there the outer scope would not re-run and the run
+    contract would stay stale (observed on device). Read here, it establishes the
+    dependency that makes the toggle take effect immediately.
+    Debug-only; SweepController holds the same value so it survives navigation.
+    */
+    var debugSimulatedSweepEnabled by remember {
+        mutableStateOf(SweepController.debugSimulatedSweepWithoutDevice)
+    }
+
     val uiModel = viewModel.buildUiModel(
         context = context,
         project = project,
         selectedHardwareName = selectedHardwareName,
-        targetFrequencyMHz = targetFreq
+        targetFrequencyMHz = targetFreq,
+        debugSimulatedSweepEnabled = debugSimulatedSweepEnabled
     )
 
     LaunchedEffect(availableDisplayModes) {
@@ -297,6 +311,13 @@ fun SweepGraphScreen(
                     onToggleInjectCalibrationError = { enabled ->
                         injectCalibrationError = enabled
                         SweepController.debugInjectCalibrationError = enabled
+                    },
+                    simulatedSweepWithoutDevice = debugSimulatedSweepEnabled,
+                    onToggleSimulatedSweepWithoutDevice = { enabled ->
+                        // Writing the hoisted state invalidates the outer scope,
+                        // so the run contract re-derives on this frame.
+                        debugSimulatedSweepEnabled = enabled
+                        SweepController.debugSimulatedSweepWithoutDevice = enabled
                     }
                 )
             }
@@ -679,11 +700,32 @@ private fun SweepDebugToolsCard(
     forceIncompleteSweep: Boolean,
     onToggleForceIncompleteSweep: (Boolean) -> Unit,
     injectCalibrationError: Boolean,
-    onToggleInjectCalibrationError: (Boolean) -> Unit
+    onToggleInjectCalibrationError: (Boolean) -> Unit,
+    simulatedSweepWithoutDevice: Boolean,
+    onToggleSimulatedSweepWithoutDevice: (Boolean) -> Unit
 ) {
     InstrumentCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             InstrumentSectionHeader("Debug Tools")
+
+            /*
+            Listed first because it is the one that unblocks the others: with no
+            instrument attached the run button never enables, so nothing below
+            can be exercised. See bring-up doc §7.6 / §10a-pre.
+            */
+            InstrumentMutedText(
+                "Offers the run button with NO instrument attached, so a synthetic " +
+                    "sweep can be produced off-bench. The sweep is stamped SIMULATED " +
+                    "everywhere it is saved or exported. A real, ready instrument still " +
+                    "wins — this cannot replace real data."
+            )
+            FilterChip(
+                selected = simulatedSweepWithoutDevice,
+                onClick = {
+                    onToggleSimulatedSweepWithoutDevice(!simulatedSweepWithoutDevice)
+                },
+                label = { Text("Simulated sweep (no device)") }
+            )
             InstrumentMutedText(
                 "Debug builds only. Forces the next simulated sweep to return " +
                     "fewer points than requested, so the incomplete-sweep banner, " +

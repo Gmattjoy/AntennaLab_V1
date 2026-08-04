@@ -44,9 +44,16 @@ object SweepExportPlan {
     const val MIN_SDK_FOR_MEDIA_STORE_DOWNLOADS = 29
 
     /*
-    Touchstone has no registered MIME type. text/plain is honest (the file
-    IS text) and, unlike application/octet-stream, share targets and text
-    editors will accept it.
+    The MIME advertised when SHARING the file. Touchstone has no registered
+    type; text/plain is honest (the file IS text) and, unlike
+    application/octet-stream, share targets and text editors accept it.
+
+    ⚠ This must NOT be handed to MediaStore on insert. Verified on a device
+    (API 35, 2026-07-30): MediaStore enforces extension/MIME agreement and
+    renames the file to "<name>.s1p.txt", because .s1p is not a known
+    extension for text/plain — which breaks the export, since the tools this
+    format exists for filter on .s1p. SweepExportWriter therefore omits
+    MIME_TYPE on insert and uses this value only for the ACTION_SEND intent.
     */
     const val MIME_TYPE = "text/plain"
 

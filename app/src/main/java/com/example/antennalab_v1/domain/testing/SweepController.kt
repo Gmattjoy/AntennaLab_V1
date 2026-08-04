@@ -59,6 +59,24 @@ object SweepController {
     */
     var debugInjectCalibrationError: Boolean = false
 
+    /*
+    DEBUG-ONLY: when true, the sweep workspace offers its run button with NO
+    instrument attached, so a synthetic sweep can be produced off-bench. Without
+    it the run button never enables while disconnected (dataSourceKind is NONE,
+    not SIMULATED), which made the whole sweep screen — and the .s1p export
+    inside it — unreachable without a VNA.
+
+    This flag changes ONLY whether the button is offered. It does NOT touch
+    shouldUseRealSweepSource(), so a real, ready instrument still wins and the
+    sweep it produces is still real; the flag can only add a sweep where there
+    would otherwise be none. The resulting synthetic sweep is stamped
+    hardwareProfile = "SIMULATED" by runSimulatedSweep exactly as before.
+
+    Read by SweepWorkspaceViewModel and passed into the pure run-contract gate,
+    which ANDs it with BuildConfig.DEBUG. Never set in release builds.
+    */
+    var debugSimulatedSweepWithoutDevice: Boolean = false
+
     fun getLastExecutionError(): InstrumentError? {
         return lastExecutionError
     }
