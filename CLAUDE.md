@@ -12,6 +12,7 @@ These carry the detail deliberately kept out of this file. Read the relevant one
 - `TESTING_ROADMAP.md` — test-suite inventory, priorities, extraction backlog. Work top-down; check off items as completed.
 - `claude/ui-redesign-spec.md` — anchor doc for the app-wide UI redesign: current state, agreed direction (not to be re-litigated), phased rollout. Phases 0–2 done; **Phase 3 (shared chart components) is the next entry point.** Each phase is its own plan-mode task.
 - `claude/hardware-bringup-litevna64.md` — bench procedure + device-in-loop results log.
+- `claude/calibration-teardown-plan.md` — teardown blueprint for calibration/live-instrument state that is wrongly project-scoped (tiered cut list, anchors as-of 55418d3, do-not-cut list); **two decisions pending before any cutting starts** — see the end of that doc.
 
 ## Tech stack
 - Kotlin 2.2.10, Jetpack Compose (Material3, Compose BOM 2024.09.00)
