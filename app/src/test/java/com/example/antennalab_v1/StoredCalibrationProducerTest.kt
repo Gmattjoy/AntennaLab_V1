@@ -135,8 +135,6 @@ class StoredCalibrationProducerTest {
         assertTrue(stored.hasCorrectionData)
         // Bookkeeping.
         assertEquals(123_456L, data.lastCalibrationSavedEpochMs)
-        assertEquals("status-summary-under-test", data.lastCalibrationStatusSummary)
-        assertFalse(data.restoredFromStorage)
         // Existing policy preserved, not reset.
         assertEquals(CalibrationRestorePolicy.DO_NOT_RESTORE, data.restorePolicy)
     }

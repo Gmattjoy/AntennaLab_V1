@@ -78,8 +78,7 @@ object HardwareCapabilityProfiles {
         // RECONCILING A CONTRADICTION, not enabling a new feature. Two capability
         // layers described the same feature oppositely:
         //   HardwareCapabilityProfile.supportsTdrPreview = TRUE for both profiles
-        //     (ProjectData.kt:598, :621) — but its only accessor,
-        //     supportsTdrPreviewOrDefault (:133), has ZERO call sites: dead data.
+        //     (ProjectData.kt:598, :621) — but NOTHING reads it: dead capability data.
         //   HardwareMeasurementCapabilities.supportsTDR = omitted here, so FALSE —
         //     and this is the one actually consumed (SweepGraphMath.kt:652 guard,
         //     SweepGraphWidgets.kt:569 render).

@@ -109,32 +109,8 @@ data class ProjectData(
     ####################################################################
     */
 
-    val hardwareCapabilityProfile: HardwareCapabilityProfile
-        get() = testHardwareProfile.toHardwareCapabilityProfile()
-
-    val hardwareMeasurementCapabilities: HardwareMeasurementCapabilities
-        get() = testHardwareProfile.toHardwareMeasurementCapabilities()
-
-    val hardwareFrequencyMinHzOrDefault: Long
-        get() = hardwareCapabilityProfile.minFrequencyHz
-
-    val hardwareFrequencyMaxHzOrDefault: Long
-        get() = hardwareCapabilityProfile.maxFrequencyHz
-
-    val supportsSmithChartOrDefault: Boolean
-        get() = hardwareCapabilityProfile.supportsSmithChart
-
-    val supportsPhaseOrDefault: Boolean
-        get() = hardwareCapabilityProfile.supportsPhase
-
-    val supportsS21OrDefault: Boolean
-        get() = hardwareCapabilityProfile.supportsS21
-
-    val supportsTdrPreviewOrDefault: Boolean
-        get() = hardwareCapabilityProfile.supportsTdrPreview
-
     val supportsOslCalibrationOrDefault: Boolean
-        get() = hardwareCapabilityProfile.supportsOslCalibration
+        get() = testHardwareProfile.toHardwareCapabilityProfile().supportsOslCalibration
 
     /*
     ####################################################################
@@ -151,12 +127,6 @@ data class ProjectData(
 
     val storedCalibrationOrNull: CalibrationSession?
         get() = calibrationData.storedCalibrationSession
-
-    val storedCalibrationMatchesSelectedHardware: Boolean
-        get() = calibrationData.storedCalibrationSession
-            ?.matchesHardwareDisplayName(hardwareCapabilityProfile.displayName)
-            ?: false
-
 
     /*
     ####################################################################
@@ -484,10 +454,8 @@ SAFE EDIT AREA
 data class ProjectCalibrationData(
     val storedCalibrationSession: CalibrationSession? = null,
     val lastCalibrationSavedEpochMs: Long = 0L,
-    val lastCalibrationStatusSummary: String = "",
     val restorePolicy: CalibrationRestorePolicy =
-        CalibrationRestorePolicy.RESTORE_AS_STALE,
-    val restoredFromStorage: Boolean = false
+        CalibrationRestorePolicy.RESTORE_AS_STALE
 ) {
     val hasStoredCalibration: Boolean
         get() = storedCalibrationSession != null

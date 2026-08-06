@@ -15,6 +15,7 @@ import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectMeta
 import com.example.antennalab_v1.model.ProjectSource
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.toHardwareCapabilityProfile
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.model.testing.CalibrationStep
@@ -90,7 +91,7 @@ class AppRootControllerTest {
     }
 
     private fun hardwareName(hardware: TestHardwareProfile) =
-        ProjectData(testHardwareProfile = hardware).hardwareCapabilityProfile.displayName
+        hardware.toHardwareCapabilityProfile().displayName
 
     // ------------------------------------------------------------------
     // Project factories

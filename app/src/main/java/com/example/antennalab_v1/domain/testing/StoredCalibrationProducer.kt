@@ -63,9 +63,8 @@ object StoredCalibrationProducer {
      * The ProjectCalibrationData to store, or null to leave the project
      * untouched. Normalises the stored name to [canonicalHardwareDisplayName]
      * (overwriting the live driver label), strips the volatile live session
-     * key (restore re-binds it), stamps time + status, sets
-     * restoredFromStorage = false (this is a fresh live capture), and
-     * preserves the existing restorePolicy.
+     * key (restore re-binds it), stamps the save time, and preserves the
+     * existing restorePolicy.
      *
      * [nowEpochMs] is injected so this stays pure and testable.
      */
@@ -86,9 +85,7 @@ object StoredCalibrationProducer {
 
         return existing.copy(
             storedCalibrationSession = storedSession,
-            lastCalibrationSavedEpochMs = nowEpochMs,
-            lastCalibrationStatusSummary = liveCalibration.statusSummary,
-            restoredFromStorage = false
+            lastCalibrationSavedEpochMs = nowEpochMs
         )
     }
 

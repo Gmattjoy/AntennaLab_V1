@@ -267,9 +267,6 @@ object ProjectStorage {
                 createdAtEpochMs = now,
                 updatedAtEpochMs = now
             ),
-            calibrationData = original.calibrationData.copy(
-                restoredFromStorage = false
-            ),
             versionInfo = original.versionInfo.copy(
                 appDataSource = ProjectSource.DUPLICATED_FROM_PROJECT
             )
@@ -879,9 +876,7 @@ object ProjectStorage {
                 storedCalibrationSession?.toJson()
             )
             put("lastCalibrationSavedEpochMs", lastCalibrationSavedEpochMs)
-            put("lastCalibrationStatusSummary", lastCalibrationStatusSummary)
             put("restorePolicy", restorePolicy.name)
-            put("restoredFromStorage", restoredFromStorage)
         }
     }
 
@@ -890,12 +885,10 @@ object ProjectStorage {
             storedCalibrationSession = optJSONObject("storedCalibrationSession")
                 ?.toCalibrationSession(),
             lastCalibrationSavedEpochMs = optLong("lastCalibrationSavedEpochMs", 0L),
-            lastCalibrationStatusSummary = optString("lastCalibrationStatusSummary"),
             restorePolicy = enumValueOrDefault(
                 optOptionalString("restorePolicy"),
                 CalibrationRestorePolicy.RESTORE_AS_STALE
-            ),
-            restoredFromStorage = optBoolean("restoredFromStorage", true)
+            )
         )
     }
 

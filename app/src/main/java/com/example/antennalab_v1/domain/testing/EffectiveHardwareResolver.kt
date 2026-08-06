@@ -86,8 +86,8 @@ object EffectiveHardwareResolver {
 
     /*
     The effective capability profile (frequency limits + feature flags +
-    display name). Every capability consumer should read THIS, never
-    project.hardwareCapabilityProfile.
+    display name). Every capability consumer should read THIS, never the
+    project's own testHardwareProfile.
     */
     fun resolveEffectiveCapabilityProfile(
         liveDataSourceKind: InstrumentDataSourceKind?,
