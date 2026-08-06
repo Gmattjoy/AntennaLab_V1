@@ -570,6 +570,21 @@ on the bench, then extend this doc with an H4 section mirroring §2-§4.
 
 - [ ] **OSL calibration at 145 MHz** (14.2 MHz passed — see §6)
 - [ ] **NanoVNA-H4, entirely** (§9)
+- [ ] **Calibration survives navigation with an OPEN session (hard-teardown Tier 2 bench check).**
+      Off-bench on the emulator, three of four transitions kept **VALID** but entering
+      **unknown-discovery showed STALE** — expected there, since with no USB session open the
+      staleness detector downgrades (it is a `copy(readiness = STALE)` that KEEPS the
+      coefficients, not a wipe; `SweepController` still corrects for STALE). **On a real
+      LiteVNA with an open session it should stay VALID.** If it is STALE on the bench too,
+      the refresh is firing against a genuinely open session and that is a separate bug —
+      record it in §11. Guard test: `androidTest/…/LiveCalibrationSurvivesNavigationTest`
+      (`.\gradlew.bat connectedDebugAndroidTest`, needs a device, **not** part of
+      `.\gradlew.bat test`).
+- [ ] **No operator control to clear a live calibration.** The hard teardown removed every
+      production caller of `UsbSessionManager.clearCalibrationState()`; it survives only for
+      test fixtures. An operator cannot discard a bad calibration without restarting the app.
+      **Decide before serious bench use** — Device Connections is the natural home for an
+      explicit control.
 - [ ] **`.s1p` export IO, API 29+ tier (MediaStore public Downloads)** — Slice B.
       **PARTIAL as of 2026-08-04 — the write path is verified; two sub-items remain.**
       This tier **no longer needs a VNA**: the debug simulated-sweep route (see §10a-pre)
@@ -709,6 +724,12 @@ UNVERIFIED, PENDING DEVICE, and the gating device is a VNA, not the phone."*
 
 ### 10c.1 Calibration canonicalisation is BYPASSED by the wizard — RESOLVED (closed-by-producer, test-pinned)
 
+> **SUPERSEDED 2026-08-06 by the hard teardown (`227237b`).** The risk is closed more
+> completely than described: there is no persisted calibration name to govern anything,
+> because calibration is no longer persisted at all. The producer and its test are deleted.
+> The conclusion below that the driver label is INTENTIONAL in live/display places still
+> stands and is still the rule — do not "canonicalise" it.
+
 **RESOLVED (2026-07-29, off-bench) — no code change needed.** The data-survival risk this
 finding warned about ("a display label must not govern data survival") is closed at the
 PRODUCER: `StoredCalibrationProducer.captureIntoProject` (§10c.6, the sole writer of
@@ -844,6 +865,11 @@ deleted in Tier 0, f2f5d5e, so there is no longer an interaction to design).
 
 **RESOLVED-PENDING-HARDWARE (2026-07-29, off-bench).** Producer added:
 `domain/testing/StoredCalibrationProducer`. Decisions:
+
+> **SUPERSEDED 2026-08-06 — the producer and everything below it were DELETED in the hard
+> teardown (`227237b`).** This finding asked "there is no producer for
+> `storedCalibrationSession`"; the answer taken was not to build one but to remove the field.
+> Calibration is live-only. The decisions recorded below are historical.
 - **Trigger:** wizard `onFinish` folds a live calibration into `ProjectData.calibrationData`
   **IN MEMORY** (`ProjectPageScreen`/`AppRootScreen`), reported "Calibration captured. Save
   project to keep it." NO auto-disk-write — it persists on the operator's next explicit Save,
@@ -866,18 +892,32 @@ deleted in Tier 0, f2f5d5e, so there is no longer an interaction to design).
   RESTORE_IF_COMPATIBLE-in-range RESTORE and a cross-family CLEAR pin. A3 is therefore verified
   in principle; the bench only confirms it on silicon.
 
-**A3 / Block B — now testable next bench day (exact steps):**
-1. **A3 (persist + restore):** attach LiteVNA, calibrate to VALID in the wizard → Finish
-   (expect "Calibration captured. Save project to keep it.") → **Save the project** → kill →
-   reload → `adb logcat -s CalRestore` should read
-   `decision=RESTORE reason=ok storedName='LiteVNA64 v0.3.3' effective=LITEVNA64_V0_3_3`, and
-   the shared session shows the calibration re-registered (VALID with the LiteVNA attached).
-2. **No-Save boundary:** calibrate → Finish → **do NOT Save** → kill → reload → expect
-   `decision=CLEAR reason=no-stored-calibration` (the accepted lose-on-no-Save boundary).
-3. **Block B (mismatch):** with a stored LiteVNA cal, reopen with the wrong hardware selected →
-   expect `decision=CLEAR reason=hardware-name-mismatch`.
-Record in §11. Still open after this: restore-precedence collision (a stored cal re-registers
-over a live one on project open — unchanged pre-existing behaviour, own task).
+~~**A3 / Block B — now testable next bench day (exact steps):**~~
+
+> **SUPERSEDED 2026-08-06 by the HARD TEARDOWN (`227237b`, `02cc9ec`).** The entire A3 /
+> Block B programme tested calibration **persistence and restore**, which no longer exists.
+> Calibration is now live-only: nothing writes it to disk, nothing restores it, and there is
+> no `CalRestore` log line to read. The producer, `decideCalibrationRestore`,
+> `CalibrationRestorePolicy`, and `ProjectCalibrationData` are all deleted. **Do not run these
+> steps and do not treat them as outstanding bench debt.** The "restore-precedence collision"
+> left open at the end is likewise dissolved — a stored cal can no longer re-register over a
+> live one, because there is no stored cal. See `claude/calibration-teardown-plan.md`.
+>
+> **What replaces them on the bench** (calibration lifetime, not persistence):
+> 1. Attach the LiteVNA, calibrate to VALID in the wizard → Finish (expect the plain
+>    **"Calibration updated."** — the old "Save project to keep it" wording is gone because
+>    nothing is kept).
+> 2. Navigate to Wizard / RF-test / Unknown Discovery and open a saved project. **Live
+>    calibration must survive all four**, and with an OPEN session should stay **VALID**.
+>    Off-bench (emulator, no USB session) unknown-discovery legitimately shows STALE — the
+>    staleness detector, not a wipe. **If it shows STALE on the bench with a genuinely open
+>    session, that is a separate bug — record it.**
+> 3. Kill and relaunch: calibration is **expected to be gone**. That is now correct
+>    behaviour, not data loss.
+>
+> Note there is currently **no operator control to clear a live calibration** — every
+> production caller of `clearCalibrationState()` was removed. Worth deciding before serious
+> bench use.
 
 ### 10c.2 TDR preview cannot locate a fault — the metres are span, not distance
 

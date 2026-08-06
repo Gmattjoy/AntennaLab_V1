@@ -2,9 +2,14 @@
 
 Blueprint as-of 55418d3. Line numbers drift on first cut — navigate by symbol. Two decisions pending before cutting: see end.
 
-**Tier 0 landed in `f2f5d5e`** (dead-code deletion, zero behaviour change). Its line numbers are
-now historical; Tier 1–3 anchors have shifted and must be navigated by symbol. The two pending
-decisions gate Tier 1/2 and are still open.
+**STATUS: Tier 0, 1 and 2 are all DONE** — `f2f5d5e` (dead code), `227237b` (Tier 1 hard
+teardown), `02cc9ec` (Tier 2 wipes). All line numbers below are historical and no longer resolve;
+navigate by symbol.
+
+**Tier 1/2 were re-scoped to a HARD TEARDOWN — calibration is live-only, persistence deleted.**
+The keep-and-fix described in the original Tier 1/2 sections was never built. **The two "decisions
+pending" are DISSOLVED, not answered** — see the end of this doc. Only Tier 3 and the open-items
+list remain live.
 
 ---
 
@@ -77,36 +82,96 @@ consulted. New saves omit them.
 
 ---
 
-## Tier 1 — Correctness: stored data manufacturing a live trust verdict
+## Tier 1 + Tier 2 — HARD TEARDOWN — ✅ **DONE (`227237b`, `02cc9ec`)**
 
-**This is the highest-severity item in the audit and it is not a deletion — it is a behaviour fix.** Do it after Tier 0, before Tier 2.
+> **The blueprint's Tier 1/2 below were superseded before any of it was written.**
+> They scoped a *keep-and-fix*: add `RESTORE_AS_STALE` to `CalibrationRestoreAction`,
+> soften some `CLEAR` reasons, keep persistence. The decision taken instead was a
+> **hard teardown: calibration is live-only, persistence deleted entirely.**
+>
+> **The two "decisions pending" at the end of this doc are therefore DISSOLVED,
+> not answered.** There is no restore policy to choose because there is no
+> restore. Do not revisit them as open questions.
 
-**The defect.** `CalibrationRestorePolicy.RESTORE_AS_STALE` is the default in the model (`ProjectData.kt:489`) *and* the missing-key fallback (`ProjectStorage:896`), so it covers every legacy save. `AppRootController.decideCalibrationRestore` (`:243-285`) has **no branch for it** — both range predicates are gated on `== RESTORE_IF_COMPATIBLE` (`:266`, `:275`), so it falls to `else → RESTORE` (`:281-283`). The side effect then calls `registerCalibrationSession`, which re-stamps `capturedSessionKey = currentSessionKey` (`UsbSessionManager:387`) and, for a COMPLETE session on an open matching device, sets `readiness = VALID, trustDowngraded = false` (`:418-428`).
+### Why live-only
 
-Result: a policy named *restore as stale* restores at **full trust, stamped as captured in the current session**, permanently immune to the previous-session staleness check at `UsbSessionManager:1319`. If the stored span doesn't cover the sweep, `SweepController:154` silently declines to apply the correction — **uncorrected sweep, VALID badge**.
+A calibration is a property of the INSTRUMENT in the CURRENT session. It is not a
+property of a saved design file. Persisting it created a path by which a file
+manufactured a live trust verdict — the exact confusion the calibration-honesty
+rule exists to prevent.
 
-**Decision required (yours, not mine):** `CalibrationRestoreAction` (`AppRootController.kt:57-60`) is `{ CLEAR, RESTORE }`. The honest fix needs a third member — `RESTORE_AS_STALE` — that maps to a `UsbSessionManager` entry point registering with `readiness = STALE, trustDowngraded = true` and **without** re-stamping `capturedSessionKey`. My recommendation: add it. It is also exactly the member Tier 2 needs, so the two fixes share one enum change.
+The defect the old Tier 1 described was real and is now unreachable rather than
+patched: `RESTORE_AS_STALE` was the model default *and* the missing-key fallback,
+`decideCalibrationRestore` had no branch for it, so every legacy save fell through
+to `else → RESTORE`, which re-stamped `capturedSessionKey` to the current session
+and set `readiness = VALID`. A calibration read off disk became permanently immune
+to the previous-session staleness check. If its span missed the sweep,
+`SweepController` silently declined to correct — uncorrected sweep, VALID badge.
 
-**Touch list**
+### What was deleted (Tier 1, `227237b`)
 
-- `features/app/AppRootController.kt` — enum `:57-60`; add the `RESTORE_AS_STALE` branch in the `when` at `:243-285`; log-line builder `:305-329` (add the new action).
-- `domain/testing/UsbSessionManager.kt` — new registration entry point alongside `registerCalibrationSession:351` / `registerSimulatedCalibrationSession:465`; must *not* overwrite `capturedSessionKey`.
-- `features/app/AppRootScreen.kt:373-395` — third `when` branch.
-- **`AppRootControllerTest.kt:270-279`** — `decideCalibrationRestore_restoresAsStaleWhenHardwareMatches` currently asserts `RESTORE` and deliberately passes a 999–1000 MHz calibration for a 14.2 MHz target ("range ignored for RESTORE_AS_STALE"). The test *name* already encodes the intent the code never implemented. Update the assertion to the new action; keep the out-of-range fixture — it is the exact case that proves the fix.
+`ProjectData.calibrationData`, `ProjectCalibrationData`, `CalibrationRestorePolicy`,
+`ProjectData.hasStoredCalibration` / `storedCalibrationOrNull`; all calibration
+serialization in `ProjectStorage` (including the `CalibrationSession` and
+`OslCalibrationCoefficients` JSON adapters, which were private to that file and
+reachable only through `ProjectCalibrationData`, so they orphaned with it, plus the
+legacy prefs path's `ProjectCalibrationData()` and the orphaned `toLongList`);
+`StoredCalibrationProducer` and both callers; `decideCalibrationRestore`,
+`CalibrationRestoreAction`, `buildCalibrationRestoreLogLine`;
+`applyStoredCalibrationToSharedSession` and its four call sites; and the two
+stored-calibration UI surfaces (dashboard badge chip, saved-project card lines)
+with `LoadProjectController`'s two helpers.
 
----
+**The field/serialization split:** `CalibrationSession.capturedSessionKey`,
+`capturedProtocolFamily`, `capturedInstrumentIdentityText` **stay as live fields** —
+the staleness detector still needs them. Only their persistence died.
 
-## Tier 2 — The scoping fix proper (CLEAR vs STALE)
+**Two call sites this doc's blast radius missed**, both compiler-surfaced:
+`DashboardScreen` rendered `StatusPill(calLabel, calLevel)`, and
+`ProjectStorage.toLongList()` orphaned with the coefficient reader.
 
-The inconsistency named in the §A audit: `UsbSessionManager.refreshCalibrationStateForCurrentSession` (`:1282-1350`) resolves every scope violation as `STALE + trustDowngraded` and keeps the coefficients — "flag, don't reject". `decideCalibrationRestore` resolves the same class of violation by **deleting** the live calibration, in four of five branches (`:244-279`), including when the project simply has no stored calibration at all (`:244-246`).
+### What was removed (Tier 2, `02cc9ec`)
 
-Compounded by `StoredCalibrationProducer` being in-memory-only (`:32-36`): a fresh calibration isn't on disk until an explicit project Save, so *calibrate → open a project → wipe* loses it with nothing to restore from.
+The four unconditional wipes: `AppRootScreen.enterWizardMode`,
+`enterRfTestWizardMode`, `enterUnknownDiscoveryMode`, and `CalibrationWizardScreen`'s
+Cancel button. Loading a project now touches live calibration **not at all**.
 
-**Decision required:** which of the four `CLEAR` reasons should become `RESTORE_AS_STALE` (or "leave live state alone"), and specifically whether `no-stored-calibration` should stop touching live state entirely. My recommendation: `no-stored-calibration` → **no-op** (the project has nothing to say about the instrument); `hardware-name-mismatch` → stays `CLEAR` (applying a NanoVNA cal to a LiteVNA is worse than losing it — `EffectiveHardwareResolver:176-179` argues this explicitly and I agree); `policy-do-not-restore` → `CLEAR`; the two `RESTORE_IF_COMPATIBLE` range/completeness failures → `RESTORE_AS_STALE`.
+### Off-bench verification (emulator, no VNA)
 
-**Also in scope here:** the three unconditional wipes with no guard whatsoever — `AppRootScreen.kt:83` (`enterWizardMode`), `:92` (`enterRfTestWizardMode`), `:114` (`enterUnknownDiscoveryMode`, reached from `:217`). These destroy a live VALID calibration on mere navigation, consulting nothing. They are the harshest form of the bug and the cheapest to fix.
+Instrumented guard: `app/src/androidTest/.../LiveCalibrationSurvivesNavigationTest.kt`.
 
-**Guard tests:** `AppRootControllerTest.kt` (30 `@Test`), plus `DashboardControllerTest:90/108` and `LoadProjectControllerTest:89` construct `ProjectCalibrationData` fixtures and will surface signature changes.
+| Step | Result |
+|---|---|
+| simulate O/S/L capture | VALID |
+| enter wizard mode | survived, VALID |
+| enter RF-test mode | survived, VALID |
+| enter unknown discovery | survived, **STALE** |
+| open saved project | survived, VALID |
+
+All four previously wiped it.
+
+**Why the test asserts survival, not VALID.** Off-bench there is no open USB
+session, so entering discovery routes through the project screen and the staleness
+detector downgrades `VALID → STALE`. That is
+`refreshCalibrationStateForCurrentSession` doing `copy(readiness = STALE)` — the
+coefficients are KEPT and `SweepController` still applies correction for STALE. The
+Tier 2 bug was different in kind: `clearCalibrationState()` replaced the whole
+state, leaving `readiness = NOT_STARTED` and `calibrationSession = null`. The test
+therefore checks the session object is retained, all three standards are still
+captured, and readiness is not `NOT_STARTED`.
+
+### Suite
+
+506 → **479**, 0 failures. 27 test methods deleted with the symbols they covered;
+the dashboard-badge and storage round-trip cases were **rewritten, not dropped**,
+because they also cover behaviour that stays.
+
+**Legacy saves still load.** Pinned by
+`ProjectStorageRoundTripTest.load_legacyCalibrationBlob_isIgnored_andRestOfProjectSurvives`,
+which injects a full pre-teardown `calibrationData` blob — stored session, OSL
+coefficient arrays, `capturedSessionKey`, restore policy, and the two Tier 0 fields —
+and asserts it is ignored while every other field survives.
+`saveLoad_doesNotWriteCalibrationData` pins that new saves omit the key.
 
 ---
 
@@ -115,15 +180,16 @@ Compounded by `StoredCalibrationProducer` being in-memory-only (`:32-36`): a fre
 | Item | Anchor | Fix |
 |---|---|---|
 | Design-time OSL gate | `project/ProjectPageScreen.kt:889` — `project.supportsOslCalibrationOrDefault` | Route through `EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).supportsOslCalibration`. **This is the last real consumer of the `…OrDefault` family** — fix it and Tier 0 can take `supportsOslCalibrationOrDefault` too. |
-| Duplicate carries another project's calibration | `storage/ProjectStorage.kt:263-276` | Copies `storedCalibrationSession` verbatim (coefficients + `capturedSessionKey`), resetting only `restoredFromStorage`. Decide: strip stored calibration on duplicate, or keep. |
+| ~~Duplicate carries another project's calibration~~ | ~~`storage/ProjectStorage.kt:263-276`~~ | **DISSOLVED by the hard teardown** — there is no stored calibration left to duplicate. |
+| `storedNameMatchesHardware` now production-dead | `domain/testing/EffectiveHardwareResolver.kt:210` | Its only non-test caller was `decideCalibrationRestore`. **Kept deliberately:** it is the resolver's alias vocabulary, guarded by ~12 assertions in `EffectiveHardwareResolverTest`, and the bring-up doc treats the alias fix as hard-won. Deleting it would take those tests with it. Decide whether the vocabulary is still worth carrying. |
 | Confident-wrong hardware default | `features/app/AppRootController.kt:88`, `:101`, `:118` | All three factories hardcode `testHardwareProfile = NANOVNA_H4`, so every Lab / RF-test / discovery project claims NanoVNA. Safe *only* because `EffectiveHardwareResolver` overrides at read time — which is why any direct project-profile read is wrong by construction. **Root cause of the recurring Finding #7.** Consider a nullable/UNSPECIFIED profile. Touches `ProjectData` → plan mode per CLAUDE.md. |
 
 ---
 
 ## Do NOT cut
 
-- **`CalibrationSession.capturedSessionKey`, `capturedProtocolFamily`, `capturedInstrumentIdentityText`** (`model/testing/CalibrationSession.kt:76-78`) and their serialization (`ProjectStorage:913-915/934-936`) — these feed the staleness detector at `UsbSessionManager:1319/1337`. They look like frozen live state; they are the evidence Tier 1/2 need.
-- **`ProjectCalibrationData.lastCalibrationSavedEpochMs`** — currently unread, but it is the natural input to any future age-based staleness rule. Keep unless you decide against that rule.
+- **`CalibrationSession.capturedSessionKey`, `capturedProtocolFamily`, `capturedInstrumentIdentityText`** (`model/testing/CalibrationSession.kt:76-78`) — these feed the staleness detector at `UsbSessionManager:1319/1337`. **Still live fields after the hard teardown; only their serialization was removed.**
+- ~~**`ProjectCalibrationData.lastCalibrationSavedEpochMs`**~~ — **gone with `ProjectCalibrationData` in `227237b`.** An age-based staleness rule, if ever wanted, must derive from live session state, not from a saved file.
 - **`SweepHardwareIdentity` and the whole provenance path** (`domain/testing/SweepHardwareIdentity.kt`, `SweepWorkspaceController:840/878`, `SweepWorkspaceViewModel:290`) — this is the **correct** discipline and the template for the calibration fix: *resolve from live truth at write time, store the resolved fact, never restore it into live state.* It is what §10c.7 fixed; don't disturb it.
 - **`ProjectSweepHistoryEntry` / `DiscoverySnapshot` / `TestData`** — records of past measurements, correctly persisted.
 - **Sweep config path** — point count derived at `UsbVnaSweepDataSource:249-260`, sweep window at `SweepGraphScreen:114-122`, calibration span at `CalibrationSessionFactory:81-99`. All already read effective/live truth. Clean; leave alone.
@@ -132,22 +198,50 @@ Compounded by `StoredCalibrationProducer` being in-memory-only (`:32-36`): a fre
 
 ## Verification recipe
 
-1. `.\gradlew.bat test` after **each** tier — Tier 0 held at **506** (see the corrected delta note), then expect a net increase as Tier 1/2 add cases.
-2. `.\gradlew.bat assembleDebug`.
-3. Off-bench repro for Tier 2, no VNA required: calibration wizard → "Simulate O/S/L capture" chip → confirm VALID → open a project with no stored calibration → observe whether live calibration survives. `adb logcat -s CalRestore` prints the deciding predicate (`AppRootScreen:366-371`).
+1. `.\gradlew.bat test` — Tier 0 held at **506**; after the hard teardown, **479**, 0 failures.
+2. `.\gradlew.bat assembleDebug` — the real safety net for deletion work, since Kotlin turns
+   every missed reference into a hard error.
+3. **`.\gradlew.bat connectedDebugAndroidTest` — NEEDS A DEVICE OR EMULATOR, and is NOT part of
+   `.\gradlew.bat test`.** `LiveCalibrationSurvivesNavigationTest` is the repo's first real
+   instrumented test (`androidTest` previously held only the template `ExampleInstrumentedTest`).
+   Run it after any change to navigation or calibration lifetime, or the Tier 2 guard is dead
+   weight.
 4. Bench-only: real LiteVNA64 at 14.2 MHz, per `claude/hardware-bringup-litevna64.md`.
-5. Commit per tier (CLAUDE.md auto-commit), and keep each tier independently bisectable — no history rewrites.
+5. Commit per tier, each independently bisectable — no history rewrites.
 
-**Sequencing rationale:** Tier 0 is reversible and touches no behaviour, so it de-risks reading the code during Tier 1/2. Tier 1 and Tier 2 share the `CalibrationRestoreAction` enum change — doing Tier 1 first means Tier 2 inherits a working `RESTORE_AS_STALE` path instead of inventing one. Tier 3's `ProjectPageScreen:889` fix is what finally frees the last `…OrDefault` accessor, so a second small Tier 0 sweep at the end is expected.
+**Sequencing note (as executed):** Tier 0 first because it is reversible and de-risks reading the
+code. Then Tier 1 (deletion, no runtime behaviour change beyond persistence going away), then
+Tier 2 **as its own commit** because it is the one that changes runtime behaviour — if live
+calibration ever starts surviving something it should not, bisect lands there. `AppRootScreen.kt`
+carried both tiers, so Tier 1 was committed with an intermediate version of that file that still
+held the wipes; that intermediate was built and tested before committing, so the bisect point is
+sound.
 
 ---
 
-## Decisions pending
+## Open items
 
-Two decisions are yours before cutting starts:
+- **No operator path to clear a live calibration.** Every production caller of
+  `UsbSessionManager.clearCalibrationState()` is gone; the function is kept only for test
+  fixtures (7 files) and its own coverage at `CalibrationSessionLogicTest:116`. An operator
+  cannot discard a bad calibration short of restarting the app. **Flag before bench use** — decide
+  whether to add an explicit control (Device Connections is the natural home).
+- **Tier 2 step 2c bench caveat.** Entering unknown-discovery shows **STALE** on the emulator
+  because there is no open USB session. On a real LiteVNA with an open session it should stay
+  **VALID** — the downgrade is the staleness detector, not a wipe. **Verify on the bench**; if it
+  is STALE there too, the refresh is firing on a session that is genuinely open and that is a
+  separate bug.
+- **`connectedDebugAndroidTest` now needs a device** — see verification step 3.
+- **`EffectiveHardwareResolver.storedNameMatchesHardware` is production-dead** — kept as alias
+  vocabulary with ~12 guarding assertions. Tier 3 candidate; see the Tier 3 table.
 
-**(a)** Add `RESTORE_AS_STALE` to `CalibrationRestoreAction`.
+---
 
-**(b)** Which of the four `CLEAR` reasons become non-destructive.
+## Decisions pending — NONE
 
-My recommendations are inline above.
+~~**(a)** Add `RESTORE_AS_STALE` to `CalibrationRestoreAction`.~~
+~~**(b)** Which of the four `CLEAR` reasons become non-destructive.~~
+
+**Both DISSOLVED by the hard teardown, not answered.** `CalibrationRestoreAction` and the whole
+restore decision no longer exist, so neither question has a subject. Recorded here so a future
+session does not resurrect them as open work.

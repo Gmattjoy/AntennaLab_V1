@@ -12,7 +12,7 @@ These carry the detail deliberately kept out of this file. Read the relevant one
 - `TESTING_ROADMAP.md` — test-suite inventory, priorities, extraction backlog. Work top-down; check off items as completed.
 - `claude/ui-redesign-spec.md` — anchor doc for the app-wide UI redesign: current state, agreed direction (not to be re-litigated), phased rollout. Phases 0–2 done; **Phase 3 (shared chart components) is the next entry point.** Each phase is its own plan-mode task.
 - `claude/hardware-bringup-litevna64.md` — bench procedure + device-in-loop results log.
-- `claude/calibration-teardown-plan.md` — teardown blueprint for calibration/live-instrument state that is wrongly project-scoped (tiered cut list, anchors as-of 55418d3, do-not-cut list); **two decisions pending before any cutting starts** — see the end of that doc.
+- `claude/calibration-teardown-plan.md` — calibration/live-instrument teardown. **Tiers 0–2 are DONE** (`f2f5d5e`, `227237b`, `02cc9ec`): calibration is now live-only, persistence deleted. Tier 1/2 were re-scoped from the blueprint's keep-and-fix to a hard teardown, so its "two decisions pending" are **dissolved, not answered** — do not resurrect them. Tier 3 and the open-items list are what remain.
 
 ## Tech stack
 - Kotlin 2.2.10, Jetpack Compose (Material3, Compose BOM 2024.09.00)
@@ -59,23 +59,46 @@ Established by UI redesign Phases 0–2. New UI consumes these rather than hardc
 
 ## Calibration (OSL)
 
-One-port Open/Short/Load calibration that captures reference measurements, stores
-per-frequency correction coefficients, and corrects raw S11 before it becomes a
-`SweepResult`. Gated by the `supportsOslCalibration` capability flag (both current
-devices enable it). Data flow:
+One-port Open/Short/Load calibration that captures reference measurements, holds
+per-frequency correction coefficients **in memory**, and corrects raw S11 before it
+becomes a `SweepResult`. Gated by the `supportsOslCalibration` capability flag (both
+current devices enable it).
+
+**LIVE-ONLY — calibration is never persisted (non-negotiable).** A calibration
+belongs to the INSTRUMENT in the CURRENT session, not to a saved design file. There
+is no `ProjectData.calibrationData`, no `ProjectCalibrationData`, no
+`CalibrationRestorePolicy`, no restore path, and no calibration in project JSON. It
+lives in `UsbSessionManager` and dies with the session. Restoring a stored
+calibration into live state let a file manufacture a trust verdict — the exact
+confusion the honesty rule exists to prevent. Torn out in `227237b` / `02cc9ec`;
+rationale in `claude/calibration-teardown-plan.md`. **Do not reintroduce a stored
+calibration field — add provenance instead.** Navigation and project loads must
+never touch live calibration; `androidTest/…/LiveCalibrationSurvivesNavigationTest`
+guards this and needs a device (`.\gradlew.bat connectedDebugAndroidTest`, NOT part
+of `.\gradlew.bat test`).
+
+Data flow:
 
 ```
 CalibrationWizardScreen (capture O/S/L) → OslCalibrationEngine.computeCoefficients
   → CalibrationSession.correction (OslCalibrationCoefficients) → UsbSessionManager
+      [in-memory, session-scoped — end of the line, nothing writes it to disk]
   → SweepController.runSweep → CalibrationCorrector.apply → SweepResult.isCalibrated
+  → ProjectSweepHistoryEntry.isCalibrated  [PROVENANCE, persisted]
 ```
 
 - **Model** (`model/testing/`): `OslCalibrationCoefficients` = per-frequency 3-term
   error model (directivity e00, source match e11, reflection tracking e10e01) as
-  parallel re/im arrays. Hangs off `CalibrationSession.correction` (nullable).
-  `SweepResult.isCalibrated` / `calibrationLabel` flag each sweep;
-  `ProjectSweepHistoryEntry.isCalibrated` persists it. All additive, complete/
-  uncalibrated-by-default so old saves load unchanged.
+  parallel re/im arrays. Hangs off `CalibrationSession.correction` (nullable) and is
+  never serialized. `CalibrationSession.capturedSessionKey` /
+  `capturedProtocolFamily` / `capturedInstrumentIdentityText` are live fields feeding
+  the staleness detector — also not serialized.
+- **What IS persisted is provenance, not state**: `SweepResult.isCalibrated` /
+  `calibrationLabel` flag each sweep and `ProjectSweepHistoryEntry.isCalibrated`
+  saves it. "This sweep was measured under calibration" is a fact about a
+  measurement already taken — it is never read back into live state. Uncalibrated by
+  default, so old saves load unchanged; a legacy `calibrationData` blob in an old
+  save is silently ignored on read.
 - **Domain** (`domain/testing/`): `OslCalibrationEngine` computes error terms from
   three captured standard sweeps (ideal standards: Open Γ=+1, Short Γ=−1, Load Γ=0)
   and holds the shared Γ↔impedance math. `CalibrationCorrector.apply()` is a single
