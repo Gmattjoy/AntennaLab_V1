@@ -6,7 +6,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
@@ -15,8 +14,6 @@ import com.example.antennalab_v1.features.testing.CalibrationWizardScreen
 import com.example.antennalab_v1.features.wizard.CreateAntennaWizardScreen
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
-import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
-import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.project.ProjectPageScreen
 import com.example.antennalab_v1.storage.ProjectIndexManager
 import com.example.antennalab_v1.storage.ProjectStorage
@@ -74,12 +71,13 @@ fun AppRootScreen() {
         screen.value = "settings"
     }
 
+    // Navigation does not touch live calibration: the instrument is still the
+    // instrument whichever screen the operator is on.
     fun enterWizardMode() {
         currentProject.value = AppRootController.emptyProjectPlaceholder()
         activeProjectOverride.value = null
         testMode.value = false
         projectResumeIntoSweep.value = false
-        UsbSessionManager.clearCalibrationState()
         screen.value = "wizard"
     }
 
@@ -88,7 +86,6 @@ fun AppRootScreen() {
         activeProjectOverride.value = null
         testMode.value = true
         projectResumeIntoSweep.value = false
-        UsbSessionManager.clearCalibrationState()
         screen.value = "wizard"
     }
 
@@ -110,7 +107,6 @@ fun AppRootScreen() {
         activeProjectOverride.value = AppRootController.buildUnknownDiscoveryProject()
         testMode.value = true
         projectResumeIntoSweep.value = true
-        UsbSessionManager.clearCalibrationState()
         screen.value = "project"
     }
 

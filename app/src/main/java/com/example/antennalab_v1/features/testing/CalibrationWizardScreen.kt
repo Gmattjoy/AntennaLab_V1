@@ -248,13 +248,10 @@ fun CalibrationWizardScreen(
             }
 
             Button(
-                onClick = {
-                    if (!workingSession.hasAnyCapturedStep()) {
-                        UsbSessionManager.clearCalibrationState()
-                    }
-
-                    onCancel()
-                },
+                // Cancelling leaves live calibration alone. Backing out of a
+                // wizard is navigation, not an instruction to discard the
+                // instrument's calibration.
+                onClick = { onCancel() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Cancel")
