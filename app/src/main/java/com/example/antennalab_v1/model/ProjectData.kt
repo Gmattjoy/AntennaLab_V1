@@ -95,20 +95,18 @@ data class ProjectData(
 
     /*
     ####################################################################
-    HARDWARE CAPABILITY ACCESS HELPERS
+    NO HARDWARE CAPABILITY ACCESSORS HERE
     --------------------------------------------------------------------
-    PURPOSE
-    Provides safe access points for resolving the currently selected
-    test hardware into structured capability models.
+    Capability must be read from the hardware ACTUALLY MEASURING, via
+    EffectiveHardwareResolver — never derived from this project's
+    design-time testHardwareProfile. Accessors here made the wrong read
+    the convenient one, so the whole family was removed (f2f5d5e, and
+    the last of them with the OSL gate fix).
 
-    SAFE EDIT AREA
-    - add more read-only helper properties
-    - keep mapping logic consistent with TestHardwareProfile values
+    Design-time reads of testHardwareProfile that remain deliberate: the
+    hardware selector, build-sheet text, persistence, factory defaults.
     ####################################################################
     */
-
-    val supportsOslCalibrationOrDefault: Boolean
-        get() = testHardwareProfile.toHardwareCapabilityProfile().supportsOslCalibration
 
     /*
     ####################################################################

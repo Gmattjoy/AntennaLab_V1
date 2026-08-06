@@ -12,7 +12,7 @@ These carry the detail deliberately kept out of this file. Read the relevant one
 - `TESTING_ROADMAP.md` — test-suite inventory, priorities, extraction backlog. Work top-down; check off items as completed.
 - `claude/ui-redesign-spec.md` — anchor doc for the app-wide UI redesign: current state, agreed direction (not to be re-litigated), phased rollout. Phases 0–2 done; **Phase 3 (shared chart components) is the next entry point.** Each phase is its own plan-mode task.
 - `claude/hardware-bringup-litevna64.md` — bench procedure + device-in-loop results log.
-- `claude/calibration-teardown-plan.md` — calibration/live-instrument teardown. **Tiers 0–2 are DONE** (`f2f5d5e`, `227237b`, `02cc9ec`): calibration is now live-only, persistence deleted. Tier 1/2 were re-scoped from the blueprint's keep-and-fix to a hard teardown, so its "two decisions pending" are **dissolved, not answered** — do not resurrect them. Tier 3 and the open-items list are what remain.
+- `claude/calibration-teardown-plan.md` — calibration/live-instrument teardown. **Tiers 0–2 DONE** (`f2f5d5e`, `227237b`, `02cc9ec`): calibration is now live-only, persistence deleted. Tier 1/2 were re-scoped from the blueprint's keep-and-fix to a hard teardown, so its "two decisions pending" are **dissolved, not answered** — do not resurrect them. **Tier 3 is 3-of-4 closed; the sole open item is the confident-wrong `NANOVNA_H4` factory default** (root cause of Finding #7, plan mode, ~10 files).
 
 ## Tech stack
 - Kotlin 2.2.10, Jetpack Compose (Material3, Compose BOM 2024.09.00)

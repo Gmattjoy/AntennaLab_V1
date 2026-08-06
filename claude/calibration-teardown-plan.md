@@ -8,8 +8,11 @@ navigate by symbol.
 
 **Tier 1/2 were re-scoped to a HARD TEARDOWN — calibration is live-only, persistence deleted.**
 The keep-and-fix described in the original Tier 1/2 sections was never built. **The two "decisions
-pending" are DISSOLVED, not answered** — see the end of this doc. Only Tier 3 and the open-items
-list remain live.
+pending" are DISSOLVED, not answered** — see the end of this doc.
+
+**Tier 3 is 3-of-4 closed.** The OSL gate is fixed, duplicate-carries-calibration dissolved, and
+`storedNameMatchesHardware` decided KEEP. **The confident-wrong `NANOVNA_H4` factory default is
+the only remaining open item** — plan mode, next full session.
 
 ---
 
@@ -175,14 +178,17 @@ and asserts it is ignored while every other field survives.
 
 ---
 
-## Tier 3 — Latent leaks (defer if next session runs short)
+## Tier 3 — Latent leaks
 
-| Item | Anchor | Fix |
+**One item remains OPEN: the confident-wrong hardware default.** The other three are
+closed — (a) fixed, (b) dissolved, (c) decided-keep.
+
+| Item | Status | Detail |
 |---|---|---|
-| Design-time OSL gate | `project/ProjectPageScreen.kt:889` — `project.supportsOslCalibrationOrDefault` | Route through `EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).supportsOslCalibration`. **This is the last real consumer of the `…OrDefault` family** — fix it and Tier 0 can take `supportsOslCalibrationOrDefault` too. |
-| ~~Duplicate carries another project's calibration~~ | ~~`storage/ProjectStorage.kt:263-276`~~ | **DISSOLVED by the hard teardown** — there is no stored calibration left to duplicate. |
-| `storedNameMatchesHardware` now production-dead | `domain/testing/EffectiveHardwareResolver.kt:210` | Its only non-test caller was `decideCalibrationRestore`. **Kept deliberately:** it is the resolver's alias vocabulary, guarded by ~12 assertions in `EffectiveHardwareResolverTest`, and the bring-up doc treats the alias fix as hard-won. Deleting it would take those tests with it. Decide whether the vocabulary is still worth carrying. |
-| Confident-wrong hardware default | `features/app/AppRootController.kt:88`, `:101`, `:118` | All three factories hardcode `testHardwareProfile = NANOVNA_H4`, so every Lab / RF-test / discovery project claims NanoVNA. Safe *only* because `EffectiveHardwareResolver` overrides at read time — which is why any direct project-profile read is wrong by construction. **Root cause of the recurring Finding #7.** Consider a nullable/UNSPECIFIED profile. Touches `ProjectData` → plan mode per CLAUDE.md. |
+| Design-time OSL gate | ✅ **DONE** | `ProjectPageScreen` gated `CalibrationStatusCard` on `project.supportsOslCalibrationOrDefault` — the project's *design-time* profile, so a LiteVNA attached to a NanoVNA-saved project answered for the wrong device. Now `EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).supportsOslCalibration`. Harmless in outcome (both profiles set the flag `true`) but wrong by construction. **This was the last hardware-capability `…OrDefault` accessor**; it is deleted and the block header in `ProjectData.kt` now records why nothing lives there. Suite unchanged at 479. |
+| ~~Duplicate carries another project's calibration~~ | ⛔ **DISSOLVED** | Hard teardown — there is no stored calibration left to duplicate. |
+| `storedNameMatchesHardware` production-dead | ✅ **CLOSED — decided KEEP** | Its only non-test caller was `decideCalibrationRestore`, deleted in `227237b`, so it and the `hardwareNameAliases` / `normalizeHardwareName` pair beneath it have zero production callers. **Kept deliberately.** The alias sets encode a safety invariant the code states at `EffectiveHardwareResolver.kt:176-181`: the per-family sets MUST NOT overlap, because *applying the wrong correction silently is worse than clearing a good calibration*. ~22 references across 5 `@Test` methods guard it (`aliasSets_areDisjointAfterNormalisation`, `aliases_neverMatchAcrossFamilies`, `blankOrUnknownStoredName_doesNotMatchAnything`, `driverLabelAndCapabilityDisplayName_bothResolveToTheSameFamily`, `storedNameMatching_normalisesCaseSpacingAndPunctuation`). Deleting the function would delete that guard along with the natural home for any future name matching. **Not an open question — do not re-litigate.** |
+| **Confident-wrong hardware default** | 🔴 **OPEN — the only one** | `features/app/AppRootController.kt:71`, `:84`, `:101` — all three factories hardcode `testHardwareProfile = NANOVNA_H4`, so every Lab / RF-test / discovery project *claims* a NanoVNA. Safe **only** because `EffectiveHardwareResolver` overrides at read time, which is exactly why any direct project-profile read is wrong by construction. **Root cause of the recurring Finding #7.** Fix is a nullable / `UNSPECIFIED` profile. **Scope: ~10 files, PLAN MODE** (touches `ProjectData` and the capability system — both require it per CLAUDE.md). `TestHardwareProfile` is a 2-value enum, so a third member forces a `when` audit at `ProjectData.kt:520`/`:583`, `ProjectWorkspaceController:167`, `ProjectPageScreen:835`; the 8 deliberate design-time reads (selector, build-sheet, persistence, factories) each need a decision on what "unspecified" displays as; `EffectiveHardwareResolver:83` already handles null, so the resolver side is nearly free. **Next full session.** |
 
 ---
 
@@ -232,8 +238,9 @@ sound.
   is STALE there too, the refresh is firing on a session that is genuinely open and that is a
   separate bug.
 - **`connectedDebugAndroidTest` now needs a device** — see verification step 3.
-- **`EffectiveHardwareResolver.storedNameMatchesHardware` is production-dead** — kept as alias
-  vocabulary with ~12 guarding assertions. Tier 3 candidate; see the Tier 3 table.
+- ~~**`EffectiveHardwareResolver.storedNameMatchesHardware` is production-dead**~~ — **CLOSED,
+  decided KEEP.** It guards the never-match-across-families invariant; see the Tier 3 table.
+  Not an open question.
 
 ---
 

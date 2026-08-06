@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.HardwareSweepCapability
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.domain.testing.UsbVnaTransportStatus
@@ -873,7 +874,10 @@ fun TestingSection(
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         TestingFastPathCard(realSweepStatus = realSweepStatus, onOpenSystemDevices = onOpenSystemDevices)
         SystemConnectionStatusCard(project = project, realSweepStatus = realSweepStatus, onOpenSystemDevices = onOpenSystemDevices)
-        if (project.supportsOslCalibrationOrDefault) {
+        // Gate on the hardware ACTUALLY MEASURING, not the project's design-time
+        // profile — a project saved as NanoVNA with a LiteVNA attached would
+        // otherwise answer for the wrong device.
+        if (EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).supportsOslCalibration) {
             CalibrationStatusCard(calibrationSession = calibrationSession, onStartCalibration = onStartCalibration)
         }
         MeasurementActionsCard(realSweepStatus = realSweepStatus, onRunDemoSweep = onRunDemoSweep, onRunRealSweep = onRunRealSweep)
