@@ -2,7 +2,9 @@
 
 Blueprint as-of 55418d3. Line numbers drift on first cut — navigate by symbol. Two decisions pending before cutting: see end.
 
-**Read-only map. Nothing written, nothing staged, nothing committed. No teardown begun.**
+**Tier 0 landed in `f2f5d5e`** (dead-code deletion, zero behaviour change). Its line numbers are
+now historical; Tier 1–3 anchors have shifted and must be navigated by symbol. The two pending
+decisions gate Tier 1/2 and are still open.
 
 ---
 
@@ -20,9 +22,14 @@ If HEAD or the suite total differs next session, re-run the §A/§B audit anchor
 
 ---
 
-## Tier 0 — Pure dead code (zero behaviour change)
+## Tier 0 — Pure dead code (zero behaviour change) — ✅ **DONE (f2f5d5e)**
 
 All verified zero-call-site across `app/src/main` **and** `app/src/test`. Cutting these first shrinks the surface the real fixes have to reason about.
+
+**Everything in the table below was cut in `f2f5d5e`.** Anchors are kept as the historical
+record of what was removed; the line numbers no longer resolve. Tiers 1–3 anchors below have
+shifted in `ProjectData.kt` (−32 lines above `:454`) and `ProjectStorage.kt` (−8 lines) —
+navigate by symbol, as the header already warns.
 
 | Symbol | Anchor | Notes |
 |---|---|---|
@@ -40,7 +47,33 @@ All verified zero-call-site across `app/src/main` **and** `app/src/test`. Cuttin
 - `StoredCalibrationProducerTest.kt:138-139` — two assertions to delete.
 - **`ProjectData.hardwareCapabilityProfile` (`:112-113`) is NOT free.** One live use (`:157`, inside the accessor you're deleting) and one test use (`AppRootControllerTest.kt:93`, a canonical-name helper). Once `:155-158` is gone, the only remaining consumer is that test helper — rewrite it as `hardware.toHardwareCapabilityProfile().displayName`, then the getter can go too. Cut it *last* in Tier 0, not first.
 
-Expected suite delta after Tier 0: **506 → 504** (two `StoredCalibrationProducerTest` assertions removed, no test methods lost) — assuming you delete assertions rather than whole `@Test` methods.
+~~Expected suite delta after Tier 0: **506 → 504**~~ — **wrong, and self-contradictory as
+written.** JUnit's `tests=` attribute counts `@Test` *methods*, not assertions; "no test methods
+lost" and a falling total cannot both hold. Actual after Tier 0: **506 / 0 / 0, unchanged**
+(`StoredCalibrationProducerTest` kept all 5 methods; the two deleted assertions lived inside one
+of them). Do not treat a steady total as a failed cut — the real safety net for a deletion-only
+change is that `assembleDebug` compiles, since Kotlin turns any missed reference into a hard error.
+
+**Two call sites this blast-radius list missed** (both found and handled during the cut):
+
+- **`ProjectStorage.kt:270-272`** — `duplicateProject` reset `restoredFromStorage` via
+  `calibrationData = original.calibrationData.copy(...)`. Real code, not optional: the whole
+  now-empty argument was removed. Nothing read the field, so no observable change — but nothing
+  resets on duplicate any more, which *unmasks* the Tier 3 "duplicate carries another project's
+  calibration" item rather than altering it. Tier 3 should now decide the whole question.
+- **`StoredCalibrationProducer.kt:67`** — KDoc documented `restoredFromStorage = false` as part
+  of the producer contract; reworded with the field.
+
+Two comment-only references also updated: `EffectiveHardwareResolver.kt:87-91` (doctrine comment
+repointed at `testHardwareProfile`, since the rule outlives the symbol it named) and
+`HardwareMeasurementCapabilities.kt:80-82` (stale clause trimmed; the surrounding `supportsTDR`
+rationale block was deliberately kept).
+
+**Legacy-load tolerance confirmed:** `toProjectCalibrationData` builds via named args from
+`opt*` calls, and the only key-presence checks in `ProjectStorage` (`:1073`, `:1081`) are
+optional-read helpers. No schema validation, no unknown-key rejection — old saves carrying
+`lastCalibrationStatusSummary` / `restoredFromStorage` load unchanged; the keys are never
+consulted. New saves omit them.
 
 ---
 
@@ -99,7 +132,7 @@ Compounded by `StoredCalibrationProducer` being in-memory-only (`:32-36`): a fre
 
 ## Verification recipe
 
-1. `.\gradlew.bat test` after **each** tier — expect 504 after Tier 0 (see delta note), then a net increase as Tier 1/2 add cases.
+1. `.\gradlew.bat test` after **each** tier — Tier 0 held at **506** (see the corrected delta note), then expect a net increase as Tier 1/2 add cases.
 2. `.\gradlew.bat assembleDebug`.
 3. Off-bench repro for Tier 2, no VNA required: calibration wizard → "Simulate O/S/L capture" chip → confirm VALID → open a project with no stored calibration → observe whether live calibration survives. `adb logcat -s CalRestore` prints the deciding predicate (`AppRootScreen:366-371`).
 4. Bench-only: real LiteVNA64 at 14.2 MHz, per `claude/hardware-bringup-litevna64.md`.

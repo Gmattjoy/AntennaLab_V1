@@ -251,6 +251,8 @@ applied, calibration state `VALID`, readiness "Live Ready".
 
 `ProjectData.hardwareCapabilityProfile` derived from `testHardwareProfile`, which
 **defaults to `NANOVNA_H4`**, so a connected, validated LiteVNA was treated as a NanoVNA.
+*(That accessor was deleted in Tier 0, f2f5d5e — the last non-test consumer had already
+moved to the resolver. The defect and its fix stand as described.)*
 Fixed by `domain/testing/EffectiveHardwareResolver` — one resolution point, pure
 three-tier precedence (validated live → selected+open live → project → default), with
 every capability consumer routed through it.
@@ -326,7 +328,7 @@ the two layers contradicted each other, and the UI happened to consult the one s
 
 | Layer | Value | Consumers |
 |---|---|---|
-| `HardwareCapabilityProfile.supportsTdrPreview` | **`true`** for both profiles (`ProjectData.kt:598`, `:621`) | **NONE.** Its only accessor `supportsTdrPreviewOrDefault` (`ProjectData.kt:133-134`) has **zero call sites** — dead capability data. |
+| `HardwareCapabilityProfile.supportsTdrPreview` | **`true`** for both profiles (`ProjectData.kt:598`, `:621`) | **NONE.** ~~Its only accessor `supportsTdrPreviewOrDefault` (`ProjectData.kt:133-134`) has zero call sites~~ — **accessor deleted in Tier 0 (f2f5d5e)**; the profile flag itself survives and is still read by nothing. Dead capability data either way. |
 | `HardwareMeasurementCapabilities.supportsTDR` | **`false`** — `VNA_STANDARD` never set it (`HardwareMeasurementCapabilities.kt:67-79`) | The real ones: `SweepGraphMath.kt:652` (guard) and `SweepGraphWidgets.kt:569` (whether the row renders) |
 
 Net effect: `buildCableFaultPreview` always returned **"TDR preview not supported by this
@@ -837,7 +839,8 @@ exists, but it fixed a latent defect, not an active data-loss bug.
 exists, `decideCalibrationRestore`, the alias set, the restore policy and
 `CalibrationRestorePolicy` all operate on data that only a hand-written JSON file could
 supply. Needs its own task (when to persist, on explicit Save or automatically; whether a
-STALE calibration should persist; interaction with `restoredFromStorage`).
+STALE calibration should persist; ~~interaction with `restoredFromStorage`~~ — that field was
+deleted in Tier 0, f2f5d5e, so there is no longer an interaction to design).
 
 **RESOLVED-PENDING-HARDWARE (2026-07-29, off-bench).** Producer added:
 `domain/testing/StoredCalibrationProducer`. Decisions:
@@ -853,7 +856,8 @@ STALE calibration should persist; interaction with `restoredFromStorage`).
 - **Gate:** VALID only (`isPersistable` = VALID + fully captured + usable correction). STALE /
   INVALID / partial never persist. Trust is not stored; restore re-derives it from the live
   session.
-- **`restoredFromStorage`:** written `false` (fresh capture); confirmed no functional consumer.
+- **`restoredFromStorage`:** ~~written `false` (fresh capture)~~; confirmed no functional consumer
+  — **and therefore deleted outright in Tier 0 (f2f5d5e)**, along with its serialization.
 - **Loop proven in-process** (no hardware): `AppRootControllerTest
   .producerCapture_thenDecideCalibrationRestore_RESTORES_loopCloses` — producer writes, then
   `decideCalibrationRestore` on that same `ProjectData` returns RESTORE. Gate guarded by
