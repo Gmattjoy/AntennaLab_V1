@@ -1,6 +1,5 @@
 package com.example.antennalab_v1.model
 
-import com.example.antennalab_v1.model.testing.CalibrationSession
 
 /*
 ########################################################################
@@ -85,7 +84,6 @@ data class ProjectData(
     val testData: TestData = TestData(),
     val discoverySnapshot: DiscoverySnapshot? = null,
     val sweepHistory: List<ProjectSweepHistoryEntry> = emptyList(),
-    val calibrationData: ProjectCalibrationData = ProjectCalibrationData(),
     val uiState: ProjectUiState = ProjectUiState(),
     val versionInfo: VersionInfo = VersionInfo(),
     val buildCostProfile: BuildCostProfile = BuildCostProfile.STANDARD,
@@ -111,22 +109,6 @@ data class ProjectData(
 
     val supportsOslCalibrationOrDefault: Boolean
         get() = testHardwareProfile.toHardwareCapabilityProfile().supportsOslCalibration
-
-    /*
-    ####################################################################
-    CALIBRATION ACCESS HELPERS
-    --------------------------------------------------------------------
-    PURPOSE
-    Provides safe access points for project-scoped stored calibration
-    without forcing callers to manually null-check calibration storage.
-    ####################################################################
-    */
-
-    val hasStoredCalibration: Boolean
-        get() = calibrationData.storedCalibrationSession != null
-
-    val storedCalibrationOrNull: CalibrationSession?
-        get() = calibrationData.storedCalibrationSession
 
     /*
     ####################################################################
@@ -430,39 +412,25 @@ data class TestData(
 
 /*
 ########################################################################
-PROJECT CALIBRATION DATA MODEL
+CALIBRATION IS LIVE-ONLY — NOT PERSISTED
 ------------------------------------------------------------------------
-PURPOSE
-Stores project-scoped calibration persistence data.
+There is deliberately no ProjectCalibrationData here, and no
+`calibrationData` field on ProjectData.
 
-ARCHITECTURE NOTE
-This does NOT mean stored calibration is automatically trusted as live
-session calibration.
+A calibration belongs to the INSTRUMENT in the CURRENT session, never to
+a saved design file. It lives in UsbSessionManager's in-memory
+InstrumentCalibrationState and dies with the session. Restoring a stored
+calibration into live state manufactured a trust verdict out of a file,
+which is exactly the confusion the calibration-honesty rule forbids.
 
-Stored calibration is a project-level persistence record that may later
-be restored as:
-- compatible
-- stale
-- incompatible
+What IS persisted is measurement PROVENANCE, not restorable state:
+SweepResult.isCalibrated / calibrationLabel and
+ProjectSweepHistoryEntry.isCalibrated record that a saved sweep was taken
+under calibration. That is a fact about a measurement already made.
 
-SAFE EDIT AREA
-- add richer restore metadata later
-- add calibration file references later
-- add per-instrument compatibility tracking later
+Do not reintroduce a stored-calibration field. Add provenance instead.
 ########################################################################
 */
-data class ProjectCalibrationData(
-    val storedCalibrationSession: CalibrationSession? = null,
-    val lastCalibrationSavedEpochMs: Long = 0L,
-    val restorePolicy: CalibrationRestorePolicy =
-        CalibrationRestorePolicy.RESTORE_AS_STALE
-) {
-    val hasStoredCalibration: Boolean
-        get() = storedCalibrationSession != null
-
-    val storedCalibrationCompletionStateName: String
-        get() = storedCalibrationSession?.completionState?.name ?: "NOT_STARTED"
-}
 
 /*
 ########################################################################
@@ -775,12 +743,6 @@ enum class HardwareClass {
     BASIC_ANALYZER,
     ADVANCED_ANALYZER,
     PROFESSIONAL_VNA
-}
-
-enum class CalibrationRestorePolicy {
-    DO_NOT_RESTORE,
-    RESTORE_AS_STALE,
-    RESTORE_IF_COMPATIBLE
 }
 
 /*

@@ -88,11 +88,7 @@ object LoadProjectController {
         ).format(Date(lastEditedEpochMillis))
     }
 
-    fun hasStoredCalibration(project: ProjectData?): Boolean {
-        return project?.hasStoredCalibration == true
-    }
-
-    fun storedCalibrationCompletion(project: ProjectData?): String {
-        return project?.calibrationData?.storedCalibrationCompletionStateName ?: "NOT_STARTED"
-    }
+    // No stored-calibration helpers: calibration is live-only, so a saved
+    // project has no calibration to report. Live calibration state is read
+    // from UsbSessionManager via InstrumentStatusPresenter instead.
 }

@@ -211,21 +211,16 @@ private fun DashboardContent(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (badge != null) {
-                            Row(
+                        // No calibration pill: calibration is live-only, so a saved
+                        // project row has none to show. Live instrument calibration
+                        // appears once, in the status chips at the top.
+                        badge?.lastMinSwrText?.let { swr ->
+                            Text(
                                 modifier = Modifier.padding(top = AntennaLabTheme.spacing.sm),
-                                horizontalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                StatusPill(badge.calLabel, badge.calLevel)
-                                badge.lastMinSwrText?.let { swr ->
-                                    Text(
-                                        text = swr,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                                text = swr,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -251,8 +246,8 @@ private fun previewState(): Triple<
         DashboardController.DashboardProjectCard("2", "AR-771 Whip", "MONOPOLE", "145.000 MHz", "24 Jul 2026  11:02 AM")
     )
     val badges = mapOf(
-        "1" to DashboardController.DashboardProjectBadge(AppStatusLevel.POSITIVE, "Calibrated", "Last SWR 1.585"),
-        "2" to DashboardController.DashboardProjectBadge(AppStatusLevel.NEUTRAL, "No calibration", null)
+        "1" to DashboardController.DashboardProjectBadge("Last SWR 1.585"),
+        "2" to DashboardController.DashboardProjectBadge(null)
     )
     return Triple(chips, cards, badges)
 }

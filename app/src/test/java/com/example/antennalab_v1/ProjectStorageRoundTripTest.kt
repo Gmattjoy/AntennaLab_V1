@@ -1,17 +1,15 @@
 package com.example.antennalab_v1
 
 import android.content.Context
-import com.example.antennalab_v1.model.ProjectCalibrationData
+import com.example.antennalab_v1.model.DesignInput
 import com.example.antennalab_v1.model.ProjectData
+import com.example.antennalab_v1.model.ProjectMeta
 import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
-import com.example.antennalab_v1.model.testing.CalibrationSession
-import com.example.antennalab_v1.model.testing.OslCalibrationCoefficients
 import com.example.antennalab_v1.storage.ProjectStorage
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,6 +21,10 @@ import java.io.File
  * Robolectric coverage for ProjectStorage serialization — exercises the real
  * org.json-backed toJson/fromJson through the public save/load API, which plain
  * JVM tests can't reach.
+ *
+ * Calibration is NOT serialized (live-only). What is covered here is that sweep
+ * PROVENANCE survives, and that legacy saves still containing a calibration blob
+ * load without complaint.
  */
 @RunWith(RobolectricTestRunner::class)
 class ProjectStorageRoundTripTest {
@@ -30,28 +32,7 @@ class ProjectStorageRoundTripTest {
     private val context: Context
         get() = RuntimeEnvironment.getApplication()
 
-    private val delta = 1e-9
-
-    private fun sampleCoefficients() = OslCalibrationCoefficients(
-        frequencyHz = listOf(1_000_000L, 2_000_000L, 3_000_000L),
-        directivityRe = listOf(0.05, 0.06, 0.07),
-        directivityIm = listOf(-0.03, -0.02, -0.01),
-        sourceMatchRe = listOf(0.10, 0.11, 0.12),
-        sourceMatchIm = listOf(0.08, 0.09, 0.10),
-        reflectionTrackingRe = listOf(0.85, 0.86, 0.87),
-        reflectionTrackingIm = listOf(0.05, 0.04, 0.03)
-    )
-
-    private fun projectWithCalibrationAndHistory(): ProjectData {
-        val session = CalibrationSession(
-            hardwareDisplayName = "NanoVNA-H4",
-            startFrequencyMHz = 1.0,
-            endFrequencyMHz = 3.0,
-            openCaptured = true,
-            shortCaptured = true,
-            loadCaptured = true,
-            correction = sampleCoefficients()
-        )
+    private fun projectWithHistory(): ProjectData {
         val historyEntry = ProjectSweepHistoryEntry(
             recordedAtEpochMs = 123L,
             hardwareName = "NanoVNA-H4",
@@ -64,8 +45,9 @@ class ProjectStorageRoundTripTest {
             isCalibrated = true
         )
         return ProjectData(
-            sweepHistory = listOf(historyEntry),
-            calibrationData = ProjectCalibrationData(storedCalibrationSession = session)
+            meta = ProjectMeta(projectName = "Legacy 20 m Dipole"),
+            designInput = DesignInput(targetFrequencyMHz = 14.2),
+            sweepHistory = listOf(historyEntry)
         )
     }
 
@@ -76,36 +58,34 @@ class ProjectStorageRoundTripTest {
             .first { it.readText().contains("\"sweepHistory\"") }
 
     @Test
-    fun saveLoad_preservesCalibrationCoefficientsAndSweepFlags() {
-        ProjectStorage.saveProject(context, projectWithCalibrationAndHistory())
+    fun saveLoad_preservesSweepProvenanceFlags() {
+        ProjectStorage.saveProject(context, projectWithHistory())
         val loaded = ProjectStorage.loadProject(context)
 
-        // Sweep history flags survive.
         assertEquals(1, loaded.sweepHistory.size)
         val entry = loaded.sweepHistory.first()
         assertFalse(entry.isComplete)
         assertEquals(18, entry.actualPointCount)
         assertEquals(26, entry.requestedPointCount)
+        // "This sweep was measured under calibration" is a fact about a past
+        // measurement, and IS persisted — unlike calibration itself.
         assertTrue(entry.isCalibrated)
+    }
 
-        // Calibration coefficients survive, array-for-array.
-        val original = sampleCoefficients()
-        val restored = loaded.calibrationData.storedCalibrationSession?.correction
-        assertNotNull("correction coefficients should survive", restored)
-        requireNotNull(restored)
-        assertTrue(restored.isUsable)
-        assertEquals(original.frequencyHz, restored.frequencyHz)
-        assertDoubleList(original.directivityRe, restored.directivityRe)
-        assertDoubleList(original.directivityIm, restored.directivityIm)
-        assertDoubleList(original.sourceMatchRe, restored.sourceMatchRe)
-        assertDoubleList(original.sourceMatchIm, restored.sourceMatchIm)
-        assertDoubleList(original.reflectionTrackingRe, restored.reflectionTrackingRe)
-        assertDoubleList(original.reflectionTrackingIm, restored.reflectionTrackingIm)
+    @Test
+    fun saveLoad_doesNotWriteCalibrationData() {
+        ProjectStorage.saveProject(context, projectWithHistory())
+        val json = JSONObject(findSavedProjectFile().readText())
+
+        assertFalse(
+            "calibration must not be persisted — it is live-only",
+            json.has("calibrationData")
+        )
     }
 
     @Test
     fun load_defaultsWhenNewKeysAbsent_forLegacySaves() {
-        ProjectStorage.saveProject(context, projectWithCalibrationAndHistory())
+        ProjectStorage.saveProject(context, projectWithHistory())
 
         // Simulate an older save: strip the keys added in later phases.
         val file = findSavedProjectFile()
@@ -117,10 +97,6 @@ class ProjectStorageRoundTripTest {
         historyJson.remove("requestedPointCount")
         historyJson.remove("isCalibrated")
 
-        json.getJSONObject("calibrationData")
-            .getJSONObject("storedCalibrationSession")
-            .remove("correction")
-
         file.writeText(json.toString())
 
         val loaded = ProjectStorage.loadProject(context)
@@ -129,14 +105,74 @@ class ProjectStorageRoundTripTest {
         // Reader defaults keep old saves valid.
         assertTrue("absent isComplete defaults to complete", entry.isComplete)
         assertFalse("absent isCalibrated defaults to uncalibrated", entry.isCalibrated)
-        assertNull(
-            "absent correction defaults to null",
-            loaded.calibrationData.storedCalibrationSession?.correction
-        )
     }
 
-    private fun assertDoubleList(expected: List<Double>, actual: List<Double>) {
-        assertEquals(expected.size, actual.size)
-        expected.forEachIndexed { i, value -> assertEquals(value, actual[i], delta) }
+    /**
+     * THE TEARDOWN GUARD. A project saved before calibration persistence was
+     * removed still carries a full `calibrationData` blob — stored session,
+     * OSL coefficients, restore policy. Loading it must ignore the blob
+     * entirely and preserve every other field. The reader builds ProjectData
+     * from named optional lookups with no schema validation, so unknown keys
+     * are dropped; this pins that behaviour so nobody adds a rejection path.
+     */
+    @Test
+    fun load_legacyCalibrationBlob_isIgnored_andRestOfProjectSurvives() {
+        ProjectStorage.saveProject(context, projectWithHistory())
+
+        val file = findSavedProjectFile()
+        val json = JSONObject(file.readText())
+
+        // Exactly the shape the pre-teardown writer produced.
+        val legacyCalibration = JSONObject().apply {
+            put(
+                "storedCalibrationSession",
+                JSONObject().apply {
+                    put("hardwareDisplayName", "NanoVNA-H4")
+                    put("startFrequencyMHz", 1.0)
+                    put("endFrequencyMHz", 3.0)
+                    put("openCaptured", true)
+                    put("shortCaptured", true)
+                    put("loadCaptured", true)
+                    put("timestampLabel", "12 Jan 2026  9:15 AM")
+                    put("capturedAtEpochMs", 1_700_000_000_000L)
+                    put("captureSource", "WIZARD")
+                    put("capturedProtocolFamily", "NANOVNA")
+                    put("capturedInstrumentIdentityText", "NanoVNA-H4 FW v1.2")
+                    put("capturedSessionKey", "legacy-session-key")
+                    put(
+                        "correction",
+                        JSONObject().apply {
+                            put("frequencyHz", JSONArray(listOf(1_000_000L, 2_000_000L)))
+                            put("directivityRe", JSONArray(listOf(0.05, 0.06)))
+                            put("directivityIm", JSONArray(listOf(-0.03, -0.02)))
+                            put("sourceMatchRe", JSONArray(listOf(0.10, 0.11)))
+                            put("sourceMatchIm", JSONArray(listOf(0.08, 0.09)))
+                            put("reflectionTrackingRe", JSONArray(listOf(0.85, 0.86)))
+                            put("reflectionTrackingIm", JSONArray(listOf(0.05, 0.04)))
+                        }
+                    )
+                }
+            )
+            put("lastCalibrationSavedEpochMs", 1_700_000_000_000L)
+            put("lastCalibrationStatusSummary", "Complete calibration is available.")
+            put("restorePolicy", "RESTORE_IF_COMPATIBLE")
+            put("restoredFromStorage", true)
+        }
+        json.put("calibrationData", legacyCalibration)
+        file.writeText(json.toString())
+
+        // Must not throw.
+        val loaded = ProjectStorage.loadProject(context)
+
+        // Everything that is not calibration survives untouched.
+        assertEquals("Legacy 20 m Dipole", loaded.meta.projectName)
+        assertEquals(14.2, loaded.designInput.targetFrequencyMHz, 1e-9)
+        assertEquals(1, loaded.sweepHistory.size)
+        val entry = loaded.sweepHistory.first()
+        assertEquals("NanoVNA-H4", entry.hardwareName)
+        assertEquals(18, entry.actualPointCount)
+        assertEquals(26, entry.requestedPointCount)
+        assertTrue(entry.isCalibrated)
+        assertFalse(entry.isComplete)
     }
 }

@@ -40,7 +40,6 @@ import com.example.antennalab_v1.model.AvailablePartsProfile
 import com.example.antennalab_v1.model.BoomMaterial
 import com.example.antennalab_v1.model.BuildCostProfile
 import com.example.antennalab_v1.model.CalculatedDesign
-import com.example.antennalab_v1.model.CalibrationRestorePolicy
 import com.example.antennalab_v1.model.ConductorMaterial
 import com.example.antennalab_v1.model.ConnectorType
 import com.example.antennalab_v1.model.DesignInput
@@ -51,7 +50,6 @@ import com.example.antennalab_v1.model.FrequencyMode
 import com.example.antennalab_v1.model.LabEntryMode
 import com.example.antennalab_v1.model.MaterialConfig
 import com.example.antennalab_v1.model.PriorityMode
-import com.example.antennalab_v1.model.ProjectCalibrationData
 import com.example.antennalab_v1.model.ProjectCard
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
@@ -66,9 +64,6 @@ import com.example.antennalab_v1.model.SupportMaterial
 import com.example.antennalab_v1.model.TestData
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.VersionInfo
-import com.example.antennalab_v1.model.testing.CalibrationCaptureSource
-import com.example.antennalab_v1.model.testing.CalibrationSession
-import com.example.antennalab_v1.model.testing.OslCalibrationCoefficients
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -520,7 +515,6 @@ object ProjectStorage {
                     put(historyEntry.toJson())
                 }
             })
-            put("calibrationData", project.calibrationData.toJson())
             put("uiState", project.uiState.toJson())
             put("versionInfo", project.versionInfo.toJson())
             put("buildCostProfile", project.buildCostProfile.name)
@@ -544,7 +538,6 @@ object ProjectStorage {
             testData = json.optJSONObject("testData")?.toTestData() ?: TestData(),
             discoverySnapshot = json.optJSONObject("discoverySnapshot")?.toDiscoverySnapshot(),
             sweepHistory = json.optJSONArray("sweepHistory").toSweepHistoryList(),
-            calibrationData = json.optJSONObject("calibrationData")?.toProjectCalibrationData() ?: ProjectCalibrationData(),
             uiState = json.optJSONObject("uiState")?.toProjectUiState() ?: ProjectUiState(),
             versionInfo = json.optJSONObject("versionInfo")?.toVersionInfo() ?: VersionInfo(),
             buildCostProfile = enumValueOrDefault(
@@ -862,98 +855,23 @@ object ProjectStorage {
     /*
     ------------------------------------------------------------
     EDIT SECTION 2006A
-    CALIBRATION DATA SERIALIZATION
+    CALIBRATION IS NOT SERIALIZED
     ------------------------------------------------------------
-    PURPOSE
-    Converts ProjectCalibrationData and CalibrationSession to and from
-    JSON for project-level persistence.
+    Calibration is live-only (see the note in ProjectData.kt). There are
+    deliberately no CalibrationSession / OslCalibrationCoefficients JSON
+    adapters here — a stored calibration is exactly what the teardown
+    removed.
+
+    Legacy saves still carry a "calibrationData" object. It is simply
+    never read: this reader builds ProjectData from named optional
+    lookups and performs no schema validation, so unknown keys are
+    ignored. Do not add a rejection path for them.
+
+    Sweep provenance (isCalibrated on history entries) IS still
+    serialized, in the sweep-history section — that is a record of a past
+    measurement, not restorable state.
     ------------------------------------------------------------
     */
-    private fun ProjectCalibrationData.toJson(): JSONObject {
-        return JSONObject().apply {
-            put(
-                "storedCalibrationSession",
-                storedCalibrationSession?.toJson()
-            )
-            put("lastCalibrationSavedEpochMs", lastCalibrationSavedEpochMs)
-            put("restorePolicy", restorePolicy.name)
-        }
-    }
-
-    private fun JSONObject.toProjectCalibrationData(): ProjectCalibrationData {
-        return ProjectCalibrationData(
-            storedCalibrationSession = optJSONObject("storedCalibrationSession")
-                ?.toCalibrationSession(),
-            lastCalibrationSavedEpochMs = optLong("lastCalibrationSavedEpochMs", 0L),
-            restorePolicy = enumValueOrDefault(
-                optOptionalString("restorePolicy"),
-                CalibrationRestorePolicy.RESTORE_AS_STALE
-            )
-        )
-    }
-
-    private fun CalibrationSession.toJson(): JSONObject {
-        return JSONObject().apply {
-            put("hardwareDisplayName", hardwareDisplayName)
-            put("startFrequencyMHz", startFrequencyMHz)
-            put("endFrequencyMHz", endFrequencyMHz)
-            put("openCaptured", openCaptured)
-            put("shortCaptured", shortCaptured)
-            put("loadCaptured", loadCaptured)
-            put("timestampLabel", timestampLabel)
-            put("capturedAtEpochMs", capturedAtEpochMs)
-            put("captureSource", captureSource.name)
-            put("capturedProtocolFamily", capturedProtocolFamily)
-            put("capturedInstrumentIdentityText", capturedInstrumentIdentityText)
-            put("capturedSessionKey", capturedSessionKey)
-            put("correction", correction?.toJson())
-        }
-    }
-
-    private fun JSONObject.toCalibrationSession(): CalibrationSession {
-        return CalibrationSession(
-            hardwareDisplayName = optString("hardwareDisplayName"),
-            startFrequencyMHz = optDouble("startFrequencyMHz", 0.0),
-            endFrequencyMHz = optDouble("endFrequencyMHz", 0.0),
-            openCaptured = optBoolean("openCaptured", false),
-            shortCaptured = optBoolean("shortCaptured", false),
-            loadCaptured = optBoolean("loadCaptured", false),
-            timestampLabel = optString("timestampLabel", "Not Captured"),
-            capturedAtEpochMs = optLong("capturedAtEpochMs", 0L),
-            captureSource = enumValueOrDefault(
-                optOptionalString("captureSource"),
-                CalibrationCaptureSource.UNKNOWN
-            ),
-            capturedProtocolFamily = optOptionalString("capturedProtocolFamily"),
-            capturedInstrumentIdentityText = optOptionalString("capturedInstrumentIdentityText"),
-            capturedSessionKey = optOptionalString("capturedSessionKey"),
-            correction = optJSONObject("correction")?.toOslCalibrationCoefficients()
-        )
-    }
-
-    private fun OslCalibrationCoefficients.toJson(): JSONObject {
-        return JSONObject().apply {
-            put("frequencyHz", JSONArray(frequencyHz))
-            put("directivityRe", JSONArray(directivityRe))
-            put("directivityIm", JSONArray(directivityIm))
-            put("sourceMatchRe", JSONArray(sourceMatchRe))
-            put("sourceMatchIm", JSONArray(sourceMatchIm))
-            put("reflectionTrackingRe", JSONArray(reflectionTrackingRe))
-            put("reflectionTrackingIm", JSONArray(reflectionTrackingIm))
-        }
-    }
-
-    private fun JSONObject.toOslCalibrationCoefficients(): OslCalibrationCoefficients {
-        return OslCalibrationCoefficients(
-            frequencyHz = optJSONArray("frequencyHz").toLongList(),
-            directivityRe = optJSONArray("directivityRe").toDoubleList(),
-            directivityIm = optJSONArray("directivityIm").toDoubleList(),
-            sourceMatchRe = optJSONArray("sourceMatchRe").toDoubleList(),
-            sourceMatchIm = optJSONArray("sourceMatchIm").toDoubleList(),
-            reflectionTrackingRe = optJSONArray("reflectionTrackingRe").toDoubleList(),
-            reflectionTrackingIm = optJSONArray("reflectionTrackingIm").toDoubleList()
-        )
-    }
 
     /*
     ------------------------------------------------------------
@@ -1039,16 +957,6 @@ object ProjectStorage {
             results.add(optString(i, ""))
         }
         return results.filter { it.isNotBlank() }
-    }
-
-    private fun JSONArray?.toLongList(): List<Long> {
-        if (this == null) return emptyList()
-
-        val results = mutableListOf<Long>()
-        for (i in 0 until length()) {
-            results.add(optLong(i, 0L))
-        }
-        return results
     }
 
     private fun JSONArray?.toSweepHistoryList(): List<ProjectSweepHistoryEntry> {
@@ -1274,7 +1182,6 @@ object ProjectStorage {
                 measurementNotes = prefs.getString(KEY_MEASUREMENT_NOTES, "") ?: "",
                 trimHistory = decodeStringList(prefs.getString(KEY_TRIM_HISTORY, ""))
             ),
-            calibrationData = ProjectCalibrationData(),
             uiState = ProjectUiState(
                 lastOpenedSection = enumValueOrDefault(
                     prefs.getString(KEY_LAST_OPENED_SECTION, null),

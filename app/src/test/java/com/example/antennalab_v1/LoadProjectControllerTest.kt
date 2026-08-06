@@ -1,12 +1,9 @@
 package com.example.antennalab_v1
 
 import com.example.antennalab_v1.features.app.LoadProjectController
-import com.example.antennalab_v1.model.ProjectCalibrationData
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
-import com.example.antennalab_v1.model.testing.CalibrationSession
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,15 +22,6 @@ class LoadProjectControllerTest {
         antennaType = "DIPOLE",
         targetFrequencyHz = 14_200_000L,
         lastEditedEpochMillis = lastEdited
-    )
-
-    private fun completeSession() = CalibrationSession(
-        hardwareDisplayName = "LiteVNA64 v0.3.3",
-        startFrequencyMHz = 1.0,
-        endFrequencyMHz = 30.0,
-        openCaptured = true,
-        shortCaptured = true,
-        loadCaptured = true
     )
 
     // ------------------------------------------------------------------
@@ -79,26 +67,6 @@ class LoadProjectControllerTest {
         assertTrue(text.contains(":")) // includes a time component
     }
 
-    // ------------------------------------------------------------------
-    // Stored-calibration derivation
-    // ------------------------------------------------------------------
-
-    @Test
-    fun storedCalibration_reportsPresenceAndCompletion() {
-        val withCal = ProjectData(
-            calibrationData = ProjectCalibrationData(storedCalibrationSession = completeSession())
-        )
-        assertTrue(LoadProjectController.hasStoredCalibration(withCal))
-        assertEquals("COMPLETE", LoadProjectController.storedCalibrationCompletion(withCal))
-    }
-
-    @Test
-    fun storedCalibration_defaultsWhenAbsentOrNull() {
-        assertFalse(LoadProjectController.hasStoredCalibration(null))
-        assertEquals("NOT_STARTED", LoadProjectController.storedCalibrationCompletion(null))
-
-        val noCal = ProjectData()
-        assertFalse(LoadProjectController.hasStoredCalibration(noCal))
-        assertEquals("NOT_STARTED", LoadProjectController.storedCalibrationCompletion(noCal))
-    }
+    // No stored-calibration derivation coverage: calibration is live-only, so a
+    // saved project carries none and the controller no longer reports on it.
 }

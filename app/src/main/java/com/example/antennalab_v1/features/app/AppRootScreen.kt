@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
-import com.example.antennalab_v1.domain.testing.StoredCalibrationProducer
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.lab.LabHomeScreen
 import com.example.antennalab_v1.features.lab.LabTestTemplates
@@ -151,7 +150,6 @@ fun AppRootScreen() {
             val restoredProject = ProjectStorage.loadProject(context)
 
             if (restoredProject.meta.projectId.isNotBlank()) {
-                applyStoredCalibrationToSharedSession(context, restoredProject)
                 currentProject.value = restoredProject
                 testMode.value = false
                 projectResumeIntoSweep.value = false
@@ -180,7 +178,6 @@ fun AppRootScreen() {
             onOpenProject = { projectId ->
                 val loadedProject = ProjectStorage.loadProjectById(context, projectId)
                 if (loadedProject != null) {
-                    applyStoredCalibrationToSharedSession(context, loadedProject)
                     currentProject.value = loadedProject
                     activeProjectOverride.value = null
                     testMode.value = false
@@ -236,7 +233,6 @@ fun AppRootScreen() {
             onLoadProject = { projectId ->
                 val loadedProject = ProjectStorage.loadProjectById(context, projectId)
                 if (loadedProject != null) {
-                    applyStoredCalibrationToSharedSession(context, loadedProject)
                     currentProject.value = loadedProject
                     activeProjectOverride.value = null
                     testMode.value = false
@@ -295,22 +291,9 @@ fun AppRootScreen() {
                     UsbSessionManager.registerCalibrationSession(session)
                 },
                 onFinish = {
-                    // §10c.6 producer: fold a live VALID calibration into the
-                    // effective project IN MEMORY (no disk write). Skip entirely
-                    // when there is no real project (the RF-test-mode throwaway is
-                    // only used when effectiveProject() is null).
-                    effectiveProject()?.let { base ->
-                        val captured = StoredCalibrationProducer.captureIntoProject(
-                            project = base,
-                            liveCalibration = UsbSessionManager.getLatestInstrumentCalibrationState(),
-                            nowEpochMs = System.currentTimeMillis()
-                        )
-                        if (activeProjectOverride.value != null) {
-                            activeProjectOverride.value = captured
-                        } else {
-                            currentProject.value = captured
-                        }
-                    }
+                    // The calibration lives in UsbSessionManager (registered by
+                    // onSessionChange above) and stays there. Nothing is folded
+                    // into the project — calibration is not persisted.
                     screen.value = "project"
                     projectResumeIntoSweep.value = true
                 },
@@ -330,7 +313,6 @@ fun AppRootScreen() {
                         projectResumeIntoSweep.value = false
                     },
                     onProjectLoaded = { loadedProject ->
-                        applyStoredCalibrationToSharedSession(context, loadedProject)
                         currentProject.value = loadedProject
                         activeProjectOverride.value = null
                     },
@@ -359,38 +341,6 @@ fun AppRootScreen() {
     }
 }
 
-private fun applyStoredCalibrationToSharedSession(
-    context: android.content.Context,
-    project: ProjectData
-) {
-    // DEBUG: one greppable line per project load (`adb logcat -s CalRestore`) recording
-    // which predicate decided the load. Without it, a silently-cleared calibration is
-    // indistinguishable from one that was never stored.
-    val decision = AppRootController.decideCalibrationRestore(project) { message ->
-        if (BuildConfig.DEBUG) android.util.Log.i("CalRestore", message)
-    }
-
-    when (decision) {
-        CalibrationRestoreAction.CLEAR -> {
-            UsbSessionManager.clearCalibrationState()
-        }
-
-        CalibrationRestoreAction.RESTORE -> {
-            val storedCalibration = project.storedCalibrationOrNull ?: return
-            val selectedHardwareName =
-                EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).displayName
-
-            UsbSessionManager.registerCalibrationSession(
-                storedCalibration.copy(
-                    captureSource = CalibrationCaptureSource.RESTORED_FROM_PROJECT,
-                    capturedSessionKey = null
-                )
-            )
-
-            UsbSessionManager.refreshCurrentSessionState(
-                context = context,
-                selectedHardwareName = selectedHardwareName
-            )
-        }
-    }
-}
+// Calibration is live-only: loading a project deliberately does not touch it.
+// There is no applyStoredCalibrationToSharedSession — see AppRootController
+// SECTION 1600 and the note in ProjectData.kt.

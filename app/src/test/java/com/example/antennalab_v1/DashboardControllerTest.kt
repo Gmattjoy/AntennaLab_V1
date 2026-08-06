@@ -2,13 +2,11 @@ package com.example.antennalab_v1
 
 import com.example.antennalab_v1.features.app.DashboardController
 import com.example.antennalab_v1.features.app.DashboardController.DashboardAction
-import com.example.antennalab_v1.model.ProjectCalibrationData
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
 import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
-import com.example.antennalab_v1.model.testing.CalibrationSession
-import com.example.antennalab_v1.ui.components.AppStatusLevel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,15 +23,6 @@ class DashboardControllerTest {
         antennaType = "DIPOLE",
         targetFrequencyHz = 14_200_000L,
         lastEditedEpochMillis = lastEdited
-    )
-
-    private fun calSession(open: Boolean, short: Boolean, load: Boolean) = CalibrationSession(
-        hardwareDisplayName = "LiteVNA64 v0.3.3",
-        startFrequencyMHz = 14.0,
-        endFrequencyMHz = 14.4,
-        openCaptured = open,
-        shortCaptured = short,
-        loadCaptured = load
     )
 
     // ---- recent projects: newest first, capped -------------------------
@@ -76,42 +65,35 @@ class DashboardControllerTest {
         assertNull(DashboardController.buildProjectBadgeOrNull(null))
     }
 
+    // The badge carries NO calibration chip: calibration is live-only, so a
+    // saved project has none to report. Only sweep history feeds it.
+
     @Test
-    fun buildProjectBadge_noCalibrationNoHistory() {
+    fun buildProjectBadge_noHistory_hasNoSwrText() {
         val badge = DashboardController.buildProjectBadgeOrNull(ProjectData())
-        assertEquals(AppStatusLevel.NEUTRAL, badge!!.calLevel)
-        assertEquals("No calibration", badge.calLabel)
-        assertNull(badge.lastMinSwrText)
+        assertNotNull(badge)
+        assertNull(badge!!.lastMinSwrText)
     }
 
     @Test
-    fun buildProjectBadge_completeCalibrationAndLastSwr() {
+    fun buildProjectBadge_lastSwrFromMostRecentSweep() {
         val project = ProjectData(
-            calibrationData = ProjectCalibrationData(
-                storedCalibrationSession = calSession(open = true, short = true, load = true)
-            ),
             sweepHistory = listOf(
                 ProjectSweepHistoryEntry(recordedAtEpochMs = 10L, bestSwr = 2.0),
                 ProjectSweepHistoryEntry(recordedAtEpochMs = 20L, bestSwr = 1.5)
             )
         )
         val badge = DashboardController.buildProjectBadgeOrNull(project)!!
-        assertEquals(AppStatusLevel.POSITIVE, badge.calLevel)
-        assertEquals("Calibrated", badge.calLabel)
         // Latest entry (recordedAtEpochMs 20) wins.
         assertEquals("Last SWR 1.500", badge.lastMinSwrText)
     }
 
     @Test
-    fun buildProjectBadge_partialCalibration() {
+    fun buildProjectBadge_zeroOrMissingSwr_hasNoSwrText() {
         val project = ProjectData(
-            calibrationData = ProjectCalibrationData(
-                storedCalibrationSession = calSession(open = true, short = false, load = false)
-            )
+            sweepHistory = listOf(ProjectSweepHistoryEntry(recordedAtEpochMs = 10L, bestSwr = 0.0))
         )
-        val badge = DashboardController.buildProjectBadgeOrNull(project)!!
-        assertEquals(AppStatusLevel.CAUTION, badge.calLevel)
-        assertEquals("Calibration partial", badge.calLabel)
+        assertNull(DashboardController.buildProjectBadgeOrNull(project)!!.lastMinSwrText)
     }
 
     // status chips: moved to InstrumentStatusPresenterTest (shared mapping).

@@ -64,9 +64,13 @@ object DashboardController {
         val lastEditedText: String
     )
 
+    /*
+    No calibration chip here. Calibration is live-only, so a saved project
+    has none to report — and showing the INSTRUMENT's current calibration
+    on a project row would imply the project carries it, the exact
+    ambiguity the calibration-honesty rule forbids.
+    */
     data class DashboardProjectBadge(
-        val calLevel: AppStatusLevel,
-        val calLabel: String,
         val lastMinSwrText: String?
     )
 
@@ -97,16 +101,6 @@ object DashboardController {
     fun buildProjectBadgeOrNull(project: ProjectData?): DashboardProjectBadge? {
         if (project == null) return null
 
-        val (calLevel, calLabel) = when {
-            !LoadProjectController.hasStoredCalibration(project) ->
-                AppStatusLevel.NEUTRAL to "No calibration"
-            else -> when (LoadProjectController.storedCalibrationCompletion(project)) {
-                "COMPLETE" -> AppStatusLevel.POSITIVE to "Calibrated"
-                "PARTIAL" -> AppStatusLevel.CAUTION to "Calibration partial"
-                else -> AppStatusLevel.NEUTRAL to "No calibration"
-            }
-        }
-
         val bestSwr = project.latestSweepHistoryEntryOrNull?.bestSwr
         val lastMinSwrText =
             if (bestSwr != null && bestSwr > 0.0) {
@@ -116,8 +110,6 @@ object DashboardController {
             }
 
         return DashboardProjectBadge(
-            calLevel = calLevel,
-            calLabel = calLabel,
             lastMinSwrText = lastMinSwrText
         )
     }

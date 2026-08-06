@@ -121,9 +121,6 @@ private fun SavedProjectCard(
         ProjectStorage.loadProjectById(context, savedProject.projectId)
     }
 
-    val hasStoredCalibration = LoadProjectController.hasStoredCalibration(loadedProject)
-    val calibrationCompletion = LoadProjectController.storedCalibrationCompletion(loadedProject)
-
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -137,10 +134,6 @@ private fun SavedProjectCard(
             Text("Type: ${savedProject.antennaType}")
             Text("Frequency: $frequencyText MHz")
             Text("Last Edited: $lastEditedText")
-            Text("Stored Calibration: ${if (hasStoredCalibration) "Yes" else "No"}")
-            if (hasStoredCalibration) {
-                Text("Calibration Completion: $calibrationCompletion")
-            }
 
             Button(
                 onClick = onLoadProject,
