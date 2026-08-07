@@ -13,6 +13,7 @@ import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.project.ProjectWorkspaceController
+import com.example.antennalab_v1.model.testing.CalibrationCompletionState
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import org.junit.Assert.assertEquals
@@ -334,6 +335,35 @@ class ProjectWorkspaceControllerTest {
             "Discovery Applied",
             ProjectWorkspaceController.formatSweepHistoryMode(ProjectSweepHistoryMode.DISCOVERY_APPLIED)
         )
+    }
+
+    @Test
+    fun formatCalibrationCompletionState_mapsEveryValueWithoutLeakingEnumNames() {
+        assertEquals(
+            "Not started",
+            ProjectWorkspaceController.formatCalibrationCompletionState(
+                CalibrationCompletionState.NOT_STARTED
+            )
+        )
+        assertEquals(
+            "Partial",
+            ProjectWorkspaceController.formatCalibrationCompletionState(
+                CalibrationCompletionState.PARTIAL
+            )
+        )
+        assertEquals(
+            "Complete",
+            ProjectWorkspaceController.formatCalibrationCompletionState(
+                CalibrationCompletionState.COMPLETE
+            )
+        )
+
+        // The defect this replaced was completionState.name reaching the operator.
+        // Any future value that forgets a label would carry the enum's underscore.
+        for (state in CalibrationCompletionState.values()) {
+            val label = ProjectWorkspaceController.formatCalibrationCompletionState(state)
+            assertFalse("raw enum name leaked for $state", label.contains("_"))
+        }
     }
 
     @Test

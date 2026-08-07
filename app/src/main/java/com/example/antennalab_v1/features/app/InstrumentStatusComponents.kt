@@ -66,7 +66,8 @@ fun InstrumentStatusCard(
             )
 
             InstrumentCompactRow(
-                leftLabel = "Calibration",
+                // ALWAYS the app's calibration, never ambiguous with the device's own.
+                leftLabel = "App calibration",
                 leftValue = model.calibrationLabel,
                 rightLabel = "Status",
                 rightValue = model.statusLabel

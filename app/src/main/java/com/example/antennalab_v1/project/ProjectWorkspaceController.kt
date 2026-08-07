@@ -41,6 +41,7 @@ import com.example.antennalab_v1.model.BuildCostProfile
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.testing.CalibrationCompletionState
 import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import java.text.SimpleDateFormat
@@ -259,6 +260,21 @@ object ProjectWorkspaceController {
             AntennaClassification.VERTICAL,
             AntennaClassification.OTHER
         )
+    }
+
+    /**
+     * Operator-facing calibration completion text. Sentence case follows
+     * InstrumentStatusPresenter ("Not started", "In progress") — the owner of the
+     * app-calibration vocabulary this card is labelled against — rather than this
+     * file's usual Title Case. Exists because the card rendered the raw enum name,
+     * so the operator saw "NOT_STARTED".
+     */
+    fun formatCalibrationCompletionState(state: CalibrationCompletionState): String {
+        return when (state) {
+            CalibrationCompletionState.NOT_STARTED -> "Not started"
+            CalibrationCompletionState.PARTIAL -> "Partial"
+            CalibrationCompletionState.COMPLETE -> "Complete"
+        }
     }
 
     fun formatSweepHistoryMode(mode: ProjectSweepHistoryMode): String {

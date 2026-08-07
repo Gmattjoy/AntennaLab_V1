@@ -82,6 +82,7 @@ import com.example.antennalab_v1.features.wizard.graphics.DipoleGraphic
 import com.example.antennalab_v1.features.wizard.graphics.LoopGraphic
 import com.example.antennalab_v1.features.wizard.graphics.VerticalGraphic
 import com.example.antennalab_v1.features.wizard.graphics.YagiGraphic
+import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 
 /*
 ########################################################################
@@ -234,7 +235,8 @@ fun CreateWizardStep1Screen(
                 onClick = onBack,
                 modifier = Modifier
                     .weight(1f)
-                    .height(36.dp),
+                    // 36.dp was under the 48.dp accessibility floor.
+                    .height(AntennaLabTheme.touch.min),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Step1ButtonColor,
                     contentColor = Step1ButtonTextColor
@@ -253,7 +255,8 @@ fun CreateWizardStep1Screen(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .height(36.dp),
+                    // 36.dp was under the 48.dp accessibility floor.
+                    .height(AntennaLabTheme.touch.min),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Step1AccentButtonColor,
                     contentColor = Step1AccentButtonTextColor

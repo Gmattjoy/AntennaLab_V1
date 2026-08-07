@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.domain.testing.UsbPermissionManager
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
+import com.example.antennalab_v1.features.app.InstrumentStatusUiMapper
 import com.example.antennalab_v1.model.HardwareConnectionState
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.testing.InstrumentDataSourceKind
@@ -136,8 +137,9 @@ fun LabHomeScreen(
             else -> "UNKNOWN"
         }
 
+    // Shared mapper, not readiness.name — the raw enum put "NOT_STARTED" on screen.
     val calibrationChipText =
-        instrumentState?.calibrationState?.readiness?.name ?: "NOT_CALIBRATED"
+        InstrumentStatusUiMapper.buildCalibrationLabel(instrumentState)
 
     val measurementTrustText =
         when (instrumentState?.measurementTrust) {
@@ -294,7 +296,8 @@ fun LabHomeScreen(
                 title = "Calibration Summary"
             ) {
                 CompactDataGridRow(
-                    leftLabel = "Calibration",
+                    // ALWAYS the app's calibration, never ambiguous with the device's own.
+                    leftLabel = "App calibration",
                     leftValue = calibrationChipText,
                     rightLabel = "Trust",
                     rightValue = measurementTrustText

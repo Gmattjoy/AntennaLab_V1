@@ -975,11 +975,18 @@ private fun CalibrationStatusCard(
     onStartCalibration: () -> Unit,
     onClearCalibration: () -> Unit
 ) {
-    SectionCard(title = "Calibration Status") {
+    // "App Calibration Status", not "Calibration Status" — never ambiguous with the
+    // device's own calibration. Title Case matches this screen's sibling cards.
+    SectionCard(title = "App Calibration Status") {
         DataRow("Hardware", calibrationSession.hardwareDisplayName)
         DataRow("Calibration Range", String.format("%.3f MHz → %.3f MHz", calibrationSession.startFrequencyMHz, calibrationSession.endFrequencyMHz))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-        DataRow("Completion State", calibrationSession.completionState.name)
+        DataRow(
+            "Completion State",
+            ProjectWorkspaceController.formatCalibrationCompletionState(
+                calibrationSession.completionState
+            )
+        )
         DataRow("Completed Steps", "${calibrationSession.completedStepCount} / 3")
         DataRow(
             "Correction Data",

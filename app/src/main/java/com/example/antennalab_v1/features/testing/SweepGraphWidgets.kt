@@ -557,7 +557,8 @@ fun SweepSummaryCard(
             }
 
             SharedTwoValueRow(
-                label = "Calibration",
+                // ALWAYS the app's calibration, never ambiguous with the device's own.
+                label = "App calibration",
                 value = if (result.isCalibrated) {
                     result.calibrationLabel.ifBlank { "Applied" }
                 } else {

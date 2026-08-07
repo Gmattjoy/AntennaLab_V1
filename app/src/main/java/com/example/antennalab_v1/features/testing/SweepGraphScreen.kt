@@ -661,7 +661,8 @@ private fun SweepRunReadinessCard(
 
             StatusTwoValueRow("Selected Path", selectedSweepPathLabel)
             TwoValueRow("Loaded Sweep", currentSweepSourceLabel)
-            StatusTwoValueRow("Calibration", sweepRunContract.calibrationStateLabel)
+            // ALWAYS the app's calibration, never ambiguous with the device's own.
+            StatusTwoValueRow("App calibration", sweepRunContract.calibrationStateLabel)
             TwoValueRow("Trust Downgraded", if (sweepRunContract.trustDowngraded) "Yes" else "No")
 
             InstrumentMutedText(sweepRunContract.statusText)
