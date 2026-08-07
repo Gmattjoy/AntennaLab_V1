@@ -16,6 +16,8 @@ It currently owns:
   in-memory project without clobbering local edits)
 • calibration-session building for the wizard hand-off (reuse the shared
   live calibration when usable, otherwise build a fresh session)
+• the operator clear-calibration decisions (when to offer the control,
+  and the clear-plus-re-derive that keeps the card honest)
 • workflow guidance derivations (next action, readiness, user view)
 • enum / value formatting used across the workspace cards
 
@@ -31,12 +33,15 @@ UsbSessionManager truth (as the screen did) but owns no UI.
 */
 
 import com.example.antennalab_v1.domain.testing.CalibrationSessionFactory
+import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
+import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.AvailablePartsProfile
 import com.example.antennalab_v1.model.BuildCostProfile
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
+import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -97,6 +102,66 @@ object ProjectWorkspaceController {
         project: ProjectData
     ): CalibrationSession {
         return CalibrationSessionFactory.buildFreshSession(project)
+    }
+
+    /*
+    ------------------------------------------------------------
+    SECTION 1250
+    CLEAR-CALIBRATION CONTROL
+    ------------------------------------------------------------
+    PURPOSE
+    The two decisions behind the operator's "Clear calibration"
+    control on the workspace CalibrationStatusCard.
+
+    WHY IT EXISTS
+    After the hard teardown, nothing in production cleared live
+    calibration, so a bad capture was stuck for the life of the
+    process. This is the deliberate operator path back out.
+
+    WHY THE RE-DERIVE IS MANDATORY
+    UsbSessionManager exposes calibration state as a plain var, not
+    an observable, so ProjectPageScreen shadows it in local Compose
+    state. Wiping the manager without rebuilding that shadow leaves
+    the card showing OPEN/SHORT/LOAD as "Captured" over a cleared
+    instrument — precisely the calibration-honesty failure. Clearing
+    and rebuilding are therefore ONE call, not two.
+    ------------------------------------------------------------
+    */
+
+    /** Pure: readiness + OSL support in, visibility out. */
+    fun shouldShowClearCalibrationControl(
+        readiness: CalibrationReadiness,
+        supportsOslCalibration: Boolean
+    ): Boolean {
+        // Anything past NOT_STARTED is something an operator may want to
+        // discard — a half-captured IN_PROGRESS and a STALE calibration
+        // (whose coefficients are still applied) included.
+        return supportsOslCalibration && readiness != CalibrationReadiness.NOT_STARTED
+    }
+
+    /**
+     * Adapter over the live instrument, not the project's design-time profile —
+     * a project saved as NanoVNA with a LiteVNA attached must not answer for the
+     * wrong device. Tests target the pure function above.
+     */
+    fun shouldShowClearCalibrationControlForProject(project: ProjectData): Boolean {
+        return shouldShowClearCalibrationControl(
+            readiness = UsbSessionManager.getLatestInstrumentCalibrationState().readiness,
+            supportsOslCalibration = EffectiveHardwareResolver
+                .resolveCapabilityProfileForProject(project)
+                .supportsOslCalibration
+        )
+    }
+
+    /**
+     * Operator clear: wipe the live calibration, then return the re-derived
+     * session for the screen to adopt. Clearing resets readiness to NOT_STARTED
+     * with no shared session, so the rebuild always yields a fresh, uncaptured
+     * one.
+     */
+    fun clearCalibrationAndRebuildSession(project: ProjectData): CalibrationSession {
+        UsbSessionManager.clearCalibrationState()
+        return buildWizardCalibrationSession(project)
     }
 
     /*

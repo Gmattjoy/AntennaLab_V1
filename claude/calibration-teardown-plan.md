@@ -205,6 +205,8 @@ closed — (a) fixed, (b) dissolved, (c) decided-keep.
 ## Verification recipe
 
 1. `.\gradlew.bat test` — Tier 0 held at **506**; after the hard teardown, **479**, 0 failures.
+   (Those are teardown-era snapshots, not a standing target — the clear-calibration control since
+   took it to **482**.)
 2. `.\gradlew.bat assembleDebug` — the real safety net for deletion work, since Kotlin turns
    every missed reference into a hard error.
 3. **`.\gradlew.bat connectedDebugAndroidTest` — NEEDS A DEVICE OR EMULATOR, and is NOT part of
@@ -227,11 +229,16 @@ sound.
 
 ## Open items
 
-- **No operator path to clear a live calibration.** Every production caller of
-  `UsbSessionManager.clearCalibrationState()` is gone; the function is kept only for test
-  fixtures (7 files) and its own coverage at `CalibrationSessionLogicTest:116`. An operator
-  cannot discard a bad calibration short of restarting the app. **Flag before bench use** — decide
-  whether to add an explicit control (Device Connections is the natural home).
+- ~~**No operator path to clear a live calibration.**~~ — **PARTIALLY CLOSED.** The workspace
+  `CalibrationStatusCard` now carries a "Clear calibration" control behind a confirm dialog. It is
+  offered whenever readiness is past `NOT_STARTED` on OSL-capable hardware, and clearing wipes live
+  state *and* re-derives the screen's shadowed `calibrationSession` in one call
+  (`ProjectWorkspaceController.clearCalibrationAndRebuildSession`) — clearing the manager alone
+  would leave the card showing "Captured" over a wiped instrument, the exact honesty failure the
+  teardown exists to prevent. `clearCalibrationState()` therefore has a production caller again.
+  Verified on the emulator via the simulate-O/S/L path.
+  **Still open: the Device Connections entry.** That screen does not own the `ProjectPageScreen`
+  shadow, so clearing from there needs cross-screen state plumbing before it can be honest.
 - **Tier 2 step 2c bench caveat.** Entering unknown-discovery shows **STALE** on the emulator
   because there is no open USB session. On a real LiteVNA with an open session it should stay
   **VALID** — the downgrade is the staleness detector, not a wipe. **Verify on the bench**; if it

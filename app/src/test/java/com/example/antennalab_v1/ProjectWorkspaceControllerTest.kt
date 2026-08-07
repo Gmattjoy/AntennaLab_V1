@@ -13,6 +13,7 @@ import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.project.ProjectWorkspaceController
+import com.example.antennalab_v1.model.testing.CalibrationReadiness
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,8 +28,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Behavior coverage for the ProjectPageScreen workspace logic extracted into the
  * pure [ProjectWorkspaceController]: sweep-return merge, calibration-session
- * building (against the real shared UsbSessionManager truth), workflow guidance
- * derivations, and value/enum formatting. Real ProjectData model, no mocking.
+ * building (against the real shared UsbSessionManager truth), the operator
+ * clear-calibration decisions, workflow guidance derivations, and value/enum
+ * formatting. Real ProjectData model, no mocking.
  *
  * UsbSessionManager is a process-wide singleton, so calibration state is reset
  * before each test.
@@ -165,6 +167,93 @@ class ProjectWorkspaceControllerTest {
 
         assertNull(session.capturedSessionKey)
         assertEquals("Not captured yet", session.timestampLabel)
+    }
+
+    // ------------------------------------------------------------------
+    // Clear-calibration control
+    // ------------------------------------------------------------------
+
+    @Test
+    fun shouldShowClearCalibrationControl_hidesOnlyForNotStartedOrNoOsl() {
+        // NOT_STARTED has nothing to clear. Everything else does — including a
+        // half-captured IN_PROGRESS and a STALE calibration whose coefficients
+        // are still being applied to sweeps.
+        val clearable = listOf(
+            CalibrationReadiness.IN_PROGRESS,
+            CalibrationReadiness.VALID,
+            CalibrationReadiness.STALE,
+            CalibrationReadiness.INVALID
+        )
+
+        for (readiness in clearable) {
+            assertTrue(
+                "expected the control for $readiness on OSL hardware",
+                ProjectWorkspaceController.shouldShowClearCalibrationControl(
+                    readiness = readiness,
+                    supportsOslCalibration = true
+                )
+            )
+        }
+
+        assertFalse(
+            ProjectWorkspaceController.shouldShowClearCalibrationControl(
+                readiness = CalibrationReadiness.NOT_STARTED,
+                supportsOslCalibration = true
+            )
+        )
+
+        // No OSL support -> never offered, whatever the readiness.
+        for (readiness in CalibrationReadiness.values()) {
+            assertFalse(
+                "expected no control for $readiness without OSL support",
+                ProjectWorkspaceController.shouldShowClearCalibrationControl(
+                    readiness = readiness,
+                    supportsOslCalibration = false
+                )
+            )
+        }
+    }
+
+    @Test
+    fun shouldShowClearCalibrationControlForProject_followsLiveCalibrationState() {
+        // Both shipping capability profiles enable OSL, so the adapter can only
+        // exercise the readiness term — the OSL term is covered by the pure
+        // function above.
+        val project = ProjectData(testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3)
+
+        // @Before cleared calibration state -> NOT_STARTED.
+        assertFalse(ProjectWorkspaceController.shouldShowClearCalibrationControlForProject(project))
+
+        UsbSessionManager.registerSimulatedCalibrationSession(completeSession())
+
+        assertTrue(ProjectWorkspaceController.shouldShowClearCalibrationControlForProject(project))
+    }
+
+    @Test
+    fun clearCalibrationAndRebuildSession_wipesLiveStateAndReturnsFreshSession() {
+        val project = ProjectData(
+            designInput = DesignInput(targetFrequencyMHz = 14.2),
+            testHardwareProfile = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+        UsbSessionManager.registerSimulatedCalibrationSession(completeSession())
+
+        // Precondition: the wizard hand-off is currently reusing a captured calibration.
+        assertTrue(
+            ProjectWorkspaceController.buildWizardCalibrationSession(project).isFullyCaptured()
+        )
+
+        val rebuilt = ProjectWorkspaceController.clearCalibrationAndRebuildSession(project)
+
+        // The returned session is what the screen adopts — it must not claim captures.
+        assertFalse(rebuilt.hasAnyCapturedStep())
+        assertNull(rebuilt.capturedSessionKey)
+        assertEquals("Not captured yet", rebuilt.timestampLabel)
+        assertNull(rebuilt.correction)
+
+        // And the live instrument truth is genuinely wiped, not just shadowed over.
+        val liveState = UsbSessionManager.getLatestInstrumentCalibrationState()
+        assertEquals(CalibrationReadiness.NOT_STARTED, liveState.readiness)
+        assertNull(liveState.calibrationSession)
     }
 
     // ------------------------------------------------------------------

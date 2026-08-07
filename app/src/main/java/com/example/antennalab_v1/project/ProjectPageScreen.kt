@@ -82,6 +82,8 @@ import com.example.antennalab_v1.model.ProjectSweepHistoryMode
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.CalibrationSession
 import com.example.antennalab_v1.storage.ProjectStorage
+import com.example.antennalab_v1.ui.components.AppActionButton
+import com.example.antennalab_v1.ui.components.AppActionVariant
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,6 +120,7 @@ fun ProjectPageScreen(
     var actionMessage by remember { mutableStateOf("") }
     var showSaveAsDialog by remember { mutableStateOf(false) }
     var saveAsName by remember { mutableStateOf("") }
+    var showClearCalibrationDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(project.meta.projectId) {
         workingProject = project
@@ -127,6 +130,7 @@ fun ProjectPageScreen(
         actionMessage = ""
         showSaveAsDialog = false
         saveAsName = project.meta.projectName
+        showClearCalibrationDialog = false
 
         if (section != ProjectSection.TESTING && section != ProjectSection.DESIGN) {
             section = ProjectSection.OVERVIEW
@@ -184,6 +188,39 @@ fun ProjectPageScreen(
             dismissButton = {
                 TextButton(
                     onClick = { showSaveAsDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showClearCalibrationDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCalibrationDialog = false },
+            title = { Text("Clear calibration?") },
+            text = {
+                Text("Discard the current calibration? The instrument will be uncalibrated until you recalibrate.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // Clearing the live state and re-deriving the shadowed session
+                        // is ONE call — leaving the card rendering "Captured" over a
+                        // cleared instrument is the calibration-honesty failure this
+                        // control exists to avoid.
+                        calibrationSession =
+                            ProjectWorkspaceController.clearCalibrationAndRebuildSession(workingProject)
+                        actionMessage = "Calibration cleared. The instrument is uncalibrated until you recalibrate."
+                        showClearCalibrationDialog = false
+                    }
+                ) {
+                    Text("Clear calibration")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showClearCalibrationDialog = false }
                 ) {
                     Text("Cancel")
                 }
@@ -390,6 +427,7 @@ fun ProjectPageScreen(
                                 calibrationSession = buildWizardCalibrationSession(workingProject)
                                 showCalibrationWizard = true
                             },
+                            onClearCalibration = { showClearCalibrationDialog = true },
                             onRunDemoSweep = { showSweep = true },
                             onRunRealSweep = {
                                 calibrationSession = buildWizardCalibrationSession(workingProject)
@@ -865,6 +903,7 @@ fun TestingSection(
     project: ProjectData,
     calibrationSession: CalibrationSession,
     onStartCalibration: () -> Unit,
+    onClearCalibration: () -> Unit,
     onRunDemoSweep: () -> Unit,
     onRunRealSweep: () -> Unit,
     onOpenSystemDevices: () -> Unit
@@ -878,7 +917,16 @@ fun TestingSection(
         // profile — a project saved as NanoVNA with a LiteVNA attached would
         // otherwise answer for the wrong device.
         if (EffectiveHardwareResolver.resolveCapabilityProfileForProject(project).supportsOslCalibration) {
-            CalibrationStatusCard(calibrationSession = calibrationSession, onStartCalibration = onStartCalibration)
+            CalibrationStatusCard(
+                calibrationSession = calibrationSession,
+                // Same live-instrument truth, plus "is there anything to clear" —
+                // the control carries its own honest gate rather than inheriting
+                // this one.
+                showClearControl =
+                    ProjectWorkspaceController.shouldShowClearCalibrationControlForProject(project),
+                onStartCalibration = onStartCalibration,
+                onClearCalibration = onClearCalibration
+            )
         }
         MeasurementActionsCard(realSweepStatus = realSweepStatus, onRunDemoSweep = onRunDemoSweep, onRunRealSweep = onRunRealSweep)
         RecommendedWorkflowCard(realSweepStatus = realSweepStatus)
@@ -923,7 +971,9 @@ private fun SystemConnectionStatusCard(
 @Composable
 private fun CalibrationStatusCard(
     calibrationSession: CalibrationSession,
-    onStartCalibration: () -> Unit
+    showClearControl: Boolean,
+    onStartCalibration: () -> Unit,
+    onClearCalibration: () -> Unit
 ) {
     SectionCard(title = "Calibration Status") {
         DataRow("Hardware", calibrationSession.hardwareDisplayName)
@@ -942,6 +992,13 @@ private fun CalibrationStatusCard(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
         Text("Professional measurement mode should complete OPEN / SHORT / LOAD calibration before real hardware sweeps.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         PrimaryActionButton(text = "Start Calibration Wizard", onClick = onStartCalibration)
+        if (showClearControl) {
+            AppActionButton(
+                text = "Clear calibration",
+                variant = AppActionVariant.STANDARD,
+                onClick = onClearCalibration
+            )
+        }
     }
 }
 
