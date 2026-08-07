@@ -1062,7 +1062,16 @@ fun SweepScalarTraceView(
     site is unchanged; the Phase-3 chart grid passes a smaller value to
     fit a cell.
     */
-    heightDp: Dp = 240.dp
+    heightDp: Dp = 240.dp,
+    /*
+    Half-width hosting (the Phase-3 chart grid cell). Full width is the
+    default, so every existing call site keeps today's layout exactly.
+    Compact drops the embedded header and footer — the grid cell already
+    titles the chart, and the footer is a constant string there — and
+    thins the axis labels so they fit instead of collapsing into stacked
+    digit fragments.
+    */
+    compact: Boolean = false
 ) {
     val points = result.points
     val currentValues = points.map { getDisplayValue(it, mode) }
@@ -1081,11 +1090,28 @@ fun SweepScalarTraceView(
     )
     val minValue = axisBounds.minimum
     val range = axisBounds.range
-    val yAxisLabels = buildAxisLabels(axisBounds.maximum, minValue, count = 5)
+    val yAxisLabels =
+        buildAxisLabels(axisBounds.maximum, minValue, count = if (compact) 3 else 5)
     val frequencyTicks = buildFrequencyTicks(
         startMHz = result.startFrequencyMHz,
         endMHz = result.endFrequencyMHz
     )
+    /*
+    Presentational thinning only — the tick VALUES still come from
+    buildFrequencyTicks. A grid cell is ~160 dp wide, which fits the span
+    endpoints and nothing more: measured on device, even three labels wrap
+    ("14." / "45"). Start and end are also the honest minimum for orienting
+    a trace, since every intermediate value is linear between them.
+    */
+    val visibleFrequencyTicks =
+        if (compact) listOfNotNull(frequencyTicks.firstOrNull(), frequencyTicks.lastOrNull())
+        else frequencyTicks
+
+    // Gutter and the tick row's start padding are the same measurement; they
+    // were previously written as 56+8 and a separately-hardcoded 64.
+    val axisGutter = if (compact) 40.dp else 56.dp
+    val axisGutterEnd = if (compact) 4.dp else 8.dp
+
     val widgetAccent = MaterialTheme.colorScheme.primary
 
     val activeValues =
@@ -1098,26 +1124,30 @@ fun SweepScalarTraceView(
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            SharedInstrumentSubHeader(
-                text = getTraceAxisTitle(mode, traceCompareMode),
-                instrumentTextPrimary = instrumentTextPrimary
-            )
-            SharedInstrumentMutedText(
-                text = getTraceModeSummary(traceCompareMode),
-                instrumentTextSecondary = instrumentTextSecondary
-            )
+        // Suppressed in a grid cell: the cell already renders the ChartKind
+        // title, so this would be a second one.
+        if (!compact) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SharedInstrumentSubHeader(
+                    text = getTraceAxisTitle(mode, traceCompareMode),
+                    instrumentTextPrimary = instrumentTextPrimary
+                )
+                SharedInstrumentMutedText(
+                    text = getTraceModeSummary(traceCompareMode),
+                    instrumentTextSecondary = instrumentTextSecondary
+                )
+            }
         }
 
         Row {
             Column(
                 modifier = Modifier
-                    .width(56.dp)
+                    .width(axisGutter)
                     .height(heightDp)
-                    .padding(end = 8.dp),
+                    .padding(end = axisGutterEnd),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
@@ -1160,10 +1190,10 @@ fun SweepScalarTraceView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 64.dp),
+                .padding(start = axisGutter + axisGutterEnd),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            frequencyTicks.forEach { tick ->
+            visibleFrequencyTicks.forEach { tick ->
                 SharedInstrumentMutedText(
                     text = tick,
                     instrumentTextSecondary = instrumentTextSecondary
@@ -1171,37 +1201,42 @@ fun SweepScalarTraceView(
             }
         }
 
-        when (traceCompareMode) {
-            TraceCompareMode.CURRENT_ONLY -> {
-                SharedInstrumentValueText(
-                    text = "Trace Mode: Current only",
-                    instrumentTextPrimary = instrumentTextPrimary
-                )
+        // Suppressed in a grid cell: the grid always renders CURRENT_ONLY with
+        // no reference, so this footer is a constant string there, and the
+        // resonance frequency is already carried by the workspace's own cards.
+        if (!compact) {
+            when (traceCompareMode) {
+                TraceCompareMode.CURRENT_ONLY -> {
+                    SharedInstrumentValueText(
+                        text = "Trace Mode: Current only",
+                        instrumentTextPrimary = instrumentTextPrimary
+                    )
+                }
+
+                TraceCompareMode.CURRENT_PLUS_REFERENCE -> {
+                    SharedInstrumentValueText(
+                        text = "Trace Overlay: Primary = current, Grey = reference",
+                        instrumentTextPrimary = instrumentTextPrimary
+                    )
+                }
+
+                TraceCompareMode.DIFFERENCE -> {
+                    SharedInstrumentValueText(
+                        text = "Trace Math: Magenta = current minus reference, Green = zero line",
+                        instrumentTextPrimary = instrumentTextPrimary
+                    )
+                }
             }
 
-            TraceCompareMode.CURRENT_PLUS_REFERENCE -> {
-                SharedInstrumentValueText(
-                    text = "Trace Overlay: Primary = current, Grey = reference",
-                    instrumentTextPrimary = instrumentTextPrimary
+            resonanceIndex?.let { index ->
+                SharedInstrumentMutedText(
+                    text = String.format(
+                        "Resonance marker: %.3f MHz",
+                        result.points[index].frequencyMHz
+                    ),
+                    instrumentTextSecondary = instrumentTextSecondary
                 )
             }
-
-            TraceCompareMode.DIFFERENCE -> {
-                SharedInstrumentValueText(
-                    text = "Trace Math: Magenta = current minus reference, Green = zero line",
-                    instrumentTextPrimary = instrumentTextPrimary
-                )
-            }
-        }
-
-        resonanceIndex?.let { index ->
-            SharedInstrumentMutedText(
-                text = String.format(
-                    "Resonance marker: %.3f MHz",
-                    result.points[index].frequencyMHz
-                ),
-                instrumentTextSecondary = instrumentTextSecondary
-            )
         }
     }
 }

@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import com.example.antennalab_v1.domain.analysis.AdjustmentEstimate
 import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassification
+import com.example.antennalab_v1.domain.analysis.ChartLayoutMath
 import com.example.antennalab_v1.domain.analysis.TuningSuggestionReport
 import com.example.antennalab_v1.domain.analysis.TuningWorkflowReport
 import com.example.antennalab_v1.BuildConfig
@@ -40,6 +41,7 @@ import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.features.app.BenchStateLog
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
+import com.example.antennalab_v1.features.testing.charts.SweepChartGrid
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DriverProfile
 import com.example.antennalab_v1.model.ProjectData
@@ -472,6 +474,32 @@ fun SweepGraphScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                /*
+                ADDITIVE, not a replacement for "Active Display" above. The grid covers
+                3 of SweepDisplayMode's 12 values (SWR, RETURN_LOSS, SMITH) plus PHASE,
+                which the legacy enum has no value for. Swapping the when-block for this
+                would drop the four analog gauges, waterfall, R, X, impedance locus and
+                S21 estimate, and the Simple/Full toggle that would give them back is a
+                later slice. Both surfaces stay until that toggle exists.
+
+                Capabilities come from measurementCapabilities, resolved via
+                EffectiveHardwareResolver at the top of this screen — the instrument
+                actually measuring, never project.testHardwareProfile.
+                */
+                InstrumentCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        InstrumentSectionHeader("Chart grid")
+
+                        SweepChartGrid(
+                            result = result,
+                            kinds = ChartLayoutMath.availableChartKinds(measurementCapabilities),
+                            markerAIndex = markerAIndex,
+                            markerBIndex = markerBIndex,
+                            onCellTap = null
+                        )
                     }
                 }
 

@@ -213,7 +213,10 @@ private fun ChartGridCell(
                     instrumentBlue = semantic.info,
                     instrumentMagenta = semantic.warning,
                     instrumentGreen = semantic.success,
-                    heightDp = cellHeight
+                    heightDp = cellHeight,
+                    // Half-width cell: drop the embedded header/footer and thin
+                    // the axis labels, which otherwise collapse illegibly.
+                    compact = true
                 )
             }
         }
