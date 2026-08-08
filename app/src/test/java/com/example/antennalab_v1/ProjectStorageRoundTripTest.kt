@@ -84,6 +84,17 @@ class ProjectStorageRoundTripTest {
     }
 
     @Test
+    fun saveLoad_doesNotWriteUiState() {
+        ProjectStorage.saveProject(context, projectWithHistory())
+        val json = JSONObject(findSavedProjectFile().readText())
+
+        assertFalse(
+            "uiState is a preference, not a project fact — settings never live in ProjectData",
+            json.has("uiState")
+        )
+    }
+
+    @Test
     fun load_defaultsWhenNewKeysAbsent_forLegacySaves() {
         ProjectStorage.saveProject(context, projectWithHistory())
 
@@ -174,5 +185,54 @@ class ProjectStorageRoundTripTest {
         assertEquals(26, entry.requestedPointCount)
         assertTrue(entry.isCalibrated)
         assertFalse(entry.isComplete)
+    }
+
+    /**
+     * THE BOUNDARY GUARD (slice 5b). A project saved before ProjectUiState was
+     * torn out still carries a `uiState` blob — lastOpenedSection,
+     * lastExpandedCard, hasSeenProjectIntro. Loading it must ignore the blob
+     * entirely and preserve every other field.
+     *
+     * Same mechanism as the calibration guard above, and pinned for the same
+     * reason: fromJson builds ProjectData from named optional lookups with no
+     * schema validation, so a key nobody reads is simply dropped. There is
+     * deliberately NO migration — the orphan key just disappears the next time
+     * the project is saved, which [saveLoad_doesNotWriteUiState] covers.
+     */
+    @Test
+    fun load_legacyUiStateBlob_isIgnored_andRestOfProjectSurvives() {
+        ProjectStorage.saveProject(context, projectWithHistory())
+
+        val file = findSavedProjectFile()
+        val json = JSONObject(file.readText())
+
+        // Exactly the shape the pre-teardown writer produced.
+        json.put(
+            "uiState",
+            JSONObject().apply {
+                put("lastOpenedSection", "TESTING")
+                put("lastExpandedCard", "TEST_STATUS")
+                put("hasSeenProjectIntro", true)
+            }
+        )
+        file.writeText(json.toString())
+
+        // Must not throw.
+        val loaded = ProjectStorage.loadProject(context)
+
+        // Everything that is not uiState survives untouched.
+        assertEquals("Legacy 20 m Dipole", loaded.meta.projectName)
+        assertEquals(14.2, loaded.designInput.targetFrequencyMHz, 1e-9)
+        assertEquals(1, loaded.sweepHistory.size)
+        val entry = loaded.sweepHistory.first()
+        assertEquals("NanoVNA-H4", entry.hardwareName)
+        assertEquals(18, entry.actualPointCount)
+        assertEquals(26, entry.requestedPointCount)
+        assertTrue(entry.isCalibrated)
+        assertFalse(entry.isComplete)
+
+        // And re-saving drops the orphan rather than preserving it.
+        ProjectStorage.saveProject(context, loaded)
+        assertFalse(JSONObject(findSavedProjectFile().readText()).has("uiState"))
     }
 }
