@@ -107,6 +107,14 @@ fun SweepChartGrid(
 
     val columns = ChartLayoutMath.gridColumnCount(kinds.size)
 
+    /*
+    One expression, no `columns == 1` branch at the call site. A lone
+    supported chart takes the full row, so its cell is not compact and picks
+    up the wide gutter, the full tick set and a 66/10 band strip — the same
+    geometry an expanded cell will use, decided once rather than twice.
+    */
+    val cellsCompact = ChartLayoutMath.cellsAreCompact(kinds.size)
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
@@ -124,6 +132,7 @@ fun SweepChartGrid(
                         markerAIndex = markerAIndex,
                         markerBIndex = markerBIndex,
                         cellHeight = cellHeight,
+                        compact = cellsCompact,
                         onTap = onCellTap
                     )
                 }
@@ -151,6 +160,14 @@ private fun ChartGridCell(
     markerAIndex: Int,
     markerBIndex: Int,
     cellHeight: Dp,
+    /*
+    Half-width hosting. Defaults true because that is what every cell in a
+    paired grid is; SweepChartGrid derives the real value from
+    ChartLayoutMath.cellsAreCompact so a sole chart is not compact. Same
+    defaulting discipline slice 4b used on PhaseTraceCell — the default is
+    what keeps the multi-chart grid byte-for-byte unchanged.
+    */
+    compact: Boolean = true,
     modifier: Modifier = Modifier,
     onTap: ((ChartKind) -> Unit)? = null
 ) {
@@ -195,7 +212,8 @@ private fun ChartGridCell(
                     result = result,
                     markerAIndex = markerAIndex,
                     markerBIndex = markerBIndex,
-                    cellHeight = cellHeight
+                    cellHeight = cellHeight,
+                    compact = compact
                 )
 
                 ChartKind.SWR, ChartKind.RETURN_LOSS -> SweepScalarTraceView(
@@ -214,9 +232,16 @@ private fun ChartGridCell(
                     instrumentMagenta = semantic.warning,
                     instrumentGreen = semantic.success,
                     heightDp = cellHeight,
-                    // Half-width cell: drop the embedded header/footer and thin
-                    // the axis labels, which otherwise collapse illegibly.
-                    compact = true
+                    // Width-driven: thins the axis labels, which otherwise
+                    // collapse illegibly in a half-width cell.
+                    compact = compact,
+                    // Hosting-driven, so ALWAYS false here regardless of width —
+                    // this cell already renders chartTitle(kind) above, and the
+                    // grid always passes CURRENT_ONLY so the footer would be a
+                    // constant string. Split from `compact` in 4c-i precisely so
+                    // a full-width sole chart can take the wide gutter without
+                    // also gaining a second title.
+                    showHeaderAndFooter = false
                 )
             }
 
@@ -224,32 +249,32 @@ private fun ChartGridCell(
             Band strip, on the kinds that plot against frequency. Smith is
             excluded by hasFrequencyAxis, not by a local `!= SMITH`.
 
-            Passing SCALAR is not a slip: since slice 4b both renderers resolve
-            through ONE merged arm in plotInsetsFor, so they cannot differ — a
-            stronger guarantee than 3b-i's two constants agreeing. One value
-            serves every cell here, and naming one renderer reads better than
-            branching to prove they match.
-            plotInsets_phaseAndScalarCompactAreIdentical fails first if someone
-            re-splits that arm.
+            The inset FOLLOWS THE CELL'S OWN FLAG (4c-i, discharging the marker
+            slice 4b left here). It used to hardcode compact = true, which was
+            correct only while every cell was half-width: at compact = false the
+            plot starts at 66 while a pinned strip stays at 50 — 16 dp out, and
+            on a sole chart or an expanded one that is the chart the operator is
+            actually looking at.
 
-            SLICE 4C MUST CHANGE THIS: `compact = true` is hardcoded, which is
-            correct while every cell is a half-width grid cell. The moment 4c
-            renders an expanded cell at compact = false, its plot starts at 66
-            while this strip stays at 50 — a 16 dp misalignment on the one
-            chart the operator is looking at. Thread the cell's own flag.
-            (Same latent case, already live: a lone supported chart takes the
-            full row via gridColumnCount(1) yet still renders compact.)
+            The renderer is named honestly too. Since 4b both resolve through
+            ONE merged arm in plotInsetsFor so they cannot differ — which makes
+            this branch cosmetic today, and worth keeping anyway: it survives a
+            re-split instead of quietly mis-insetting half the cells.
+            plotInsets_phaseAndScalarCompactAreIdentical fails first if someone
+            splits that arm.
 
             The overlay and the renderers are siblings in this Column, so both
             measure from the same content edge and the inset lands on the plot.
-            Compact suppresses the scalar footer, so the strip sits directly
-            under the tick row — and since 4b the phase cell has a tick row
-            too, so the two strips in a row pair sit on one line.
+            The scalar footer is suppressed here at any width, so the strip sits
+            directly under the tick row — and since 4b the phase cell has a tick
+            row too, so the two strips in a row pair sit on one line.
             */
             if (ChartLayoutMath.hasFrequencyAxis(kind)) {
                 val bandInsets = ChartLayoutMath.plotInsetsFor(
-                    renderer = ChartLayoutMath.PlotRenderer.SCALAR,
-                    compact = true
+                    renderer =
+                        if (kind == ChartKind.PHASE) ChartLayoutMath.PlotRenderer.PHASE
+                        else ChartLayoutMath.PlotRenderer.SCALAR,
+                    compact = compact
                 )
                 BandAxisOverlay(
                     axisStartMHz = result.startFrequencyMHz,

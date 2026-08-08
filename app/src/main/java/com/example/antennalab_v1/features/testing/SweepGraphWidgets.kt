@@ -1069,12 +1069,26 @@ fun SweepScalarTraceView(
     /*
     Half-width hosting (the Phase-3 chart grid cell). Full width is the
     default, so every existing call site keeps today's layout exactly.
-    Compact drops the embedded header and footer — the grid cell already
-    titles the chart, and the footer is a constant string there — and
-    thins the axis labels so they fit instead of collapsing into stacked
-    digit fragments.
+    Compact narrows the gutter and thins the axis labels so they fit
+    instead of collapsing into stacked digit fragments.
+
+    GEOMETRY ONLY — this is a statement about WIDTH. It used to also gate
+    the header and footer, which is a statement about HOSTING; see below.
     */
-    compact: Boolean = false
+    compact: Boolean = false,
+    /*
+    Whether to draw the embedded header and footer. Split out of `compact`
+    in slice 4c-i, because the two reasons were never the same reason: the
+    chrome is suppressed in a grid cell because THE CELL ALREADY TITLES THE
+    CHART and the grid always renders CURRENT_ONLY (making the footer a
+    constant string) — both true at any width.
+
+    Conflated, a full-width sole chart in the grid (gridColumnCount(1) == 1)
+    could not take the wide gutter without also gaining a second title and a
+    constant footer. Defaults to !compact, so every existing call site is
+    byte-for-byte unchanged; the grid passes false explicitly at both widths.
+    */
+    showHeaderAndFooter: Boolean = !compact
 ) {
     val points = result.points
     val currentValues = points.map { getDisplayValue(it, mode) }
@@ -1135,8 +1149,9 @@ fun SweepScalarTraceView(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Suppressed in a grid cell: the cell already renders the ChartKind
-        // title, so this would be a second one.
-        if (!compact) {
+        // title, so this would be a second one. Keyed on hosting, not width —
+        // that stays true for a full-width sole chart in the grid.
+        if (showHeaderAndFooter) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1228,7 +1243,9 @@ fun SweepScalarTraceView(
         // Suppressed in a grid cell: the grid always renders CURRENT_ONLY with
         // no reference, so this footer is a constant string there, and the
         // resonance frequency is already carried by the workspace's own cards.
-        if (!compact) {
+        // Keyed on hosting, not width — a wider cell does not make a constant
+        // string informative.
+        if (showHeaderAndFooter) {
             when (traceCompareMode) {
                 TraceCompareMode.CURRENT_ONLY -> {
                     SharedInstrumentValueText(
