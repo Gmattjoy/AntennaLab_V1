@@ -161,6 +161,36 @@ object SweepMarkerMath {
     }
 
     /*
+    --------------------------------------------------------------------
+    A/B -> labelled rows
+    EDIT SECTION 1006b
+    --------------------------------------------------------------------
+    Pairs each PRESENT marker with ITS OWN label before the list is
+    flattened, because the readout table labels positionally
+    (MarkerReadoutTable: markerLabels.getOrElse(index)). A bare
+    listOfNotNull(a, b) therefore renders a lone marker B as "Marker A" —
+    an unplaced marker's index is -1, so getOrNull yields null and that
+    case is reachable in normal use. Label and readout travel together
+    from here on.
+    --------------------------------------------------------------------
+    */
+    fun buildLabelledMarkerReadouts(
+        markerAPoint: SweepPoint?,
+        markerBPoint: SweepPoint?,
+        region: IaruRegion = AmateurBandPlan.DEFAULT_REGION
+    ): List<LabelledMarkerReadout> = buildList {
+        markerAPoint?.let {
+            add(LabelledMarkerReadout(MARKER_A_LABEL, buildMarkerReadout(it, region)))
+        }
+        markerBPoint?.let {
+            add(LabelledMarkerReadout(MARKER_B_LABEL, buildMarkerReadout(it, region)))
+        }
+    }
+
+    const val MARKER_A_LABEL = "Marker A"
+    const val MARKER_B_LABEL = "Marker B"
+
+    /*
     ====================================================================
     FORMATTERS
     EDIT SECTION 1007
@@ -260,6 +290,20 @@ EDIT SECTION 1009
 Raw values for charts, *Text values for the readout table.
 --------------------------------------------------------------------
 */
+/*
+--------------------------------------------------------------------
+A readout with the marker it belongs to
+EDIT SECTION 1009b
+--------------------------------------------------------------------
+Keeps the name attached to the row so no downstream index arithmetic
+can rename a marker. See buildLabelledMarkerReadouts.
+--------------------------------------------------------------------
+*/
+data class LabelledMarkerReadout(
+    val label: String,
+    val readout: MarkerReadout
+)
+
 data class MarkerReadout(
     val frequencyMHz: Double,
     val swr: Double,

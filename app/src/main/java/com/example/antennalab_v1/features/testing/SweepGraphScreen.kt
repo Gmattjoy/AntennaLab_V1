@@ -37,10 +37,12 @@ import com.example.antennalab_v1.domain.analysis.TuningWorkflowReport
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.SweepController
+import com.example.antennalab_v1.domain.testing.SweepMarkerMath
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.features.app.BenchStateLog
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
+import com.example.antennalab_v1.features.testing.charts.MarkerReadoutTable
 import com.example.antennalab_v1.features.testing.charts.SweepChartGrid
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DriverProfile
@@ -501,6 +503,29 @@ fun SweepGraphScreen(
                             onCellTap = null
                         )
                     }
+                }
+
+                /*
+                Rendered BARE — no InstrumentCard wrapper. MarkerReadoutTable
+                supplies its own bordered Surface and its own title, so wrapping
+                it would duplicate both (the defect slice 1's compact flag exists
+                to remove). Always rendered when the marker system is on: the
+                component has a designed "No marker placed." state, and hiding
+                the table would stop the operator ever learning it exists.
+
+                Labels come paired with their readouts from
+                buildLabelledMarkerReadouts — the table labels positionally, so a
+                bare listOfNotNull would rename a lone marker B to "Marker A".
+                */
+                if (capabilityProfile.supportsMarkerSystem) {
+                    val labelledMarkers = SweepMarkerMath.buildLabelledMarkerReadouts(
+                        markerAPoint = markerAPoint,
+                        markerBPoint = markerBPoint
+                    )
+                    MarkerReadoutTable(
+                        markers = labelledMarkers.map { it.readout },
+                        markerLabels = labelledMarkers.map { it.label }
+                    )
                 }
 
                 if (capabilityProfile.supportsMarkerSystem) {

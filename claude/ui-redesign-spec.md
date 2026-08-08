@@ -100,8 +100,23 @@ viewer's chart set is settled, not before.
 same `SweepExportWriter` seam and move to a pure builder beside `TouchstoneExport` —
 deliberately kept as a separate task.
 
-**Then Phase 4 (Sweep Viewer) will want the VNAs back** — the multi-chart grid, markers and `.s1p` export
-need real-data verification on hardware, so schedule P4 review against a bench session, not headless.
+**⚠ SUPERSEDED 2026-08-08 — see correction below.** ~~Then Phase 4 (Sweep Viewer) will want the VNAs
+back — the multi-chart grid, markers and `.s1p` export need real-data verification on hardware, so
+schedule P4 review against a bench session, not headless.~~
+
+> **⚠ CORRECTED 2026-08-08 — the paragraph above is superseded; kept as the record of why P4 was
+> scheduled against a bench session.** This is the SAME correction already applied to the `.s1p`
+> export item below, which was never propagated up here. The debug simulated-sweep route
+> ("Simulated sweep (no device)", shipped in `1089e32`) produces a full `SweepResult` stamped
+> SIMULATED end-to-end with no VNA attached, so **the multi-chart grid, marker readout and export
+> UI are all reachable and verifiable on a bare emulator.** Proven in practice: P4 slices 1
+> (`0d5eb60`) and 2 were both built and verified headless on an API 36 emulator, including
+> confirming `PhaseTraceCell` derives phase from R/X via `gammaFromPoint` rather than the
+> simulator's junk `s11PhaseDegrees`.
+>
+> What still genuinely wants hardware is **real-data fidelity** — does a real trace look sane at a
+> real span — not the wiring or the layout. Schedule P4 *review* against a bench session if you
+> like; do not let a bench slot gate P4 *work*.
 
 ### Still-open DEVICE-VERIFICATION items — treat every one as unproven, not assumed-good
 Bench/VNA items: see `claude/hardware-bringup-litevna64.md`.
@@ -394,6 +409,21 @@ phases; commit per phase.
 ---
 
 ## 5. Change log
+- 2026-08-08 — **Phase 4 started, sliced.** Slice 1 (`0d5eb60`) wired `SweepChartGrid` +
+  `PhaseTraceCell` into `SweepGraphScreen` as an **additive** "Chart grid" section beside the
+  legacy "Active Display" — not a replacement, because the grid covers 3 of `SweepDisplayMode`'s
+  12 values plus PHASE, and dropping the `when`-block would delete 9 modes before the Simple/Full
+  toggle exists to restore them. No enum change: `SweepChartGrid`'s existing
+  `ChartKind`→`SweepDisplayMode` adapter routes SWR/RETURN_LOSS, while SMITH and PHASE bypass the
+  legacy enum. Slice 1 also added an additive `compact` flag to `SweepScalarTraceView` (default
+  `false`, legacy call site unchanged) after the half-width cells were measured rendering
+  collapsed, illegible axis labels. Slice 2 wired `MarkerReadoutTable`, with the A/B→label
+  pairing extracted to the pure `SweepMarkerMath.buildLabelledMarkerReadouts` and tested — the
+  table labels positionally, so a lone marker B would otherwise have rendered as "Marker A".
+  Suite 483 → 488. **Remaining:** slice 3 `BandAxisOverlay`, slice 4 tap-to-expand, slice 5 the
+  Simple/Full toggle — which is where **open question 1** and the `ChartKind` vs
+  `SweepDisplayMode` unification finally get decided. Open questions 2 and 3 are still open and
+  now block slice 5, not slice 3.
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked

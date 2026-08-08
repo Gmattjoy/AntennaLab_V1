@@ -51,7 +51,7 @@ Counts exclude the theme layer. "Local buttons" = screen-private button composab
 |---|---|---|---|---|---|---|---|---|
 | 1 | **Dashboard** (`home`) | `features/app/DashboardScreen.kt` | `AppActionButton` ×3 (loop) + 1 raw `TextButton` ("See all") | **0 literal dp** — all `spacing.*` | Material roles only | via primitives (`field`/`comfortable`/`min`) | `MetricCard` + `StatusPill` | ✅ **P1 compliant** |
 | 2 | **Device Connections** | `features/app/DeviceConnectionsScreen.kt` | `AppActionButton` ×7, no raw | **0 literal dp** (since `be6f343`) | Material roles only | via primitives | `MetricCard` + `StatusPill` | ✅ **P2 compliant** |
-| 3 | Chart components | `features/testing/charts/*` (4 files) | none | tokens; 8 literal dp | tokens | tokens | thin, token-based | ✅ **P3 compliant — NOT WIRED IN** |
+| 3 | Chart components | `features/testing/charts/*` (4 files) | none | tokens; 8 literal dp | tokens | tokens | thin, token-based | ✅ **P3 compliant — 3 of 4 WIRED IN** (see note) |
 | 4 | **Project workspace** — Overview / Design / Materials / Testing / Notes | `project/ProjectPageScreen.kt` | `AppActionButton` ×1 + **6 local** (`PrimaryActionButton`, `SecondaryActionButton`, `SmallActionButton`, `TabButton`, `ClassificationButton`, `HardwareButton`) + 10 raw | **20 literal dp**, 0 tokens | Material roles | none tokened | bespoke `SectionCard`/`DataRow` ×14 | ⛔ pre-redesign (**P5**) |
 | 5 | Project dialogs (Save As, Clear calibration) | `project/ProjectPageScreen.kt:155,199` | raw `TextButton` ×4 | dialog defaults | defaults | defaults | `AlertDialog` | ⛔ pre-redesign (**P5**) |
 | 6 | **Sweep Viewer** | `features/testing/SweepGraphScreen.kt` | `AppActionButton` ×2 (`S1pExportCard` only) + 9 raw | **12 literal dp**, 0 tokens | **95 `Instrument*` refs** | none | 20 bespoke cards/panels | ⛔ pre-redesign (**P4**) |
@@ -172,7 +172,9 @@ interactive surface relies on Material defaults or bare literals.
 
 9. **Device Connections** ✅ — full P2, now **0 literal dp** after the F3 deletion.
 10. **Dashboard** ✅ — full P1, **0 literal dp**. Only nit: raw `TextButton` for "See all".
-11. **Chart components** ✅ — P3-compliant, but **previews only, not wired into the viewer**.
+11. **Chart components** ✅ — P3-compliant, and **3 of 4 now consumed by the viewer**:
+    `SweepChartGrid` + `PhaseTraceCell` (P4 slice 1, `0d5eb60`) and `MarkerReadoutTable`
+    (P4 slice 2). **`BandAxisOverlay` is still previews-only — slice 3.**
 
 ---
 
@@ -213,8 +215,18 @@ Suite 482 → 483, 0 failures.
 
 ### OPEN — roadmap
 
-- **P4 · Sweep Viewer stack** — the largest drift surface; also where the built-but-unwired
-  **P3 chart components** finally get consumed. Needs bench/VNA time, not a headless session.
+- **P4 · Sweep Viewer stack** — the largest drift surface; also where the **P3 chart
+  components** get consumed. **In progress, sliced:** slice 1 (`0d5eb60`) wired
+  `SweepChartGrid` + `PhaseTraceCell` in as an additive "Chart grid" section beside the legacy
+  "Active Display", plus an additive `compact` flag on `SweepScalarTraceView` so half-width
+  cells stay legible; slice 2 wired `MarkerReadoutTable`. **Remaining:** slice 3
+  `BandAxisOverlay`, slice 4 tap-to-expand, slice 5 the Simple/Full toggle — which is where the
+  4 `ChartKind`s vs 12 `SweepDisplayMode`s fork finally gets decided, and where the F2 duplicate
+  50/48 dp primitives get consolidated.
+  **Off-bench, not bench-gated** — the debug simulated-sweep route (`1089e32`) produces a full
+  `SweepResult` with no VNA attached, so the layout work is verifiable on an emulator. Only
+  real-data *fidelity* wants hardware. (The spec's older "P4 will want the VNAs back" note
+  predates that route.)
 - **P5 · Project workspace** — `ProjectPageScreen` re-flow onto the new IA and tokens.
 - **P6 · Project manager + calibration-wizard polish** — per-project badges, O/S/L visual
   throughline.
@@ -260,3 +272,10 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
 
 - 2026-08-07 — Initial audit, all screens catalogued. Defect rows closed the same day by
   `be6f343`; counts in §0 and §1 are post-fix.
+- 2026-08-08 — P4 started, sliced. Rows for the chart components updated from "NOT WIRED IN"
+  to 3-of-4 consumed (`SweepChartGrid` + `PhaseTraceCell` in `0d5eb60`, `MarkerReadoutTable` in
+  slice 2); `BandAxisOverlay` still previews-only. Dropped the "needs bench/VNA time" claim on
+  the P4 roadmap entry — the debug simulated-sweep route removed that gate. **Per-screen dp /
+  palette counts in §0 and §1 are NOT refreshed** and still describe the `be6f343` baseline; the
+  sweep stack's 141 literal dp and 129 `Instrument*` refs are essentially untouched so far,
+  since slices 1–2 added new sections rather than migrating old ones.

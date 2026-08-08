@@ -336,4 +336,67 @@ class SweepMarkerMathTest {
         assertEquals("—", readout.seriesEquivalentText)
         assertEquals(0.0, readout.impedanceMagnitudeOhms, tol)
     }
+
+    // ------------------------------------------------------------------
+    // buildLabelledMarkerReadouts — A/B pairing
+    // ------------------------------------------------------------------
+    // MarkerReadoutTable labels POSITIONALLY (markerLabels.getOrElse(index)),
+    // so a bare listOfNotNull(a, b) renders a lone marker B as "Marker A".
+    // These pin the pairing. The B-only case is the one that would regress
+    // silently: it still shows a row, just under the wrong name.
+
+    @Test
+    fun buildLabelledMarkerReadouts_labelsMarkerAWhenOnlyAIsPlaced() {
+        val rows = SweepMarkerMath.buildLabelledMarkerReadouts(
+            markerAPoint = point(frequencyMHz = 14.2),
+            markerBPoint = null
+        )
+        assertEquals(listOf("Marker A"), rows.map { it.label })
+        assertEquals(14.2, rows.single().readout.frequencyMHz, tol)
+    }
+
+    @Test
+    fun buildLabelledMarkerReadouts_labelsMarkerBWhenOnlyBIsPlaced() {
+        // THE TRAP: one row, and it must NOT be called "Marker A".
+        val rows = SweepMarkerMath.buildLabelledMarkerReadouts(
+            markerAPoint = null,
+            markerBPoint = point(frequencyMHz = 14.3)
+        )
+        assertEquals(listOf("Marker B"), rows.map { it.label })
+        assertEquals(14.3, rows.single().readout.frequencyMHz, tol)
+    }
+
+    @Test
+    fun buildLabelledMarkerReadouts_keepsAThenBOrderAndPairsEachWithItsOwnValues() {
+        val rows = SweepMarkerMath.buildLabelledMarkerReadouts(
+            markerAPoint = point(frequencyMHz = 14.2, resistance = 50.0, reactance = 50.0),
+            markerBPoint = point(frequencyMHz = 14.3, resistance = 25.0, reactance = -25.0)
+        )
+        assertEquals(listOf("Marker A", "Marker B"), rows.map { it.label })
+
+        // Values travel with their own label — a re-order cannot swap them.
+        val a = rows[0].readout
+        val b = rows[1].readout
+        assertEquals(14.2, a.frequencyMHz, tol)
+        assertEquals(50.0, a.reactanceOhms, tol)
+        assertEquals(14.3, b.frequencyMHz, tol)
+        assertEquals(-25.0, b.reactanceOhms, tol)
+    }
+
+    @Test
+    fun buildLabelledMarkerReadouts_isEmptyWhenNeitherMarkerIsPlaced() {
+        assertTrue(
+            SweepMarkerMath.buildLabelledMarkerReadouts(null, null).isEmpty()
+        )
+    }
+
+    @Test
+    fun buildLabelledMarkerReadouts_honoursTheRequestedRegion() {
+        val rows = SweepMarkerMath.buildLabelledMarkerReadouts(
+            markerAPoint = point(frequencyMHz = 147.0),
+            markerBPoint = point(frequencyMHz = 147.0),
+            region = IaruRegion.REGION_1
+        )
+        assertEquals(listOf("—", "—"), rows.map { it.readout.bandLabel })
+    }
 }
