@@ -24,10 +24,13 @@ The ONE definition of what a selected vs unselected button looks like.
   UNSELECTED  transparent fill, selectedIndicator border AND label —
               "this option is available"
 
-Plain action buttons (Run Demo Sweep, Back to Home, …) have no selected
-state, so they take the UNSELECTED treatment. That makes a solid fill mean
-exactly one thing app-wide: selection. Nothing else is ever solid, and no
-button anywhere carries a grey or green border.
+  HERO       solid too, but for a STANDALONE action that belongs to no
+             option group — see heroActionColors below for why that is
+             not ambiguous
+
+Secondary and tool actions (Set Reference, Clear Ref, marker nudges) take
+the UNSELECTED treatment. No button anywhere carries a grey or green
+border.
 
 ANTI-DRIFT
 Several button composables predate the design system and each rolled their
@@ -84,6 +87,32 @@ object SelectionButtonStyle {
             pressedElevation = if (selected) 1.dp else 0.dp,
             disabledElevation = 0.dp
         )
+
+    /*
+    HERO ACTIONS — the one sanctioned way to be solid without being selected.
+
+    A standalone call-to-action (Measure now, Back to Home, Back to grid) is
+    not a member of any option group, so there is no sibling it could be
+    confused with: nothing next to it is "the unselected one". That is what
+    makes solid safe here and unsafe inside a group, where an outlined
+    neighbour would read as merely unchosen.
+
+    The rule is therefore about GROUP MEMBERSHIP, not importance. Do not
+    reach for this to make one option in a row stand out — that is exactly
+    the ambiguity the selected/unselected split exists to prevent.
+
+    Delegates to the selected treatment rather than duplicating it, so the
+    two can never drift apart visually.
+    */
+    @Composable
+    fun heroActionColors(): ButtonColors = colors(selected = true)
+
+    @Composable
+    fun heroActionBorder(enabled: Boolean = true): BorderStroke =
+        border(selected = true, enabled = enabled)
+
+    @Composable
+    fun heroActionElevation() = elevation(selected = true)
 
     /*
     M3 chips take their own colour type rather than ButtonColors, so they get

@@ -17,14 +17,23 @@ PACKAGE: com.example.antennalab_v1.ui.components
 LAYER: UI / Shared components
 
 The shared action button. Two variants:
-  PRIMARY  — accent fill, sized to the FIELD touch target (gloved primary
-             action, e.g. "Measure now")
-  STANDARD — secondary fill, sized to the COMFORTABLE touch target
+  PRIMARY  — sized to the FIELD touch target (gloved primary action,
+             e.g. "Measure now"), title-medium label
+  STANDARD — sized to the COMFORTABLE touch target, title-small label
 
 Sizes come from the Phase-0 touch tokens so field usability is a token
-decision, not a per-call guess. Colours come from SelectionButtonStyle —
-the variants differ in SIZE and TYPE WEIGHT, not in colour, because solid
-fill is reserved app-wide for "selected".
+decision, not a per-call guess.
+
+BOTH variants are SOLID. Every AppActionButton is a standalone
+call-to-action — it triggers something, it never represents "the chosen
+one of these". With no unselected sibling beside it, a solid fill cannot
+be misread as selection, so the discriminator is group membership rather
+than emphasis (see SelectionButtonStyle.heroActionColors). The variants
+therefore still differ in SIZE and TYPE WEIGHT only.
+
+Controls that DO live in an option group — SegmentedChoiceButton, the
+sweep display-mode / trace-math / marker rows — keep the solid-selected,
+outlined-unselected split and must not use this button.
 ########################################################################
 */
 enum class AppActionVariant { PRIMARY, STANDARD }
@@ -41,9 +50,6 @@ fun AppActionButton(
         if (variant == AppActionVariant.PRIMARY) AntennaLabTheme.touch.field
         else AntennaLabTheme.touch.comfortable
 
-    // Both variants take the UNSELECTED treatment: an action is never "the
-    // active choice", so it is never solid. PRIMARY still reads as the
-    // stronger of the two through its larger touch target and title style.
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -51,9 +57,9 @@ fun AppActionButton(
             .fillMaxWidth()
             .defaultMinSize(minHeight = minHeight),
         shape = RoundedCornerShape(AntennaLabTheme.spacing.md),
-        colors = SelectionButtonStyle.colors(selected = false),
-        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
-        elevation = SelectionButtonStyle.elevation(selected = false)
+        colors = SelectionButtonStyle.heroActionColors(),
+        border = SelectionButtonStyle.heroActionBorder(enabled = enabled),
+        elevation = SelectionButtonStyle.heroActionElevation()
     ) {
         Text(
             text = text,

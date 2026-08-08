@@ -1064,6 +1064,8 @@ private fun DataRow(
 }
 
 @Composable
+// Solid: a standalone CTA with no unselected sibling. Its Secondary and
+// Small counterparts below stay outlined.
 private fun PrimaryActionButton(
     text: String,
     enabled: Boolean = true,
@@ -1073,9 +1075,9 @@ private fun PrimaryActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = SelectionButtonStyle.colors(selected = false),
-        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
-        elevation = SelectionButtonStyle.elevation(selected = false)
+        colors = SelectionButtonStyle.heroActionColors(),
+        border = SelectionButtonStyle.heroActionBorder(enabled = enabled),
+        elevation = SelectionButtonStyle.heroActionElevation()
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }

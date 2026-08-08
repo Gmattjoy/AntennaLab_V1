@@ -601,15 +601,22 @@ fun SweepWorkspaceControlButton(
     isPrimaryAction: Boolean = false,
     onClick: () -> Unit
 ) {
-    // isPrimaryAction no longer changes the COLOUR — solid orange is reserved
-    // app-wide for "selected", and an action is never selected. It still
-    // carries the emphasis through type weight.
+    // isPrimaryAction is this file's hero flag — Run Demo Sweep is the sweep
+    // screen's call to action, so it takes the solid treatment. The rest of
+    // the row (Set Reference, Clear Ref) stays outlined. None of these sit in
+    // an option group, so solid here cannot be read as "selected".
     Button(
         onClick = onClick,
         enabled = enabled,
-        colors = SelectionButtonStyle.colors(selected = false),
-        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
-        elevation = SelectionButtonStyle.elevation(selected = false),
+        colors =
+            if (isPrimaryAction) SelectionButtonStyle.heroActionColors()
+            else SelectionButtonStyle.colors(selected = false),
+        border =
+            if (isPrimaryAction) SelectionButtonStyle.heroActionBorder(enabled = enabled)
+            else SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation =
+            if (isPrimaryAction) SelectionButtonStyle.heroActionElevation()
+            else SelectionButtonStyle.elevation(selected = false),
         shape = RoundedCornerShape(10.dp)
     ) {
         Text(

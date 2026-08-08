@@ -94,9 +94,9 @@ fun SystemMenuScreen(
             Button(
                 onClick = onBackHome,
                 modifier = Modifier.fillMaxWidth(),
-                colors = SelectionButtonStyle.colors(selected = false),
-                border = SelectionButtonStyle.border(selected = false),
-                elevation = SelectionButtonStyle.elevation(selected = false)
+                colors = SelectionButtonStyle.heroActionColors(),
+                border = SelectionButtonStyle.heroActionBorder(),
+                elevation = SelectionButtonStyle.heroActionElevation()
             ) {
                 Text("Back to Home")
             }
