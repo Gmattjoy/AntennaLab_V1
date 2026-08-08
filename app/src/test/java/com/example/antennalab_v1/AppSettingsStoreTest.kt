@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.settings.AppSettings
 import com.example.antennalab_v1.model.settings.LayoutModePin
+import com.example.antennalab_v1.model.settings.ThemePreference
 import com.example.antennalab_v1.storage.AppSettingsStore
 import com.example.antennalab_v1.storage.SettingsRepository
 import org.junit.Assert.assertEquals
@@ -109,6 +110,29 @@ class AppSettingsStoreTest {
         val loaded = AppSettingsStore.load(context)
 
         assertEquals(TestHardwareProfile.LITEVNA64_V0_3_3, loaded.defaultInstrument)
+        assertEquals(146.0, loaded.defaultTargetFrequencyMHz, 0.0)
+        assertEquals(LayoutModePin.AUTO, loaded.layoutModePin)
+    }
+
+    @Test
+    fun save_thenLoad_roundTripsTheThemePreference() {
+        AppSettingsStore.save(context, AppSettings(themePreference = ThemePreference.LIGHT))
+
+        assertEquals(
+            ThemePreference.LIGHT,
+            AppSettingsStore.load(context).themePreference
+        )
+    }
+
+    @Test
+    fun load_honoursThemePreferenceInAnOtherwiseEmptyFile() {
+        // The shape a settings.json written before 5d has: this key absent, or
+        // present alone. Either way it must not disturb the other fields.
+        AppSettingsStore.settingsFile(context).writeText("""{"themePreference":"DARK"}""")
+
+        val loaded = AppSettingsStore.load(context)
+
+        assertEquals(ThemePreference.DARK, loaded.themePreference)
         assertEquals(146.0, loaded.defaultTargetFrequencyMHz, 0.0)
         assertEquals(LayoutModePin.AUTO, loaded.layoutModePin)
     }

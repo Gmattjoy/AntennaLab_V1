@@ -44,6 +44,7 @@ import com.example.antennalab_v1.model.settings.AppSettings
 import com.example.antennalab_v1.model.settings.defaultInstrumentFromStoredName
 import com.example.antennalab_v1.model.settings.defaultTargetFrequencyMHzFromStored
 import com.example.antennalab_v1.model.settings.layoutModePinFromStoredName
+import com.example.antennalab_v1.model.settings.themePreferenceFromStoredName
 import org.json.JSONObject
 import java.io.File
 
@@ -54,6 +55,7 @@ object AppSettingsStore {
     private const val KEY_LAYOUT_MODE_PIN = "layoutModePin"
     private const val KEY_DEFAULT_TARGET_FREQUENCY_MHZ = "defaultTargetFrequencyMHz"
     private const val KEY_DEFAULT_INSTRUMENT = "defaultInstrument"
+    private const val KEY_THEME_PREFERENCE = "themePreference"
 
     /*
     ------------------------------------------------------------
@@ -106,6 +108,7 @@ object AppSettingsStore {
             put(KEY_LAYOUT_MODE_PIN, settings.layoutModePin.name)
             put(KEY_DEFAULT_TARGET_FREQUENCY_MHZ, settings.defaultTargetFrequencyMHz)
             put(KEY_DEFAULT_INSTRUMENT, settings.defaultInstrument.name)
+            put(KEY_THEME_PREFERENCE, settings.themePreference.name)
         }
     }
 
@@ -119,6 +122,9 @@ object AppSettingsStore {
             ),
             defaultInstrument = defaultInstrumentFromStoredName(
                 json.optStringOrNull(KEY_DEFAULT_INSTRUMENT)
+            ),
+            themePreference = themePreferenceFromStoredName(
+                json.optStringOrNull(KEY_THEME_PREFERENCE)
             )
         )
     }
