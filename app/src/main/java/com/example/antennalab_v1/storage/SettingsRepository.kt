@@ -44,12 +44,46 @@ the header of model/settings/AppSettings.kt.
 */
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.antennalab_v1.model.settings.AppSettings
 import com.example.antennalab_v1.model.settings.LayoutModePin
 
 object SettingsRepository {
 
-    private var cached: AppSettings? = null
+    /*
+    ------------------------------------------------------------
+    OBSERVABLE, and that is the point (slice 5d)
+    ------------------------------------------------------------
+    `by mutableStateOf` rather than a plain var. Compose's snapshot
+    system then tracks reads that happen through current(), so ANY
+    composable calling it recomposes when update() reassigns this.
+
+    Slice 5c had to log the opposite as a known limitation: a settings
+    change mid-session changed the field and nothing repainted. That was
+    tolerable while every setting only seeded NEW sessions. The theme is
+    the first one that must take effect immediately — a toggle that does
+    not repaint reads as broken — so this line is what makes 5d possible,
+    and it fixes 5c's limitation for free at the same time.
+
+    NOT a StateFlow: that would add a coroutines-flow dependency, need a
+    scope and collectAsState at every reader, and would leave 5c's
+    existing current() call site non-reactive until separately migrated.
+    This makes it reactive with no edit.
+
+    ARCHITECTURAL FIRST, deliberate: androidx.compose.runtime appears
+    only in features/ elsewhere. The runtime is a state/snapshot library,
+    not the UI toolkit (compose.ui / material3) — this file already
+    exists to serve Compose readers and already imports Context, and
+    CLAUDE.md's no-UI-refs rule binds model/, which stays clean.
+
+    Non-Compose callers are unaffected: a snapshot state object reads and
+    writes normally outside a composition, which is why the existing
+    repository tests keep passing untouched.
+    ------------------------------------------------------------
+    */
+    private var cached: AppSettings? by mutableStateOf(null)
 
     /*
     ------------------------------------------------------------
