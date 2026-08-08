@@ -56,8 +56,10 @@ import com.example.antennalab_v1.model.toHardwareCapabilityProfile
 import com.example.antennalab_v1.model.toHardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
+import com.example.antennalab_v1.storage.SettingsRepository
 import com.example.antennalab_v1.storage.SweepExportWriter
 import com.example.antennalab_v1.ui.components.AppActionButton
+import com.example.antennalab_v1.ui.components.CollapsibleSection
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -152,6 +154,23 @@ fun SweepGraphScreen(
         if (measurementCapabilities.supportsS21) add(SweepDisplayMode.S21_ESTIMATE)
     }
 
+    /*
+    Read OUTSIDE the remember below and deliberately NOT one of its keys: this
+    seeds the initial collapse state and must not re-fire when the preference
+    changes mid-session, which would yank a section open or shut under the
+    operator.
+
+    Worth knowing about the seed's real lifetime — it is NOT per project.
+    ViewModelProvider below uses the DEFAULT key (the class name) against the
+    Activity's store, so the factory runs once per Activity and never again;
+    the surrounding remember(projectId) re-runs its lambda but gets the
+    existing ViewModel back. So this applies at app launch (and Activity
+    recreation) and a session toggle overrides it until then. Correct for a
+    "collapsed by default" preference, but do not read it as per-project.
+    */
+    val appAnalysisCollapsedDefault =
+        SettingsRepository.current(context).appAnalysisCollapsedDefault
+
     val initialWorkspaceState = remember(
         project.meta.projectId,
         project.isUnknownDiscoverySession,
@@ -161,7 +180,8 @@ fun SweepGraphScreen(
         SweepWorkspaceState(
             isDiscoveryMode = project.isUnknownDiscoverySession,
             discoveryAntennaClassification = project.antennaClassification,
-            displayMode = availableDisplayModes.firstOrNull() ?: SweepDisplayMode.SWR
+            displayMode = availableDisplayModes.firstOrNull() ?: SweepDisplayMode.SWR,
+            appAnalysisExpanded = !appAnalysisCollapsedDefault
         )
     }
 
@@ -686,13 +706,33 @@ fun SweepGraphScreen(
                     instrumentTextSecondary = InstrumentTextSecondary
                 )
 
-                DiagnosticsSummaryCard(diagnostics = diagnosticsUiModel)
-                TuningInterpretationCard(
-                    classification = behaviorClassification,
-                    suggestionReport = tuningSuggestionReport,
-                    adjustmentEstimate = adjustmentEstimate,
-                    workflowReport = tuningWorkflowReport
-                )
+                /*
+                Spec 2.3's "app analysis": the app's OWN interpretation, framed
+                as the value-add on top of the familiar VNA layout and collapsed
+                by default so it never outranks the measurement.
+
+                SweepSummaryCard above stays OUTSIDE this section on purpose —
+                min SWR, resonance and bandwidth are measured fact, not the
+                app's opinion, and burying them by default would hide exactly
+                what the operator opened the screen to read.
+
+                CollapsibleSection draws only a header, so both panels keep
+                their own card chrome and their own titles ("Diagnostics
+                Summary" / "Tuning Interpretation"). Nothing is double-wrapped.
+                */
+                CollapsibleSection(
+                    title = "App analysis",
+                    expanded = workspaceState.appAnalysisExpanded,
+                    onToggle = { viewModel.toggleAppAnalysisExpanded() }
+                ) {
+                    DiagnosticsSummaryCard(diagnostics = diagnosticsUiModel)
+                    TuningInterpretationCard(
+                        classification = behaviorClassification,
+                        suggestionReport = tuningSuggestionReport,
+                        adjustmentEstimate = adjustmentEstimate,
+                        workflowReport = tuningWorkflowReport
+                    )
+                }
 
                 if (discoveryUi.isDiscoveryMode) {
                     DiscoveryHandoffCard(

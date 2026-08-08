@@ -676,6 +676,10 @@ class SweepWorkspaceViewModel(
         workspaceState = SweepWorkspaceController.toggleCsvPreview(workspaceState)
     }
 
+    fun toggleAppAnalysisExpanded() {
+        workspaceState = SweepWorkspaceController.toggleAppAnalysisExpanded(workspaceState)
+    }
+
     private fun applyMarkerUpdate(update: WorkspaceMarkerUpdate) {
         workspaceState = workspaceState.copy(
             markerAIndex = update.markerAIndex,
