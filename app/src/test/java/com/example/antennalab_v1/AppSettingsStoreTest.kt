@@ -1,6 +1,7 @@
 package com.example.antennalab_v1
 
 import android.content.Context
+import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.settings.AppSettings
 import com.example.antennalab_v1.model.settings.LayoutModePin
 import com.example.antennalab_v1.storage.AppSettingsStore
@@ -84,6 +85,41 @@ class AppSettingsStoreTest {
         AppSettingsStore.settingsFile(context).writeText("""{"layoutModePin":"SPLIT_SCREEN"}""")
 
         assertEquals(LayoutModePin.AUTO, AppSettingsStore.load(context).layoutModePin)
+    }
+
+    @Test
+    fun save_thenLoad_roundTripsTheSliceFiveCFields() {
+        // Non-defaults on both, so a writer that dropped either key fails here.
+        val stored = AppSettings(
+            defaultTargetFrequencyMHz = 7.1,
+            defaultInstrument = TestHardwareProfile.LITEVNA64_V0_3_3
+        )
+        AppSettingsStore.save(context, stored)
+
+        assertEquals(stored, AppSettingsStore.load(context))
+    }
+
+    @Test
+    fun load_honoursOnePresentKeyAndDefaultsTheOthers() {
+        // The shape every settings.json written by slice 5a has: layoutModePin
+        // only, with 5c's two keys absent. Both must fall back without
+        // disturbing the key that IS there.
+        AppSettingsStore.settingsFile(context).writeText("""{"defaultInstrument":"LITEVNA64_V0_3_3"}""")
+
+        val loaded = AppSettingsStore.load(context)
+
+        assertEquals(TestHardwareProfile.LITEVNA64_V0_3_3, loaded.defaultInstrument)
+        assertEquals(146.0, loaded.defaultTargetFrequencyMHz, 0.0)
+        assertEquals(LayoutModePin.AUTO, loaded.layoutModePin)
+    }
+
+    @Test
+    fun load_defaultsAHandEditedNonsenseFrequency() {
+        // Well-formed JSON, meaningless value — the corrupt-VALUE case for a
+        // Double rather than an enum.
+        AppSettingsStore.settingsFile(context).writeText("""{"defaultTargetFrequencyMHz":-1}""")
+
+        assertEquals(146.0, AppSettingsStore.load(context).defaultTargetFrequencyMHz, 0.0)
     }
 
     @Test

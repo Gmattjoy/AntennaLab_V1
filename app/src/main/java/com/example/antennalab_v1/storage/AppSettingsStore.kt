@@ -41,6 +41,8 @@ SAFE EDIT AREA
 
 import android.content.Context
 import com.example.antennalab_v1.model.settings.AppSettings
+import com.example.antennalab_v1.model.settings.defaultInstrumentFromStoredName
+import com.example.antennalab_v1.model.settings.defaultTargetFrequencyMHzFromStored
 import com.example.antennalab_v1.model.settings.layoutModePinFromStoredName
 import org.json.JSONObject
 import java.io.File
@@ -50,6 +52,8 @@ object AppSettingsStore {
     private const val SETTINGS_FILE_NAME = "settings.json"
 
     private const val KEY_LAYOUT_MODE_PIN = "layoutModePin"
+    private const val KEY_DEFAULT_TARGET_FREQUENCY_MHZ = "defaultTargetFrequencyMHz"
+    private const val KEY_DEFAULT_INSTRUMENT = "defaultInstrument"
 
     /*
     ------------------------------------------------------------
@@ -100,6 +104,8 @@ object AppSettingsStore {
     private fun toJson(settings: AppSettings): JSONObject {
         return JSONObject().apply {
             put(KEY_LAYOUT_MODE_PIN, settings.layoutModePin.name)
+            put(KEY_DEFAULT_TARGET_FREQUENCY_MHZ, settings.defaultTargetFrequencyMHz)
+            put(KEY_DEFAULT_INSTRUMENT, settings.defaultInstrument.name)
         }
     }
 
@@ -107,6 +113,12 @@ object AppSettingsStore {
         return AppSettings(
             layoutModePin = layoutModePinFromStoredName(
                 json.optStringOrNull(KEY_LAYOUT_MODE_PIN)
+            ),
+            defaultTargetFrequencyMHz = defaultTargetFrequencyMHzFromStored(
+                json.optDoubleOrNull(KEY_DEFAULT_TARGET_FREQUENCY_MHZ)
+            ),
+            defaultInstrument = defaultInstrumentFromStoredName(
+                json.optStringOrNull(KEY_DEFAULT_INSTRUMENT)
             )
         )
     }
@@ -121,6 +133,16 @@ object AppSettingsStore {
     */
     private fun JSONObject.optStringOrNull(key: String): String? {
         return if (has(key) && !isNull(key)) optString(key) else null
+    }
+
+    /*
+    Null-normalised for the same reason: optDouble hands back NaN for an
+    absent key, and a non-numeric value parses to NaN too. Both are rejected
+    downstream by defaultTargetFrequencyMHzFromStored, but returning null for
+    "absent" keeps the two cases distinguishable here.
+    */
+    private fun JSONObject.optDoubleOrNull(key: String): Double? {
+        return if (has(key) && !isNull(key)) optDouble(key) else null
     }
 
     /*

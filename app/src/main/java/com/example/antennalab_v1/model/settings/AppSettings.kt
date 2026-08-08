@@ -1,5 +1,7 @@
 package com.example.antennalab_v1.model.settings
 
+import com.example.antennalab_v1.model.TestHardwareProfile
+
 /*
 ########################################################################
 FILE: AppSettings.kt
@@ -80,7 +82,26 @@ EDIT SECTION 1001
 --------------------------------------------------------------------
 */
 data class AppSettings(
-    val layoutModePin: LayoutModePin = LayoutModePin.AUTO
+    val layoutModePin: LayoutModePin = LayoutModePin.AUTO,
+    /*
+    Seeds the target frequency of a project created on a project-less path
+    (RF Test Mode, unknown discovery, the empty placeholder). It is a SEED,
+    not an override: the factory writes it into designInput, and from then on
+    the project owns its own value. A wizard-created or loaded project is
+    never affected, because those paths never call the factories.
+
+    146.0 = 2 m. Changed from the 14.2 that was hardcoded in three factories.
+    */
+    val defaultTargetFrequencyMHz: Double = DEFAULT_TARGET_FREQUENCY_MHZ,
+    /*
+    Same seeding role for the instrument. Deliberately NOT the same thing as
+    EffectiveHardwareResolver's DEFAULT_HARDWARE, which stays the
+    deterministic last resort when neither a live instrument nor a project
+    profile exists — this one only decides what a NEW project-less session
+    starts out claiming, and a live instrument still overrides it at
+    resolver tiers 1-2.
+    */
+    val defaultInstrument: TestHardwareProfile = DEFAULT_INSTRUMENT
 )
 
 /*
@@ -91,11 +112,15 @@ These are known settings with an owning slice. They are listed rather
 than declared on purpose.
 
   themePreference: ThemePreference           (5d)
-  defaultTargetFrequencyMHz: Double          (5c)
-  defaultInstrument: TestHardwareProfile     (5c)
   appAnalysisCollapsedDefault: Boolean       (5f)
   hasSeenProjectIntro: Boolean               (when an intro gate exists)
   readoutFormat: ReadoutFormat               (unscheduled)
+
+defaultTargetFrequencyMHz and defaultInstrument left this list in slice 5c,
+which is the first slice where the rule was SATISFIED rather than deferred:
+their consumer (the three AppRootController factories) landed in the same
+commit as the fields. That is the bar — a field arrives with the code that
+reads it, or it does not arrive.
 
 WHY NOT DECLARE THEM NOW
 A defaulted field that nothing reads still gets written to
@@ -139,3 +164,29 @@ fun layoutModePinFromStoredName(raw: String?): LayoutModePin {
     return LayoutModePin.entries.firstOrNull { it.name == raw }
         ?: LayoutModePin.AUTO
 }
+
+/*
+Rejects more than just an absent key. A settings file is hand-editable, so a
+zero, a negative, or a NaN can reach here — and any of those would poison
+resolveSweepWindow and every axis derived from it, since the window is
+target +/- a half-width. A frequency has to be a positive real number to mean
+anything, so anything else falls back rather than propagating.
+*/
+fun defaultTargetFrequencyMHzFromStored(raw: Double?): Double {
+    if (raw == null || raw.isNaN() || raw.isInfinite() || raw <= 0.0) {
+        return DEFAULT_TARGET_FREQUENCY_MHZ
+    }
+    return raw
+}
+
+fun defaultInstrumentFromStoredName(raw: String?): TestHardwareProfile {
+    return TestHardwareProfile.entries.firstOrNull { it.name == raw }
+        ?: DEFAULT_INSTRUMENT
+}
+
+/*
+Named so the fallback and the data-class default cannot drift apart — both
+read the same constant rather than restating the literal.
+*/
+const val DEFAULT_TARGET_FREQUENCY_MHZ = 146.0
+val DEFAULT_INSTRUMENT = TestHardwareProfile.NANOVNA_H4
