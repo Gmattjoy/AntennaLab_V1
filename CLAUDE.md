@@ -43,8 +43,32 @@ Layers under `app/src/main/java/com/example/antennalab_v1/`:
 - `domain/` — calculation, analysis, testing logic (`CalculationEngine`, `SweepController`, `SweepAnalyzer`, USB/VNA drivers). Subpackages: `analysis`, `calculator`, `prediction`, `testing`.
 - `features/` — UI screens/workflows (`app`, `lab`, `project`, `testing`, `wizard`, `workspace`)
 - `project/` — main workspace hub (`ProjectPageScreen`)
-- `storage/` — save/load (`ProjectStorage`, `ProjectIndexManager`)
+- `storage/` — save/load (`ProjectStorage`, `ProjectIndexManager`, `AppSettingsStore`, `SettingsRepository`)
 - `ui/theme/` + `ui/components/` — design system (see below)
+
+### Settings vs project data (boundary rule)
+**Settings never live in `ProjectData`. Project facts never live in settings.** The test: if a
+value would still be true after every project on the device were deleted, it is a setting.
+
+- **Settings** — app-wide "how I like the app": `model/settings/AppSettings` (pure, every field
+  defaulted), persisted by `storage/AppSettingsStore` to `files/settings.json` (hand-rolled
+  `org.json`, no DataStore dependency). Read and write it **only** through
+  `storage/SettingsRepository` — it caches (settings get read from Compose) and it is the seam
+  that keeps the JSON-vs-DataStore choice reversible. Never touch a JSON key or the file
+  directly.
+- Adding a setting is a field plus one `put`/`opt` pair — **no migration ever**, because absent
+  keys fall back to the model defaults by design. Add a field **in the slice that adds its
+  consumer**, never before: a defaulted field nothing reads still gets written, so the file
+  would assert a preference the app does not honour (same defect as the old
+  `supportsTdrPreview`, which was TRUE on both profiles with nothing reading it).
+- `load()` **must never throw** — it is on the launch path, so missing/corrupt/partial files
+  return defaults. Corrupt *file* is handled in the store; corrupt *value* (unknown enum name)
+  is handled in the pure model, so a parseable file is never discarded wholesale.
+- **Known violation, scheduled for teardown in P5 slice 5b:** `ProjectData.uiState`
+  (`ProjectUiState` — `lastOpenedSection`, `lastExpandedCard`, `hasSeenProjectIntro`) is
+  serialized on every project save and read by **zero** consumers. It is view/preference state
+  living in the project file; `hasSeenProjectIntro` is global onboarding state that is
+  per-project today, so the intro re-shows for every new project.
 
 Hardware is capability-based, not hardcoded:
 `ProjectData.testHardwareProfile` → capability profile → controls which UI features show (Smith chart, S21 estimate, TDR preview, CSV export, marker types, sweep frequency limits, OSL calibration). Supports NanoVNA-H4 and LiteVNA64 v0.3.3. Add new hardware by extending the capability profile — do NOT branch the UI.
