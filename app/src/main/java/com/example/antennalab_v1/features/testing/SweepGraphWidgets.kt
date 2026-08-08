@@ -83,6 +83,7 @@ import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
+import com.example.antennalab_v1.ui.components.SegmentedChoiceButton
 import kotlin.math.max
 import kotlin.math.min
 
@@ -294,17 +295,17 @@ fun SweepDisplayModesCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (measurementCapabilities.supportsSWR) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "SWR",
                         selected = displayMode == SweepDisplayMode.SWR,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.SWR) }
                     )
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Analog SWR",
                         selected = displayMode == SweepDisplayMode.ANALOG_SWR,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.ANALOG_SWR) }
                     )
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Waterfall",
                         selected = displayMode == SweepDisplayMode.WATERFALL,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.WATERFALL) }
@@ -312,12 +313,12 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsReturnLoss) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "RL",
                         selected = displayMode == SweepDisplayMode.RETURN_LOSS,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.RETURN_LOSS) }
                     )
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Analog RL",
                         selected = displayMode == SweepDisplayMode.ANALOG_RETURN_LOSS,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.ANALOG_RETURN_LOSS) }
@@ -325,12 +326,12 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsResistance) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "R",
                         selected = displayMode == SweepDisplayMode.RESISTANCE,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.RESISTANCE) }
                     )
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Analog R",
                         selected = displayMode == SweepDisplayMode.ANALOG_RESISTANCE,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.ANALOG_RESISTANCE) }
@@ -338,12 +339,12 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsReactance) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "X",
                         selected = displayMode == SweepDisplayMode.REACTANCE,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.REACTANCE) }
                     )
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Analog X",
                         selected = displayMode == SweepDisplayMode.ANALOG_REACTANCE,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.ANALOG_REACTANCE) }
@@ -351,7 +352,7 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsSmithChart) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Smith",
                         selected = displayMode == SweepDisplayMode.SMITH,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.SMITH) }
@@ -359,7 +360,7 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsImpedanceLocus) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "Z Locus",
                         selected = displayMode == SweepDisplayMode.IMPEDANCE_LOCUS,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.IMPEDANCE_LOCUS) }
@@ -367,7 +368,7 @@ fun SweepDisplayModesCard(
                 }
 
                 if (measurementCapabilities.supportsS21) {
-                    SweepWorkspaceModeButton(
+                    SegmentedChoiceButton(
                         text = "S21 Est",
                         selected = displayMode == SweepDisplayMode.S21_ESTIMATE,
                         onClick = { onDisplayModeSelected(SweepDisplayMode.S21_ESTIMATE) }
@@ -601,56 +602,6 @@ Shared button styling for display and action rows in the sweep
 workspace.
 ########################################################################
 */
-@Composable
-fun SweepWorkspaceModeButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val fillColor =
-        if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
-        }
-
-    val contentColor =
-        if (selected) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-
-    val borderColor =
-        if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)
-        } else {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
-        }
-
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = fillColor,
-            contentColor = contentColor
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = borderColor
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = if (selected) 4.dp else 2.dp,
-            pressedElevation = 1.dp
-        ),
-        shape = RoundedCornerShape(10.dp)
-    ) {
-        Text(
-            text = text,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-        )
-    }
-}
-
 @Composable
 fun SweepWorkspaceControlButton(
     text: String,
