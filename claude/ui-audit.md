@@ -368,17 +368,19 @@ a colour or theme commit.
    and elevation, never size. Fixing it resizes 12 sweep-stack buttons plus the theme control
    — a pixel change wanting its own predicted-change gate. Documented in the file's own header
    so promoting it to a design-system primitive does not silently bless the gap.
-2. **`project/ProjectSection.kt` is dead, not merely duplicated.** The `ProjectSection` enum
-   is declared twice with identical members — `project/ProjectSection.kt:38` and
-   `model/ProjectData.kt:660` — in different packages, so there is no clash and no compile
-   error to force the issue. `ProjectPageScreen.kt:81` imports the **`model`** one, so the
-   `project` copy has **zero consumers**. Same class as the F3 items that `be6f343` deleted:
-   dead code that will re-seed drift, and worse here because the two could silently diverge
-   while both look canonical. Delete the `project` copy; `model` is the correct home under
-   the layer rules.
-3. **`SweepScalarTraceView` y-label column vertical offset** — the twin of the tick-row defect
+2. **`SweepScalarTraceView` y-label column vertical offset** — the twin of the tick-row defect
    3b-i fixed, and the version `PhaseTraceCell` already fixed for itself. Carried forward
    through 3b-i, 4b and 4c entries; still untouched.
+
+**CLOSED from this list:** `project/ProjectSection.kt` — the dead duplicate enum, deleted
+2026-08-08. Re-verified before removal rather than trusted from the note: zero imports of the
+`project` copy anywhere in `app/src`, and every one of the ~20 `ProjectSection` usages sits in
+`ProjectPageScreen`, which imports the `model` one explicitly at `:81`. That explicit import
+was doing real work — `ProjectPageScreen` lives in the `project` package, so without it Kotlin
+would have resolved the same-package copy instead; a single-type import outranks same-package
+resolution. `ProjectWorkspaceController` (the only other file in that package) never referenced
+the enum. `assembleDebug` clean and suite unchanged at 547 after deletion, which is the proof
+nothing referenced it.
 
 ### OPEN — hardware-pending (cannot be closed on the emulator)
 
