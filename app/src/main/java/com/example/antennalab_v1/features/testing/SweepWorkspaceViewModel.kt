@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.antennalab_v1.domain.analysis.AdjustmentEstimator
 import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassifier
+import com.example.antennalab_v1.domain.analysis.ChartKind
 import com.example.antennalab_v1.domain.analysis.TuningSuggestionEngine
 import com.example.antennalab_v1.domain.analysis.TuningWorkflowBuilder
 import com.example.antennalab_v1.domain.testing.SweepAnalyzer
@@ -190,11 +191,30 @@ class SweepWorkspaceViewModel(
     }
 
     fun ensureCompatibleState(
-        availableDisplayModes: List<SweepDisplayMode>
+        availableDisplayModes: List<SweepDisplayMode>,
+        availableChartKinds: List<ChartKind>
     ) {
         workspaceState = SweepWorkspaceController.ensureCompatibleState(
             currentState = workspaceState,
-            availableDisplayModes = availableDisplayModes
+            availableDisplayModes = availableDisplayModes,
+            availableChartKinds = availableChartKinds
+        )
+    }
+
+    /*
+    Tap-to-expand (spec 2.2b). Transient focus only — these never touch the
+    layout mode, which is a separate field.
+    */
+    fun toggleExpandedChart(kind: ChartKind) {
+        workspaceState = SweepWorkspaceController.toggleExpandedChart(
+            currentState = workspaceState,
+            kind = kind
+        )
+    }
+
+    fun collapseExpandedChart() {
+        workspaceState = SweepWorkspaceController.collapseExpandedChart(
+            currentState = workspaceState
         )
     }
 

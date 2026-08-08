@@ -194,7 +194,13 @@ fun SweepGraphScreen(
     )
 
     LaunchedEffect(availableDisplayModes) {
-        viewModel.ensureCompatibleState(availableDisplayModes)
+        viewModel.ensureCompatibleState(
+            availableDisplayModes = availableDisplayModes,
+            // Same resolver-derived capabilities the grid gates on, so a
+            // capability change cannot leave the operator expanded on a chart
+            // this instrument no longer produces.
+            availableChartKinds = ChartLayoutMath.availableChartKinds(measurementCapabilities)
+        )
     }
 
     val sweepResult = workspaceState.currentSweep

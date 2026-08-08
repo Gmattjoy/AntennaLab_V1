@@ -48,6 +48,7 @@ SAFE EDIT AREA
 ########################################################################
 */
 
+import com.example.antennalab_v1.domain.analysis.ChartKind
 import com.example.antennalab_v1.domain.testing.SweepController
 import com.example.antennalab_v1.domain.testing.SweepHardwareIdentity
 import com.example.antennalab_v1.model.AntennaClassification
@@ -102,7 +103,8 @@ object SweepWorkspaceController {
     */
     fun ensureCompatibleState(
         currentState: SweepWorkspaceState,
-        availableDisplayModes: List<SweepDisplayMode>
+        availableDisplayModes: List<SweepDisplayMode>,
+        availableChartKinds: List<ChartKind>
     ): SweepWorkspaceState {
         val safeDisplayMode =
             if (currentState.displayMode in availableDisplayModes) {
@@ -110,6 +112,15 @@ object SweepWorkspaceController {
             } else {
                 availableDisplayModes.firstOrNull() ?: SweepDisplayMode.SWR
             }
+
+        /*
+        A capability change must not strand the operator expanded on a chart
+        the instrument can no longer produce. Deliberately NOT defaulted to
+        "all kinds": a dormant guard is one nobody notices has stopped
+        guarding.
+        */
+        val safeExpandedChartKind =
+            currentState.expandedChartKind?.takeIf { it in availableChartKinds }
 
         val safeTraceCompareMode =
             if (currentState.referenceSweep == null) {
@@ -122,10 +133,46 @@ object SweepWorkspaceController {
 
         return currentState.copy(
             displayMode = safeDisplayMode,
+            expandedChartKind = safeExpandedChartKind,
             traceCompareMode = safeTraceCompareMode,
             markerAIndex = currentState.markerAIndex.coerceIn(0, currentSweepLastIndex),
             markerBIndex = currentState.markerBIndex.coerceIn(0, currentSweepLastIndex)
         )
+    }
+
+    /*
+    ------------------------------------------------------------
+    EDIT SECTION 1250
+    TRANSIENT CHART FOCUS (tap-to-expand)
+    ------------------------------------------------------------
+    PURPOSE
+    Spec 2.2(b): focus on ONE chart, temporarily, returning to the
+    underlying layout. Kept as a nullable overlay so collapsing never
+    has to decide whether to restore Simple or Full — that is the
+    conflation 2.2 forbids "in the design OR the code".
+
+    Slice 5's layout mode is a SEPARATE field. These functions must
+    never touch it.
+    ------------------------------------------------------------
+    */
+    fun toggleExpandedChart(
+        currentState: SweepWorkspaceState,
+        kind: ChartKind
+    ): SweepWorkspaceState {
+        /*
+        Three cases, and the third is the one a naive
+        `if (expanded != null) null else kind` gets wrong: tapping a
+        DIFFERENT chart switches focus to it, it does not collapse.
+        Comparing two traces is the common gesture.
+        */
+        val next = if (currentState.expandedChartKind == kind) null else kind
+        return currentState.copy(expandedChartKind = next)
+    }
+
+    fun collapseExpandedChart(
+        currentState: SweepWorkspaceState
+    ): SweepWorkspaceState {
+        return currentState.copy(expandedChartKind = null)
     }
 
     /*

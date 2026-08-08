@@ -1,5 +1,6 @@
 package com.example.antennalab_v1
 
+import com.example.antennalab_v1.domain.analysis.ChartKind
 import com.example.antennalab_v1.features.testing.SweepDisplayMode
 import com.example.antennalab_v1.features.testing.SweepWorkspaceController
 import com.example.antennalab_v1.features.testing.SweepWorkspaceState
@@ -56,6 +57,131 @@ class SweepWorkspaceControllerTest {
         )
     )
 
+    /** Every chart kind available — the "no capability has been lost" case. */
+    private val ALL_CHART_KINDS = listOf(
+        ChartKind.SWR,
+        ChartKind.SMITH,
+        ChartKind.RETURN_LOSS,
+        ChartKind.PHASE
+    )
+
+    // ------------------------------------------------------------------
+    // Transient chart focus (tap-to-expand) — spec 2.2(b)
+    // ------------------------------------------------------------------
+    // Focus is a nullable OVERLAY, never a value of the layout mode. These
+    // pin the three toggle cases, the explicit collapse, the capability
+    // strand-guard, and — the structural one — that focus touches nothing
+    // else in the state.
+
+    @Test
+    fun toggleExpandedChart_focusesWhenNothingIsExpanded() {
+        val state = SweepWorkspaceState(currentSweep = valleySweep())
+        assertNull(state.expandedChartKind)
+
+        val result = SweepWorkspaceController.toggleExpandedChart(state, ChartKind.SWR)
+
+        assertEquals(ChartKind.SWR, result.expandedChartKind)
+    }
+
+    @Test
+    fun toggleExpandedChart_collapsesWhenTheSameKindIsTappedAgain() {
+        val state = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            expandedChartKind = ChartKind.SMITH
+        )
+
+        val result = SweepWorkspaceController.toggleExpandedChart(state, ChartKind.SMITH)
+
+        assertNull(result.expandedChartKind)
+    }
+
+    @Test
+    fun toggleExpandedChart_switchesWhenADifferentKindIsTapped() {
+        // The case a naive `if (expanded != null) null else kind` gets wrong:
+        // tapping another chart moves focus, it does not collapse. Comparing
+        // two traces is the common operator gesture.
+        val state = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            expandedChartKind = ChartKind.SWR
+        )
+
+        val result = SweepWorkspaceController.toggleExpandedChart(state, ChartKind.PHASE)
+
+        assertEquals(ChartKind.PHASE, result.expandedChartKind)
+    }
+
+    @Test
+    fun collapseExpandedChart_clearsFocus() {
+        val state = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            expandedChartKind = ChartKind.RETURN_LOSS
+        )
+
+        val result = SweepWorkspaceController.collapseExpandedChart(state)
+
+        assertNull(result.expandedChartKind)
+    }
+
+    @Test
+    fun ensureCompatibleState_clearsAnExpandedKindTheInstrumentNoLongerSupports() {
+        // A capability change must not strand the operator expanded on a chart
+        // that can no longer be produced.
+        val state = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            expandedChartKind = ChartKind.PHASE
+        )
+
+        val result = SweepWorkspaceController.ensureCompatibleState(
+            currentState = state,
+            availableDisplayModes = listOf(SweepDisplayMode.SWR),
+            availableChartKinds = listOf(ChartKind.SWR)
+        )
+
+        assertNull(result.expandedChartKind)
+    }
+
+    @Test
+    fun ensureCompatibleState_keepsAnExpandedKindThatIsStillAvailable() {
+        val state = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            expandedChartKind = ChartKind.SWR
+        )
+
+        val result = SweepWorkspaceController.ensureCompatibleState(
+            currentState = state,
+            availableDisplayModes = listOf(SweepDisplayMode.SWR),
+            availableChartKinds = listOf(ChartKind.SWR, ChartKind.SMITH)
+        )
+
+        assertEquals(ChartKind.SWR, result.expandedChartKind)
+    }
+
+    @Test
+    fun toggleExpandedChart_changesOnlyTheExpandedField() {
+        /*
+        THE NON-CONFLATION GUARANTEE (spec 2.2: the toggle and tap-to-expand
+        "must not be conflated with it in the design OR the code").
+
+        Asserted as "exactly one field moved" rather than by naming fields, so
+        it keeps holding when slice 5 adds the layout-mode field — that field
+        will be covered here the day it exists, with no edit to this test.
+        */
+        val before = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            displayMode = SweepDisplayMode.RETURN_LOSS,
+            traceCompareMode = TraceCompareMode.CURRENT_ONLY,
+            markerAIndex = 1,
+            markerBIndex = 3,
+            activeMarkerTarget = WorkspaceMarkerTarget.B,
+            showCsvPreview = true
+        )
+
+        val after = SweepWorkspaceController.toggleExpandedChart(before, ChartKind.SMITH)
+
+        assertEquals(ChartKind.SMITH, after.expandedChartKind)
+        assertEquals(before.copy(expandedChartKind = after.expandedChartKind), after)
+    }
+
     // ------------------------------------------------------------------
     // ensureCompatibleState
     // ------------------------------------------------------------------
@@ -73,7 +199,8 @@ class SweepWorkspaceControllerTest {
 
         val result = SweepWorkspaceController.ensureCompatibleState(
             currentState = state,
-            availableDisplayModes = listOf(SweepDisplayMode.SWR, SweepDisplayMode.RETURN_LOSS)
+            availableDisplayModes = listOf(SweepDisplayMode.SWR, SweepDisplayMode.RETURN_LOSS),
+            availableChartKinds = ALL_CHART_KINDS
         )
 
         assertEquals(SweepDisplayMode.SWR, result.displayMode)
@@ -96,7 +223,8 @@ class SweepWorkspaceControllerTest {
 
         val result = SweepWorkspaceController.ensureCompatibleState(
             currentState = state,
-            availableDisplayModes = listOf(SweepDisplayMode.SWR, SweepDisplayMode.RETURN_LOSS)
+            availableDisplayModes = listOf(SweepDisplayMode.SWR, SweepDisplayMode.RETURN_LOSS),
+            availableChartKinds = ALL_CHART_KINDS
         )
 
         assertEquals(SweepDisplayMode.RETURN_LOSS, result.displayMode)

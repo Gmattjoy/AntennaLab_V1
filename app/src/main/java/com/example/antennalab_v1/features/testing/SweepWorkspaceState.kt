@@ -38,6 +38,7 @@ SAFE EDIT AREA
 ########################################################################
 */
 
+import com.example.antennalab_v1.domain.analysis.ChartKind
 import com.example.antennalab_v1.model.AntennaClassification
 import com.example.antennalab_v1.model.DiscoverySnapshot
 import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
@@ -124,6 +125,31 @@ data class SweepWorkspaceState(
     val markerAIndex: Int = 0,
     val markerBIndex: Int = 0,
     val activeMarkerTarget: WorkspaceMarkerTarget = WorkspaceMarkerTarget.A,
+
+    /*
+    ------------------------------------------------------------
+    TRANSIENT CHART FOCUS (tap-to-expand)
+    ------------------------------------------------------------
+    PURPOSE
+    Which single chart is expanded, or null for the underlying
+    layout. Spec 2.2 defines TWO distinct controls and says they
+    "must not be conflated with it in the design OR the code":
+
+      (a) the Simple/Full toggle is a PERSISTENT layout mode
+      (b) tap-to-expand is TRANSIENT focus that RETURNS to the
+          underlying layout
+
+    So this is a nullable OVERLAY on top of the layout mode, never
+    a value of it. Collapsing is expandedChartKind = null, which
+    restores whatever mode was active without having to guess
+    whether that was Simple or Full — the guess a single
+    GRID | SINGLE(kind) enum would force.
+
+    Slice 5's layout mode will be a SEPARATE non-null field. Do not
+    merge them.
+    ------------------------------------------------------------
+    */
+    val expandedChartKind: ChartKind? = null,
 
     /*
     ------------------------------------------------------------
