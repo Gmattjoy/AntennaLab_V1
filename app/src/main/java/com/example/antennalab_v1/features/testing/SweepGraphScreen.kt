@@ -42,6 +42,7 @@ import com.example.antennalab_v1.domain.testing.UsbSessionManager
 import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.features.app.BenchStateLog
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
+import com.example.antennalab_v1.features.testing.charts.BandAxisOverlay
 import com.example.antennalab_v1.features.testing.charts.MarkerReadoutTable
 import com.example.antennalab_v1.features.testing.charts.SweepChartGrid
 import com.example.antennalab_v1.model.AntennaClassification
@@ -473,6 +474,37 @@ fun SweepGraphScreen(
                                     instrumentBlue = InstrumentBlue,
                                     instrumentMagenta = InstrumentMagenta,
                                     instrumentGreen = InstrumentGreen
+                                )
+
+                                /*
+                                Inside the `else` branch on purpose: that is
+                                exactly the set of modes SweepScalarTraceView
+                                draws, i.e. the ones with a frequency axis. The
+                                Smith, impedance-locus, analog-gauge and
+                                waterfall branches have no frequency axis to
+                                annotate, and none of them reach here — so there
+                                is no separate predicate to keep in sync.
+
+                                Inset by the shared contract so the overlay's
+                                0..1 maps to the same horizontal extent as the
+                                trace above. Axis bounds are the same
+                                result.start/endFrequencyMHz the tick labels
+                                read, so shading and labels cannot disagree.
+                                Region is deliberately omitted — REGION_3 is the
+                                single constant and there is no per-project
+                                setting to honour.
+                                */
+                                val bandInsets = ChartLayoutMath.plotInsetsFor(
+                                    renderer = ChartLayoutMath.PlotRenderer.SCALAR,
+                                    compact = false
+                                )
+                                BandAxisOverlay(
+                                    axisStartMHz = result.startFrequencyMHz,
+                                    axisEndMHz = result.endFrequencyMHz,
+                                    modifier = Modifier.padding(
+                                        start = bandInsets.startDp.dp,
+                                        end = bandInsets.endDp.dp
+                                    )
                                 )
                             }
                         }

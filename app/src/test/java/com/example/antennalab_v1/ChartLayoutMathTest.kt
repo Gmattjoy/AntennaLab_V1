@@ -182,6 +182,68 @@ class ChartLayoutMathTest {
     }
 
     // ------------------------------------------------------------------
+    // Plot insets — the shared alignment contract
+    // ------------------------------------------------------------------
+    // These are the numbers anything drawn alongside a trace must inset by
+    // to line up with it. They record today's three geometries exactly; a
+    // change here moves pixels in the viewer, so it should be deliberate.
+
+    @Test
+    fun plotInsets_scalarCompactIsGutterPlusCanvasPadding() {
+        // Grid cell: 40 dp label gutter + 10 dp canvas padding.
+        val insets = ChartLayoutMath.plotInsetsFor(
+            ChartLayoutMath.PlotRenderer.SCALAR,
+            compact = true
+        )
+        assertEquals(50, insets.startDp)
+        assertEquals(10, insets.endDp)
+    }
+
+    @Test
+    fun plotInsets_scalarFullWidthUsesTheWiderGutter() {
+        // Legacy "Active Display": 56 dp label gutter + 10 dp canvas padding.
+        val insets = ChartLayoutMath.plotInsetsFor(
+            ChartLayoutMath.PlotRenderer.SCALAR,
+            compact = false
+        )
+        assertEquals(66, insets.startDp)
+        assertEquals(10, insets.endDp)
+    }
+
+    @Test
+    fun plotInsets_phaseHasAFixedGutterAndNoCanvasPadding() {
+        // PhaseTraceCell draws straight to its canvas edges, so the end
+        // inset is 0 — 10 dp narrower each side than a scalar cell beside
+        // it. Recorded, not hidden; reconciling the two is a later change.
+        val insets = ChartLayoutMath.plotInsetsFor(
+            ChartLayoutMath.PlotRenderer.PHASE,
+            compact = true
+        )
+        assertEquals(40, insets.startDp)
+        assertEquals(0, insets.endDp)
+    }
+
+    @Test
+    fun plotInsets_phaseIgnoresCompactBecauseItHasNoFullWidthVariant() {
+        assertEquals(
+            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = true),
+            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = false)
+        )
+    }
+
+    @Test
+    fun plotInsets_areNeverNegative() {
+        // A negative inset would push a trace outside its own plot.
+        ChartLayoutMath.PlotRenderer.entries.forEach { renderer ->
+            listOf(true, false).forEach { compact ->
+                val insets = ChartLayoutMath.plotInsetsFor(renderer, compact)
+                assertTrue(insets.startDp >= 0)
+                assertTrue(insets.endDp >= 0)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Capability gating
     // ------------------------------------------------------------------
 

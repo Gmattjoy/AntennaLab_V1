@@ -180,4 +180,76 @@ object ChartLayoutMath {
         if (columns == 0) return 0
         return (chartCount + columns - 1) / columns
     }
+
+    /*
+    --------------------------------------------------------------------
+    Plot inset — where the plotting area actually starts
+    EDIT SECTION 1005
+    --------------------------------------------------------------------
+    A trace does NOT begin at its composable's left edge. Two things push
+    it inward: the y-axis label gutter, and (for the scalar renderer) the
+    padding inside ScalarTraceGraphCanvas. Anything drawn alongside a
+    trace and expected to line up with it — the band overlay first —
+    must be inset by the SAME total, or its 0..1 maps to a wider extent
+    than the trace and every position is wrong.
+
+    These were three independent hardcoded values before this function:
+    SweepScalarTraceView's local axisGutter, ScalarTraceGraphCanvas's
+    literal padding, and PhaseTraceCell's literal gutter. They are one
+    source now so they cannot drift.
+
+    Keyed on the RENDERER, not ChartKind: ChartKind.SMITH is a square
+    polar plot with no frequency axis and so has no honest answer, and
+    the legacy full-width chart is not a ChartKind at all (it renders 12
+    SweepDisplayMode values). Both callers can name themselves truthfully
+    this way.
+
+    Plain Ints (dp) — domain/ stays Compose-free; the composables convert.
+    --------------------------------------------------------------------
+    */
+    enum class PlotRenderer { SCALAR, PHASE }
+
+    data class PlotInsets(
+        val startDp: Int,
+        val endDp: Int
+    )
+
+    /*
+    Padding inside ScalarTraceGraphCanvas's Canvas. Public so that view
+    and this contract read the same number, and so the scalar view can
+    recover its label-column width as startDp - this.
+    */
+    const val SCALAR_CANVAS_PADDING_DP = 10
+
+    /* Y-axis label column widths. */
+    const val SCALAR_GUTTER_COMPACT_DP = 40
+    const val SCALAR_GUTTER_FULL_DP = 56
+    const val PHASE_GUTTER_DP = 40
+
+    /*
+    `compact` is accepted for PHASE but deliberately ignored: PhaseTraceCell
+    has no full-width variant, its gutter is fixed, and it applies no canvas
+    padding — hence a 0 end inset. That leaves it 10 dp wider on each side
+    than a scalar cell beside it in the same grid; reconciling the two is a
+    later, visible change, not this contract's job to hide.
+    */
+    fun plotInsetsFor(
+        renderer: PlotRenderer,
+        compact: Boolean
+    ): PlotInsets =
+        when (renderer) {
+            PlotRenderer.SCALAR -> {
+                val gutter =
+                    if (compact) SCALAR_GUTTER_COMPACT_DP else SCALAR_GUTTER_FULL_DP
+                PlotInsets(
+                    startDp = gutter + SCALAR_CANVAS_PADDING_DP,
+                    endDp = SCALAR_CANVAS_PADDING_DP
+                )
+            }
+
+            PlotRenderer.PHASE -> PlotInsets(
+                startDp = PHASE_GUTTER_DP,
+                endDp = 0
+            )
+        }
 }

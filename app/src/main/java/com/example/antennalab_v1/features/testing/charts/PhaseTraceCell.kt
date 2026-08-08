@@ -63,11 +63,23 @@ internal fun PhaseTraceCell(
         ChartLayoutMath.phaseFraction(SweepMarkerMath.reflectionPhaseDegrees(point))
     }
 
+    /*
+    Gutter comes from the shared alignment contract rather than a literal, so
+    anything drawn alongside this trace can inset by the same number. Note
+    endDp is 0 here: this cell draws to its canvas edges while a scalar cell
+    pads 10 dp, so the two are 10 dp apart on each side inside the same grid.
+    Recorded in plotInsetsFor, reconciled in a later slice.
+    */
+    val plotInsets = ChartLayoutMath.plotInsetsFor(
+        renderer = ChartLayoutMath.PlotRenderer.PHASE,
+        compact = true
+    )
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(
                 modifier = Modifier
-                    .width(40.dp)
+                    .width(plotInsets.startDp.dp)
                     .height(cellHeight)
                     .padding(end = AntennaLabTheme.spacing.xs),
                 verticalArrangement = Arrangement.SpaceBetween,

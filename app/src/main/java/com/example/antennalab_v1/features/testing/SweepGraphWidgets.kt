@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.domain.analysis.ChartLayoutMath
 import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.testing.SweepPoint
@@ -889,7 +890,9 @@ fun ScalarTraceGraphCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(10.dp)
+                // Same number ChartLayoutMath.plotInsetsFor folds into its
+                // start/end inset — read from there so the two cannot drift.
+                .padding(ChartLayoutMath.SCALAR_CANVAS_PADDING_DP.dp)
         ) {
             if (activeValues.isEmpty()) return@Canvas
 
@@ -1107,9 +1110,28 @@ fun SweepScalarTraceView(
         if (compact) listOfNotNull(frequencyTicks.firstOrNull(), frequencyTicks.lastOrNull())
         else frequencyTicks
 
-    // Gutter and the tick row's start padding are the same measurement; they
-    // were previously written as 56+8 and a separately-hardcoded 64.
-    val axisGutter = if (compact) 40.dp else 56.dp
+    /*
+    Gutter and the tick row's start padding are the same measurement; they
+    were previously written as 56+8 and a separately-hardcoded 64, and the
+    canvas padding below was a third independent literal.
+
+    plotInsetsFor is now the single source: startDp is the FULL inset to the
+    plotting area (gutter + canvas padding), so the label column recovers its
+    own width by subtracting the padding back off. Anything drawn ALONGSIDE
+    this trace insets by startDp/endDp and lines up by construction.
+
+    The tick row below keeps axisGutter + axisGutterEnd (44 compact / 64 full)
+    rather than startDp (50/66) — deliberately unchanged, since that is what
+    it has always used. Worth knowing: the tick LABELS therefore sit ~6 dp
+    left of the plot start they annotate. Pre-existing, cosmetic, and not
+    touched here because this step must move no pixels.
+    */
+    val plotInsets = ChartLayoutMath.plotInsetsFor(
+        renderer = ChartLayoutMath.PlotRenderer.SCALAR,
+        compact = compact
+    )
+    val axisGutter =
+        (plotInsets.startDp - ChartLayoutMath.SCALAR_CANVAS_PADDING_DP).dp
     val axisGutterEnd = if (compact) 4.dp else 8.dp
 
     val widgetAccent = MaterialTheme.colorScheme.primary
