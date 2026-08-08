@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.features.wizard.components.DecisionSupportCard
 import com.example.antennalab_v1.features.wizard.components.OverviewInfoCard
 import com.example.antennalab_v1.features.wizard.components.SectionTitle
@@ -500,12 +501,8 @@ private fun AntennaTypeSelectorCard(
                         onClick = { onAntennaTypeChange(type) },
                         label = { Text(type) },
                         modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                            selectedLabelColor = Step2TextColor,
-                            containerColor = Step2ButtonBlendColor,
-                            labelColor = Step2SubtleTextColor
-                        )
+                        colors = SelectionButtonStyle.chipColors(),
+                        border = SelectionButtonStyle.chipBorder(selected = selectedType == type)
                     )
                 }
             }
@@ -522,12 +519,8 @@ private fun AntennaTypeSelectorCard(
                         onClick = { onAntennaTypeChange(type) },
                         label = { Text(type) },
                         modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                            selectedLabelColor = Step2TextColor,
-                            containerColor = Step2ButtonBlendColor,
-                            labelColor = Step2SubtleTextColor
-                        )
+                        colors = SelectionButtonStyle.chipColors(),
+                        border = SelectionButtonStyle.chipBorder(selected = selectedType == type)
                     )
                 }
             }

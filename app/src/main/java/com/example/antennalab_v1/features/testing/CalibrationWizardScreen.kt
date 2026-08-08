@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.BuildConfig
 import com.example.antennalab_v1.domain.testing.DebugOslCalibrationSimulator
 import com.example.antennalab_v1.domain.testing.SweepController
@@ -314,6 +315,8 @@ private fun CalibrationDebugCard(
 
             FilterChip(
                 selected = debugSimulateCapture,
+                colors = SelectionButtonStyle.chipColors(),
+                border = SelectionButtonStyle.chipBorder(selected = debugSimulateCapture),
                 onClick = { onToggle(!debugSimulateCapture) },
                 label = { Text("Simulate O/S/L capture (no hardware)") }
             )

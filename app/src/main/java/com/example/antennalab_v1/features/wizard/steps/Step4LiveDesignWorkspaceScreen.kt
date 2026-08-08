@@ -67,6 +67,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.domain.calculator.CalculationEngineResult
 import com.example.antennalab_v1.domain.calculator.ConductorForm
 import com.example.antennalab_v1.domain.calculator.calculateDesign
@@ -511,6 +512,7 @@ private fun <T> DropdownSelector(
 
         OutlinedButton(
             onClick = { expanded = true },
+            border = SelectionButtonStyle.outlinedBorder(),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(selected.toString())

@@ -99,10 +99,7 @@ fun SweepDiagnosticsSummaryPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Diagnostics Summary",
-                instrumentAccent = instrumentAccent
-            )
+            SharedInstrumentSectionHeader(text = "Diagnostics Summary")
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
@@ -289,10 +286,7 @@ fun SweepTuningInterpretationPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Tuning Interpretation",
-                instrumentAccent = instrumentAccent
-            )
+            SharedInstrumentSectionHeader(text = "Tuning Interpretation")
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider

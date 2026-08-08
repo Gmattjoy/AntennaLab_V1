@@ -1,15 +1,11 @@
 package com.example.antennalab_v1.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 
 /*
 ########################################################################
@@ -30,15 +26,13 @@ wearing a sweep-specific name: public, no instrument* colour params, and
 every colour resolved from MaterialTheme.colorScheme. Pure move and
 rename, no behaviour change.
 
-SELECTED COLOUR
-The selected fill is AntennaLabTheme.semantic.selectedIndicator (neon
-orange #FF5C00), not colorScheme.primary. Primary is the general action
-accent shared with ~50 other call sites (Back to Home et al), so selection
-could not be re-tinted there without moving every action button too. The
-label is the paired onSelectedIndicator so it stays legible on the fill.
-UNSELECTED state is untouched and still resolves from colorScheme.
-The orange/warning-amber clash was reviewed and accepted; rationale and
-contrast numbers live in ui/theme/SemanticColors.kt.
+COLOUR
+Both states now come from SelectionButtonStyle — solid orange when
+selected, orange outline on a transparent fill when not. This file no
+longer decides anything about colour, which is the point: the same rule
+drives the sweep display-mode row, the trace-math row, the marker row and
+every plain action button. The orange/warning-amber clash was reviewed and
+accepted; rationale and contrast numbers live in ui/theme/SemanticColors.kt.
 
 KNOWN GAP, deliberately not fixed in 5d
 No minimum height, so this renders at Material's default (~40 dp) —
@@ -55,45 +49,11 @@ fun SegmentedChoiceButton(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val selectedIndicator = AntennaLabTheme.semantic.selectedIndicator
-
-    val fillColor =
-        if (selected) {
-            selectedIndicator
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
-        }
-
-    val contentColor =
-        if (selected) {
-            AntennaLabTheme.semantic.onSelectedIndicator
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-
-    // The border tracks the fill: a primary-green ring around an orange fill
-    // would just read as a rendering bug.
-    val borderColor =
-        if (selected) {
-            selectedIndicator.copy(alpha = 0.95f)
-        } else {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
-        }
-
     Button(
         onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = fillColor,
-            contentColor = contentColor
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = borderColor
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = if (selected) 4.dp else 2.dp,
-            pressedElevation = 1.dp
-        ),
+        colors = SelectionButtonStyle.colors(selected),
+        border = SelectionButtonStyle.border(selected),
+        elevation = SelectionButtonStyle.elevation(selected),
         shape = RoundedCornerShape(10.dp)
     ) {
         Text(

@@ -24,9 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.model.settings.ThemePreference
 import com.example.antennalab_v1.ui.components.SegmentedChoiceButton
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,10 +94,9 @@ fun SystemMenuScreen(
             Button(
                 onClick = onBackHome,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                colors = SelectionButtonStyle.colors(selected = false),
+                border = SelectionButtonStyle.border(selected = false),
+                elevation = SelectionButtonStyle.elevation(selected = false)
             ) {
                 Text("Back to Home")
             }
@@ -111,7 +112,14 @@ private fun ScreenSectionCard(title: String, subtitle: String) {
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            // Section headings are neutral, never accented — same rule as the
+            // sweep workspace's SharedInstrumentSectionHeader.
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
             Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -173,6 +181,7 @@ private fun AppSettingsCard(
             Text(
                 text = "App Settings",
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
@@ -218,7 +227,12 @@ private fun SystemMenuStaticCard(title: String, subtitle: String) {
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.30f))
     ) {
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

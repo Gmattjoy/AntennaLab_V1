@@ -184,15 +184,22 @@ fun SharedInstrumentTitle(
     )
 }
 
+/*
+Section headings are NEUTRAL, not accented. They used to take an accent
+colour param — green on some cards, brass-yellow on others — which made the
+heading itself compete with the data underneath and left the sweep workspace
+looking like three different apps. The colour param is gone rather than
+ignored, so nothing can quietly pass an accent again.
+
+Weight dropped from Bold to Normal for the same reason: a heading is a label
+for a group, not the loudest thing on the card.
+*/
 @Composable
-fun SharedInstrumentSectionHeader(
-    text: String,
-    instrumentAccent: Color
-) {
+fun SharedInstrumentSectionHeader(text: String) {
     Text(
         text = text,
-        color = instrumentAccent,
-        fontWeight = FontWeight.Bold
+        color = InstrumentTextPrimary,
+        fontWeight = FontWeight.Normal
     )
 }
 
@@ -204,7 +211,7 @@ fun SharedInstrumentSubHeader(
     Text(
         text = text,
         color = instrumentTextPrimary,
-        fontWeight = FontWeight.SemiBold
+        fontWeight = FontWeight.Normal
     )
 }
 
@@ -522,10 +529,7 @@ fun SweepAnalogGauge(
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SharedInstrumentSectionHeader(
-            text = gaugeTitle,
-            instrumentAccent = instrumentAccent
-        )
+        SharedInstrumentSectionHeader(text = gaugeTitle)
 
         Surface(
             modifier = Modifier

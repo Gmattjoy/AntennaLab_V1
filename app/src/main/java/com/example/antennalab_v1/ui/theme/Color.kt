@@ -37,16 +37,46 @@ SAFE EDIT AREA
 
 /*
 ########################################################################
+SECTION 0900
+ACCENT ORANGE — THE ONE DEFINITION
+########################################################################
+PURPOSE
+The app's single accent hue. Declared FIRST because everything below
+initialises from it (Kotlin top-level vals initialise in file order).
+
+Every orange in the app traces back to these two values: the Material
+primary/onPrimary roles below, and the selectedIndicator semantic token
+in SemanticColors.kt. Re-tinting the app is a one-line edit here.
+
+Theme-blind on purpose — it holds up on the dark instrument shell and on
+the near-white light surfaces, so there is no light/dark split. The ink is
+a warm near-black rather than white: on this orange, white measures about
+2.6:1 (fails AA) while the ink measures 5.27:1 (passes AA for normal
+text). DesignTokensTest recomputes that ratio — if the orange is ever
+re-tinted, the INK is what gets adjusted to keep it.
+########################################################################
+*/
+val AccentOrange = Color(0xFFFF5C00)
+val OnAccentOrange = Color(0xFF3A1500)
+
+/*
+########################################################################
 SECTION 1000
 DEFAULT DARK THEME COLORS
 ########################################################################
 PURPOSE
 Primary instrument theme inspired by modernized lab gear and late-analog
 high-tech control panels.
+
+The primary role WAS a metallic teal-green (0xFF6F9792). It is now the
+accent orange: green is gone from the app's chrome entirely, and routing
+the change through the Material role moves all ~50 primary call sites at
+once instead of leaving per-screen stragglers. Status greens are NOT
+affected — those live in the semantic colours and still mean "good".
 ########################################################################
 */
-val DarkPrimary = Color(0xFF6F9792)
-val DarkOnPrimary = Color(0xFF0B1416)
+val DarkPrimary = AccentOrange
+val DarkOnPrimary = OnAccentOrange
 
 val DarkSecondary = Color(0xFF8198A6)
 val DarkOnSecondary = Color(0xFF0E171D)
@@ -95,8 +125,10 @@ PURPOSE
 Clean technical drafting / instrument-panel look for light mode.
 ########################################################################
 */
-val LightPrimary = Color(0xFF5E8884)
-val LightOnPrimary = Color(0xFFF7FEFE)
+// Same accent in light mode — see SECTION 0900. The light ON-colour used to
+// be near-white (0xFFF7FEFE), which would fail contrast on the orange.
+val LightPrimary = AccentOrange
+val LightOnPrimary = OnAccentOrange
 
 val LightSecondary = Color(0xFF5D7787)
 val LightOnSecondary = Color(0xFFFFFFFF)

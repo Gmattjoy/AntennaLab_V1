@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,7 +22,9 @@ The shared action button. Two variants:
   STANDARD — secondary fill, sized to the COMFORTABLE touch target
 
 Sizes come from the Phase-0 touch tokens so field usability is a token
-decision, not a per-call guess. Colours come from the Material scheme.
+decision, not a per-call guess. Colours come from SelectionButtonStyle —
+the variants differ in SIZE and TYPE WEIGHT, not in colour, because solid
+fill is reserved app-wide for "selected".
 ########################################################################
 */
 enum class AppActionVariant { PRIMARY, STANDARD }
@@ -40,19 +41,9 @@ fun AppActionButton(
         if (variant == AppActionVariant.PRIMARY) AntennaLabTheme.touch.field
         else AntennaLabTheme.touch.comfortable
 
-    val colors =
-        if (variant == AppActionVariant.PRIMARY) {
-            ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
-        } else {
-            ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-        }
-
+    // Both variants take the UNSELECTED treatment: an action is never "the
+    // active choice", so it is never solid. PRIMARY still reads as the
+    // stronger of the two through its larger touch target and title style.
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -60,7 +51,9 @@ fun AppActionButton(
             .fillMaxWidth()
             .defaultMinSize(minHeight = minHeight),
         shape = RoundedCornerShape(AntennaLabTheme.spacing.md),
-        colors = colors
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = false)
     ) {
         Text(
             text = text,

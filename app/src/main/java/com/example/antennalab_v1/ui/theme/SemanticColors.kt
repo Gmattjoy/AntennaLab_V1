@@ -37,10 +37,11 @@ app-wide — today ui/components/SegmentedChoiceButton.kt (the App Settings
 theme selector and the sweep display-mode row). Named for the ROLE, not the
 hue, so a future re-tint changes one value here and nothing else.
 
-Deliberately NOT colorScheme.primary: primary is the general action accent
-(Back to Home and ~50 other call sites), so selection could not be re-tinted
-without dragging every action button with it. Selection now has its own
-token; primary is untouched.
+It currently resolves to the SAME hue as colorScheme.primary — both alias
+AccentOrange — but it stays a separate token because it answers a different
+question. Primary is "what is this app's accent"; selectedIndicator is
+"which of these options is active". Consumers of one should not silently
+inherit a re-tint of the other.
 
 The clash between this orange and `warning` (#B45309 in light) was reviewed
 and accepted — they never share a surface, and selection is a fill while
@@ -69,16 +70,14 @@ data class AntennaLabSemanticColors(
 )
 
 /*
-Shared by both schemes: the selected/active indicator is a saturated neon
-orange that holds up on the dark instrument shell AND on the near-white
-light surfaces, so there is no light/dark split to maintain. Its label is a
-warm near-black rather than white — on #FF5C00 white lands at ~2.6:1 (fails
-AA) while this reaches ~5.3:1 (passes AA for normal text). Pinned by
-DesignTokensTest, which recomputes the WCAG ratio: if the orange is ever
-re-tinted, adjust the LABEL to keep the ratio, not the other way round.
+Shared by both schemes, and the SAME value as the Material primary role:
+both alias AccentOrange in Color.kt, which is the one definition. The token
+still exists separately because it names a different job — "this option is
+the active choice" rather than "this is the accent" — so a future design
+could split them without hunting call sites.
 */
-private val SelectedIndicatorOrange = Color(0xFFFF5C00)
-private val OnSelectedIndicatorInk = Color(0xFF3A1500)
+private val SelectedIndicatorOrange = AccentOrange
+private val OnSelectedIndicatorInk = OnAccentOrange
 
 /*
 DARK set — reuses the existing StatusGood/Warning/Bad values (nothing new

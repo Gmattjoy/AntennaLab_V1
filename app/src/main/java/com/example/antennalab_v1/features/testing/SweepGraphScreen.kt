@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.domain.analysis.AdjustmentEstimate
 import com.example.antennalab_v1.domain.analysis.AntennaBehaviorClassification
 import com.example.antennalab_v1.domain.analysis.ChartLayoutMath
@@ -870,6 +871,8 @@ private fun SweepDebugToolsCard(
             )
             FilterChip(
                 selected = simulatedSweepWithoutDevice,
+                colors = SelectionButtonStyle.chipColors(),
+                border = SelectionButtonStyle.chipBorder(selected = simulatedSweepWithoutDevice),
                 onClick = {
                     onToggleSimulatedSweepWithoutDevice(!simulatedSweepWithoutDevice)
                 },
@@ -882,6 +885,8 @@ private fun SweepDebugToolsCard(
             )
             FilterChip(
                 selected = forceIncompleteSweep,
+                colors = SelectionButtonStyle.chipColors(),
+                border = SelectionButtonStyle.chipBorder(selected = forceIncompleteSweep),
                 onClick = { onToggleForceIncompleteSweep(!forceIncompleteSweep) },
                 label = { Text("Force incomplete simulated sweep") }
             )
@@ -892,6 +897,8 @@ private fun SweepDebugToolsCard(
             )
             FilterChip(
                 selected = injectCalibrationError,
+                colors = SelectionButtonStyle.chipColors(),
+                border = SelectionButtonStyle.chipBorder(selected = injectCalibrationError),
                 onClick = { onToggleInjectCalibrationError(!injectCalibrationError) },
                 label = { Text("Inject calibration error (test correction)") }
             )
@@ -1124,10 +1131,7 @@ private fun S1pExportCard(result: SweepResult, projectName: String) {
 
     InstrumentCard {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SharedInstrumentSectionHeader(
-                text = "Touchstone export",
-                instrumentAccent = InstrumentAccent
-            )
+            SharedInstrumentSectionHeader(text = "Touchstone export")
             SharedInstrumentMutedText(
                 text = "One-port .s1p (S11 only) with the app's calibration state " +
                     "recorded in the file header.",
@@ -1205,7 +1209,7 @@ private fun InstrumentTitle(text: String) {
 
 @Composable
 private fun InstrumentSectionHeader(text: String) {
-    SharedInstrumentSectionHeader(text = text, instrumentAccent = InstrumentAccent)
+    SharedInstrumentSectionHeader(text = text)
 }
 
 @Composable
@@ -1282,6 +1286,8 @@ private fun DiscoveryClassificationCard(
             discoveryUi.availableClassifications.forEach { classification ->
                 FilterChip(
                     selected = classification == discoveryUi.selectedAntennaClassification,
+                    colors = SelectionButtonStyle.chipColors(),
+                    border = SelectionButtonStyle.chipBorder(selected = classification == discoveryUi.selectedAntennaClassification),
                     onClick = { onClassificationSelected(classification) },
                     label = {
                         Text(SweepUiModelBuilder.formatAntennaClassificationLabel(classification))
@@ -1330,6 +1336,7 @@ private fun DiscoveryHandoffCard(
 
                 OutlinedButton(
                     onClick = onReturnWithoutSaving,
+                    border = SelectionButtonStyle.outlinedBorder(),
                     enabled = discoveryUi.canReturnWithoutSaving
                 ) {
                     Text("Return Unsaved")
@@ -1337,6 +1344,7 @@ private fun DiscoveryHandoffCard(
 
                 OutlinedButton(
                     onClick = onDiscardSession,
+                    border = SelectionButtonStyle.outlinedBorder(),
                     enabled = discoveryUi.canDiscardSession
                 ) {
                     Text("Discard Session")

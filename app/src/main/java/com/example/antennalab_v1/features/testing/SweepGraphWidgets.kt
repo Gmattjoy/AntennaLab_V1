@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.domain.analysis.ChartLayoutMath
 import com.example.antennalab_v1.model.HardwareMeasurementCapabilities
 import com.example.antennalab_v1.model.TestHardwareProfile
@@ -285,10 +286,7 @@ fun SweepDisplayModesCard(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Display Modes",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Display Modes")
 
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -417,10 +415,7 @@ fun SweepControlsCard(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Controls",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Controls")
 
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -499,10 +494,7 @@ fun SweepSummaryCard(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Sweep Summary",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Sweep Summary")
 
             resonanceMHz?.let {
                 // §10b item 1: this is the minimum-SWR frequency (best match), NOT the
@@ -609,45 +601,15 @@ fun SweepWorkspaceControlButton(
     isPrimaryAction: Boolean = false,
     onClick: () -> Unit
 ) {
-    val fillColor =
-        if (isPrimaryAction) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
-        }
-
-    val contentColor =
-        if (isPrimaryAction) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-
-    val borderColor =
-        if (isPrimaryAction) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)
-        } else {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
-        }
-
+    // isPrimaryAction no longer changes the COLOUR — solid orange is reserved
+    // app-wide for "selected", and an action is never selected. It still
+    // carries the emphasis through type weight.
     Button(
         onClick = onClick,
         enabled = enabled,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = fillColor,
-            contentColor = contentColor,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = borderColor
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = if (isPrimaryAction) 4.dp else 3.dp,
-            pressedElevation = 1.dp,
-            disabledElevation = 0.dp
-        ),
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = false),
         shape = RoundedCornerShape(10.dp)
     ) {
         Text(
@@ -1254,10 +1216,7 @@ fun SweepWaterfallSweepView(
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SharedInstrumentSectionHeader(
-            text = "Waterfall Sweep Display",
-            instrumentAccent = MaterialTheme.colorScheme.primary
-        )
+        SharedInstrumentSectionHeader(text = "Waterfall Sweep Display")
 
         if (sweepHistory.isEmpty()) {
             SharedInstrumentMutedText(

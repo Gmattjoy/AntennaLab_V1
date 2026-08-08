@@ -62,8 +62,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.domain.testing.EffectiveHardwareResolver
 import com.example.antennalab_v1.domain.testing.HardwareSweepCapability
 import com.example.antennalab_v1.domain.testing.UsbSessionManager
@@ -577,20 +579,9 @@ private fun TabButton(
 ) {
     Button(
         onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor =
-                if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor =
-                if (active) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color =
-                if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-        )
+        colors = SelectionButtonStyle.colors(selected = active),
+        border = SelectionButtonStyle.border(selected = active),
+        elevation = SelectionButtonStyle.elevation(selected = active)
     ) {
         Text(
             text = label,
@@ -604,7 +595,12 @@ private fun SmallActionButton(
     text: String,
     onClick: () -> Unit
 ) {
-    Button(onClick = onClick) {
+    Button(
+        onClick = onClick,
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false),
+        elevation = SelectionButtonStyle.elevation(selected = false)
+    ) {
         Text(text)
     }
 }
@@ -616,20 +612,20 @@ fun EngineeringDashboardCard(project: ProjectData) {
     val userView = buildUserViewSummary(project)
 
     SectionCard(title = "Engineering Dashboard", highlighted = true) {
-        Text("Next Recommended Action", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Next Recommended Action", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
         Text(nextAction, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-        Text("Project Snapshot", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Project Snapshot", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
         DataRow("Type", project.designInput.antennaType.name)
         DataRow("Classification", formatClassification(project.antennaClassification))
         DataRow("Target", "${project.designInput.targetFrequencyMHz} MHz")
         DataRow("Status", project.meta.projectStatus.name)
         DataRow("Hardware", formatHardware(project.testHardwareProfile))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-        Text("Build Readiness", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Build Readiness", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
         Text(readiness, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-        Text("User View", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("User View", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
         Text(userView, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -648,7 +644,7 @@ private fun ProjectIdentityClassificationCard(
         Text(
             text = "Antenna Classification",
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = "Use this quick classification near the top of Overview so the project identity stays clear without duplicating the engineering dashboard.",
@@ -679,20 +675,9 @@ private fun ClassificationButton(
 ) {
     Button(
         onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor =
-                if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor =
-                if (active) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color =
-                if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-        )
+        colors = SelectionButtonStyle.colors(selected = active),
+        border = SelectionButtonStyle.border(selected = active),
+        elevation = SelectionButtonStyle.elevation(selected = active)
     ) {
         Text(text = label, style = MaterialTheme.typography.labelLarge)
     }
@@ -794,7 +779,7 @@ private fun MaterialsSectionCard(project: ProjectData) {
     val totalConductorLengthMm = elementLengthsMm.sum()
 
     SectionCard(title = "Materials") {
-        Text("Material Properties", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Material Properties", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
         DataRow("Conductor Material", project.materialConfig.conductorMaterial.name)
         DataRow("Conductor Diameter", "${project.materialConfig.conductorDiameterMm} mm")
         DataRow("Boom Material", project.materialConfig.boomMaterial.name)
@@ -803,7 +788,7 @@ private fun MaterialsSectionCard(project: ProjectData) {
         DataRow("Feedline", project.materialConfig.feedlineType.name)
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-        Text("Required Build Dimensions", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Required Build Dimensions", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
 
         if (elementLengthsMm.isNotEmpty()) {
             DataRow("Total Conductor Length", formatMillimetres(totalConductorLengthMm))
@@ -816,7 +801,7 @@ private fun MaterialsSectionCard(project: ProjectData) {
 
         if (elementSpacingMm.isNotEmpty()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-            Text("Element Spacing", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Element Spacing", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
             elementSpacingMm.forEachIndexed { index, spacingMm ->
                 DataRow("Spacing ${index + 1}", formatMillimetres(spacingMm))
             }
@@ -836,7 +821,7 @@ private fun MaterialsSectionCard(project: ProjectData) {
 
         if (project.materialConfig.buildNotes.isNotBlank()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f))
-            Text("Build Notes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text("Build Notes", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
             Text(project.materialConfig.buildNotes, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -885,14 +870,9 @@ private fun HardwareButton(
 ) {
     Button(
         onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-        )
+        colors = SelectionButtonStyle.colors(selected = active),
+        border = SelectionButtonStyle.border(selected = active),
+        elevation = SelectionButtonStyle.elevation(selected = active)
     ) {
         Text(text = label, style = MaterialTheme.typography.labelLarge)
     }
@@ -1093,10 +1073,9 @@ private fun PrimaryActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = false)
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }
@@ -1112,11 +1091,9 @@ private fun SecondaryActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = false)
     ) {
         Text(text = text, style = MaterialTheme.typography.labelLarge)
     }

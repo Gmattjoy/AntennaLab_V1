@@ -1,12 +1,16 @@
 package com.example.antennalab_v1
 
 import androidx.compose.ui.graphics.Color
+import com.example.antennalab_v1.ui.theme.AccentOrange
 import com.example.antennalab_v1.ui.theme.AntennaLabSpacing
 import com.example.antennalab_v1.ui.theme.AntennaLabTouch
 import com.example.antennalab_v1.ui.theme.DarkAntennaLabSemanticColors
+import com.example.antennalab_v1.ui.theme.DarkOnPrimary
 import com.example.antennalab_v1.ui.theme.DarkPrimary
 import com.example.antennalab_v1.ui.theme.LightAntennaLabSemanticColors
+import com.example.antennalab_v1.ui.theme.LightOnPrimary
 import com.example.antennalab_v1.ui.theme.LightPrimary
+import com.example.antennalab_v1.ui.theme.OnAccentOrange
 import com.example.antennalab_v1.ui.theme.StatusBad
 import com.example.antennalab_v1.ui.theme.StatusGood
 import com.example.antennalab_v1.ui.theme.StatusWarning
@@ -97,11 +101,25 @@ class DesignTokensTest {
     }
 
     @Test
-    fun selectedIndicator_isNotColorSchemePrimary() {
-        // The whole point of the token: selection can be re-tinted without
-        // dragging every primary-accented action button along with it.
-        assertNotEquals(DarkPrimary, DarkAntennaLabSemanticColors.selectedIndicator)
-        assertNotEquals(LightPrimary, LightAntennaLabSemanticColors.selectedIndicator)
+    fun accentOrange_isTheOneDefinitionBehindPrimaryAndSelection() {
+        // Primary and selectedIndicator deliberately resolve to the SAME hue,
+        // both aliasing AccentOrange. This pins that there is one definition
+        // rather than two hexes that happen to match today and drift tomorrow.
+        assertEquals(AccentOrange, DarkPrimary)
+        assertEquals(AccentOrange, LightPrimary)
+        assertEquals(AccentOrange, DarkAntennaLabSemanticColors.selectedIndicator)
+        assertEquals(AccentOrange, LightAntennaLabSemanticColors.selectedIndicator)
+
+        assertEquals(OnAccentOrange, DarkOnPrimary)
+        assertEquals(OnAccentOrange, LightOnPrimary)
+    }
+
+    @Test
+    fun onPrimary_meetsWcagAaOnPrimary_inBothSchemes() {
+        // Primary is now a mid-tone orange, so the light scheme's old
+        // near-white onPrimary would have failed here. Guard both schemes.
+        assertTrue(contrastRatio(DarkOnPrimary, DarkPrimary) >= 4.5)
+        assertTrue(contrastRatio(LightOnPrimary, LightPrimary) >= 4.5)
     }
 
     @Test

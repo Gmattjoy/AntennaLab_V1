@@ -69,6 +69,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.domain.testing.SweepCsvExport
+import com.example.antennalab_v1.ui.components.SelectionButtonStyle
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
 import kotlin.math.abs
@@ -99,10 +100,7 @@ fun SweepTraceMemoryPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Trace Memory / Compare",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Trace Memory / Compare")
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
@@ -158,28 +156,19 @@ fun SweepTraceMemoryPanel(
                 SweepWorkspaceActionButton(
                     label = "Use Current as Ref",
                     enabled = currentSweep != null,
-                    onClick = onUseCurrentAsReference,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = onUseCurrentAsReference
                 )
 
                 SweepWorkspaceActionButton(
                     label = "Recall Previous",
                     enabled = sweepHistoryCount >= 2,
-                    onClick = onUsePreviousHistoryAsReference,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = onUsePreviousHistoryAsReference
                 )
 
                 SweepWorkspaceActionButton(
                     label = "Clear Ref",
                     enabled = referenceSweep != null,
-                    onClick = onClearReference,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = onClearReference
                 )
             }
 
@@ -200,36 +189,21 @@ fun SweepTraceMemoryPanel(
                     label = "Current",
                     active = traceCompareMode == TraceCompareMode.CURRENT_ONLY,
                     enabled = true,
-                    onClick = { onTraceModeChange(TraceCompareMode.CURRENT_ONLY) },
-                    instrumentAccent = widgetAccent,
-                    instrumentBackground = instrumentSurface,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = { onTraceModeChange(TraceCompareMode.CURRENT_ONLY) }
                 )
 
                 SweepWorkspaceDisplayButton(
                     label = "Current + Ref",
                     active = traceCompareMode == TraceCompareMode.CURRENT_PLUS_REFERENCE,
                     enabled = referenceSweep != null,
-                    onClick = { onTraceModeChange(TraceCompareMode.CURRENT_PLUS_REFERENCE) },
-                    instrumentAccent = widgetAccent,
-                    instrumentBackground = instrumentSurface,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = { onTraceModeChange(TraceCompareMode.CURRENT_PLUS_REFERENCE) }
                 )
 
                 SweepWorkspaceDisplayButton(
                     label = "Difference",
                     active = traceCompareMode == TraceCompareMode.DIFFERENCE,
                     enabled = referenceSweep != null,
-                    onClick = { onTraceModeChange(TraceCompareMode.DIFFERENCE) },
-                    instrumentAccent = widgetAccent,
-                    instrumentBackground = instrumentSurface,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = { onTraceModeChange(TraceCompareMode.DIFFERENCE) }
                 )
             }
 
@@ -294,10 +268,7 @@ fun SweepMarkerControlPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Professional Marker System",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Professional Marker System")
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
@@ -315,23 +286,13 @@ fun SweepMarkerControlPanel(
                     label = "Marker A",
                     active = activeMarkerIsA,
                     enabled = true,
-                    onClick = onSelectMarkerA,
-                    instrumentAccent = widgetAccent,
-                    instrumentBackground = instrumentSurface,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = onSelectMarkerA
                 )
                 SweepWorkspaceDisplayButton(
                     label = "Marker B",
                     active = !activeMarkerIsA,
                     enabled = true,
-                    onClick = onSelectMarkerB,
-                    instrumentAccent = widgetAccent,
-                    instrumentBackground = instrumentSurface,
-                    instrumentSurfaceVariant = widgetSurface,
-                    instrumentTextPrimary = instrumentTextPrimary,
-                    instrumentTextSecondary = instrumentTextSecondary
+                    onClick = onSelectMarkerB
                 )
             }
 
@@ -347,12 +308,12 @@ fun SweepMarkerControlPanel(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SweepWorkspaceActionButton("Active -", true, { onActiveMarkerNudge(-1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Active +", true, { onActiveMarkerNudge(1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("A-", true, { onMarkerANudge(-1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("A+", true, { onMarkerANudge(1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("B-", true, { onMarkerBNudge(-1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("B+", true, { onMarkerBNudge(1) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
+                SweepWorkspaceActionButton("Active -", true, { onActiveMarkerNudge(-1) })
+                SweepWorkspaceActionButton("Active +", true, { onActiveMarkerNudge(1) })
+                SweepWorkspaceActionButton("A-", true, { onMarkerANudge(-1) })
+                SweepWorkspaceActionButton("A+", true, { onMarkerANudge(1) })
+                SweepWorkspaceActionButton("B-", true, { onMarkerBNudge(-1) })
+                SweepWorkspaceActionButton("B+", true, { onMarkerBNudge(1) })
             }
 
             SharedInstrumentSubHeader(
@@ -363,10 +324,10 @@ fun SweepMarkerControlPanel(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SweepWorkspaceActionButton("Peak Search", highestPeakAvailable, onPeakSearch, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Min SWR", true, onMoveActiveToResonance, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Next Peak", peakCount > 0, onNextPeak, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Previous Peak", peakCount > 0, onPreviousPeak, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
+                SweepWorkspaceActionButton("Peak Search", highestPeakAvailable, onPeakSearch)
+                SweepWorkspaceActionButton("Min SWR", true, onMoveActiveToResonance)
+                SweepWorkspaceActionButton("Next Peak", peakCount > 0, onNextPeak)
+                SweepWorkspaceActionButton("Previous Peak", peakCount > 0, onPreviousPeak)
             }
 
             SharedInstrumentSubHeader(
@@ -377,11 +338,11 @@ fun SweepMarkerControlPanel(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SweepWorkspaceActionButton("A → Resonance", true, onMoveAToResonance, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("B → Resonance", true, onMoveBToResonance, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("A → Center", true, onMoveAToCenter, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("B → Center", true, onMoveBToCenter, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Active → Target", true, onMoveActiveToTarget, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
+                SweepWorkspaceActionButton("A → Resonance", true, onMoveAToResonance)
+                SweepWorkspaceActionButton("B → Resonance", true, onMoveBToResonance)
+                SweepWorkspaceActionButton("A → Center", true, onMoveAToCenter)
+                SweepWorkspaceActionButton("B → Center", true, onMoveBToCenter)
+                SweepWorkspaceActionButton("Active → Target", true, onMoveActiveToTarget)
             }
 
             SharedInstrumentSubHeader(
@@ -412,9 +373,9 @@ fun SweepMarkerControlPanel(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SweepWorkspaceActionButton("Active → User Freq", userFrequencyEntryValid, { onMoveActiveToUserFrequency(parsedUserFrequencyMHz) }, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("A → Target", true, onMoveAToTarget, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("B → Target", true, onMoveBToTarget, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
+                SweepWorkspaceActionButton("Active → User Freq", userFrequencyEntryValid, { onMoveActiveToUserFrequency(parsedUserFrequencyMHz) })
+                SweepWorkspaceActionButton("A → Target", true, onMoveAToTarget)
+                SweepWorkspaceActionButton("B → Target", true, onMoveBToTarget)
             }
 
             SharedInstrumentSubHeader(
@@ -425,8 +386,8 @@ fun SweepMarkerControlPanel(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SweepWorkspaceActionButton("Mark SWR≤2 BW", bandwidthMarkerPairAvailable, onPlaceBandwidthMarkers, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
-                SweepWorkspaceActionButton("Full Span", true, onPlaceFullSpanMarkers, widgetSurface, instrumentTextPrimary, instrumentTextSecondary)
+                SweepWorkspaceActionButton("Mark SWR≤2 BW", bandwidthMarkerPairAvailable, onPlaceBandwidthMarkers)
+                SweepWorkspaceActionButton("Full Span", true, onPlaceFullSpanMarkers)
             }
 
             SharedInstrumentDividerLine(
@@ -488,10 +449,7 @@ fun SweepMarkerDataPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "Live Measurement Dashboard",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "Live Measurement Dashboard")
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
             )
@@ -596,10 +554,7 @@ fun SweepCsvPreviewPanel(
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            SharedInstrumentSectionHeader(
-                text = "CSV Preview",
-                instrumentAccent = widgetAccent
-            )
+            SharedInstrumentSectionHeader(text = "CSV Preview")
 
             SharedInstrumentDividerLine(
                 instrumentDivider = instrumentDivider
@@ -679,30 +634,17 @@ fun SweepCsvPreviewPanel(
 private fun SweepWorkspaceActionButton(
     label: String,
     enabled: Boolean,
-    onClick: () -> Unit,
-    instrumentSurfaceVariant: Color,
-    instrumentTextPrimary: Color,
-    instrumentTextSecondary: Color
+    onClick: () -> Unit
 ) {
+    // An action has no selected state, so it takes the unselected treatment:
+    // orange outline, transparent fill. Solid means "selected" and nothing else.
     Button(
         onClick = onClick,
         modifier = Modifier.defaultMinSize(minHeight = 48.dp),
         enabled = enabled,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = instrumentSurfaceVariant,
-            contentColor = instrumentTextPrimary,
-            disabledContainerColor = instrumentSurfaceVariant.copy(alpha = 0.48f),
-            disabledContentColor = instrumentTextSecondary
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.95f)
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 4.dp,
-            pressedElevation = 1.dp,
-            disabledElevation = 0.dp
-        ),
+        colors = SelectionButtonStyle.colors(selected = false),
+        border = SelectionButtonStyle.border(selected = false, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = false),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -714,46 +656,27 @@ private fun SweepWorkspaceActionButton(
 }
 
 @Composable
+// Colour comes from SelectionButtonStyle, so the instrument-palette params
+// these two used to take are gone rather than left dangling and unread.
 private fun SweepWorkspaceDisplayButton(
     label: String,
     active: Boolean,
     enabled: Boolean,
-    onClick: () -> Unit,
-    instrumentAccent: Color,
-    instrumentBackground: Color,
-    instrumentSurfaceVariant: Color,
-    instrumentTextPrimary: Color,
-    instrumentTextSecondary: Color
+    onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier.defaultMinSize(minHeight = 48.dp),
         enabled = enabled,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (active) instrumentAccent else instrumentSurfaceVariant,
-            contentColor = if (active) instrumentBackground else instrumentTextPrimary,
-            disabledContainerColor = instrumentSurfaceVariant.copy(alpha = 0.48f),
-            disabledContentColor = instrumentTextSecondary
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (active) {
-                instrumentAccent.copy(alpha = 0.98f)
-            } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.95f)
-            }
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = if (active) 6.dp else 3.dp,
-            pressedElevation = 1.dp,
-            disabledElevation = 0.dp
-        ),
+        colors = SelectionButtonStyle.colors(selected = active),
+        border = SelectionButtonStyle.border(selected = active, enabled = enabled),
+        elevation = SelectionButtonStyle.elevation(selected = active),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Text(
             text = label,
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
         )
     }
 }
