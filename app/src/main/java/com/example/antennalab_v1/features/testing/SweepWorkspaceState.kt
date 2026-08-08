@@ -156,7 +156,28 @@ data class SweepWorkspaceState(
     CSV PREVIEW
     ------------------------------------------------------------
     */
-    val showCsvPreview: Boolean = false
+    val showCsvPreview: Boolean = false,
+
+    /*
+    ------------------------------------------------------------
+    APP ANALYSIS COLLAPSE
+    ------------------------------------------------------------
+    Spec 2.3: the app's own diagnostics summary is reframed as "app
+    analysis" — the value-add on top of the familiar VNA layout — and
+    is COLLAPSED BY DEFAULT, so the app's interpretation never outranks
+    the measurement it is interpreting.
+
+    Per-SESSION, like showCsvPreview above: the operator collapses or
+    expands for the work in front of them without changing a global
+    preference. AppSettings.appAnalysisCollapsedDefault seeds the
+    initial value when this state is first constructed and does nothing
+    after that.
+
+    Default false here is the honest one: it is what a caller that does
+    not seed gets, and the spec's default is collapsed.
+    ------------------------------------------------------------
+    */
+    val appAnalysisExpanded: Boolean = false
 )
 
 /*

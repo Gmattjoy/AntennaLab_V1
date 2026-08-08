@@ -133,7 +133,17 @@ data class AppSettings(
     chose has to repaint immediately or the control looks broken.
     That requirement is what makes SettingsRepository observable.
     */
-    val themePreference: ThemePreference = DEFAULT_THEME_PREFERENCE
+    val themePreference: ThemePreference = DEFAULT_THEME_PREFERENCE,
+    /*
+    Seeds SweepWorkspaceState.appAnalysisExpanded when a sweep workspace
+    is first constructed, and nothing after that. Collapsing the section
+    for one sweep is session state and must not rewrite this preference.
+
+    True by default per spec 2.3: the app's own interpretation is the
+    value-add ON TOP OF the familiar VNA layout, so it starts out of the
+    way rather than competing with the measurement.
+    */
+    val appAnalysisCollapsedDefault: Boolean = DEFAULT_APP_ANALYSIS_COLLAPSED
 )
 
 /*
@@ -143,9 +153,13 @@ FUTURE SURFACE — add each field WITH its consumer, never before
 These are known settings with an owning slice. They are listed rather
 than declared on purpose.
 
-  appAnalysisCollapsedDefault: Boolean       (5f)
   hasSeenProjectIntro: Boolean               (when an intro gate exists)
   readoutFormat: ReadoutFormat               (unscheduled)
+
+appAnalysisCollapsedDefault left this list in slice 5f — the last of the
+originally-deferred fields to find a consumer. What remains is genuinely
+unscheduled: readoutFormat has no design yet, and hasSeenProjectIntro has
+no intro screen to gate. Both stay listed rather than shipped inert.
 
 defaultTargetFrequencyMHz and defaultInstrument left this list in slice 5c,
 which is the first slice where the rule was SATISFIED rather than deferred:
@@ -256,3 +270,4 @@ read the same constant rather than restating the literal.
 const val DEFAULT_TARGET_FREQUENCY_MHZ = 146.0
 val DEFAULT_INSTRUMENT = TestHardwareProfile.NANOVNA_H4
 val DEFAULT_THEME_PREFERENCE = ThemePreference.SYSTEM
+const val DEFAULT_APP_ANALYSIS_COLLAPSED = true

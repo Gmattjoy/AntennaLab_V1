@@ -138,6 +138,27 @@ class AppSettingsStoreTest {
     }
 
     @Test
+    fun save_thenLoad_roundTripsAppAnalysisCollapsedDefault() {
+        // false is the non-default: a writer that dropped the key would still
+        // read back true and pass a default-valued round-trip.
+        AppSettingsStore.save(context, AppSettings(appAnalysisCollapsedDefault = false))
+
+        assertFalse(AppSettingsStore.load(context).appAnalysisCollapsedDefault)
+    }
+
+    @Test
+    fun load_honoursAppAnalysisCollapsedDefaultInAnOtherwiseEmptyFile() {
+        AppSettingsStore.settingsFile(context)
+            .writeText("""{"appAnalysisCollapsedDefault":false}""")
+
+        val loaded = AppSettingsStore.load(context)
+
+        assertFalse(loaded.appAnalysisCollapsedDefault)
+        assertEquals(ThemePreference.SYSTEM, loaded.themePreference)
+        assertEquals(146.0, loaded.defaultTargetFrequencyMHz, 0.0)
+    }
+
+    @Test
     fun load_defaultsAHandEditedNonsenseFrequency() {
         // Well-formed JSON, meaningless value — the corrupt-VALUE case for a
         // Double rather than an enum.

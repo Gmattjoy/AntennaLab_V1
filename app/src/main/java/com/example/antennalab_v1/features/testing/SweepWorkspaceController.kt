@@ -848,6 +848,19 @@ object SweepWorkspaceController {
     }
 
     /*
+    "App analysis" (spec 2.3) — the diagnostics + tuning-interpretation
+    section, collapsed by default. Transient session state, seeded from
+    AppSettings.appAnalysisCollapsedDefault and never written back to it:
+    collapsing for one sweep must not silently rewrite the operator's
+    global preference.
+    */
+    fun toggleAppAnalysisExpanded(
+        currentState: SweepWorkspaceState
+    ): SweepWorkspaceState {
+        return currentState.copy(appAnalysisExpanded = !currentState.appAnalysisExpanded)
+    }
+
+    /*
     ------------------------------------------------------------
     EDIT SECTION 1900
     INTERNAL HELPERS

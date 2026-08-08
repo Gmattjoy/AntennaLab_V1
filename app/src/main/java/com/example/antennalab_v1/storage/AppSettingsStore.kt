@@ -41,6 +41,7 @@ SAFE EDIT AREA
 
 import android.content.Context
 import com.example.antennalab_v1.model.settings.AppSettings
+import com.example.antennalab_v1.model.settings.DEFAULT_APP_ANALYSIS_COLLAPSED
 import com.example.antennalab_v1.model.settings.defaultInstrumentFromStoredName
 import com.example.antennalab_v1.model.settings.defaultTargetFrequencyMHzFromStored
 import com.example.antennalab_v1.model.settings.layoutModePinFromStoredName
@@ -56,6 +57,7 @@ object AppSettingsStore {
     private const val KEY_DEFAULT_TARGET_FREQUENCY_MHZ = "defaultTargetFrequencyMHz"
     private const val KEY_DEFAULT_INSTRUMENT = "defaultInstrument"
     private const val KEY_THEME_PREFERENCE = "themePreference"
+    private const val KEY_APP_ANALYSIS_COLLAPSED_DEFAULT = "appAnalysisCollapsedDefault"
 
     /*
     ------------------------------------------------------------
@@ -109,6 +111,7 @@ object AppSettingsStore {
             put(KEY_DEFAULT_TARGET_FREQUENCY_MHZ, settings.defaultTargetFrequencyMHz)
             put(KEY_DEFAULT_INSTRUMENT, settings.defaultInstrument.name)
             put(KEY_THEME_PREFERENCE, settings.themePreference.name)
+            put(KEY_APP_ANALYSIS_COLLAPSED_DEFAULT, settings.appAnalysisCollapsedDefault)
         }
     }
 
@@ -125,6 +128,16 @@ object AppSettingsStore {
             ),
             themePreference = themePreferenceFromStoredName(
                 json.optStringOrNull(KEY_THEME_PREFERENCE)
+            ),
+            /*
+            No enum-style seam for a Boolean: optBoolean's own default
+            covers absent, null and non-boolean alike, so the model
+            constant IS the tolerant read. Adding a parse function here
+            would be ceremony with no case to catch.
+            */
+            appAnalysisCollapsedDefault = json.optBoolean(
+                KEY_APP_ANALYSIS_COLLAPSED_DEFAULT,
+                DEFAULT_APP_ANALYSIS_COLLAPSED
             )
         )
     }

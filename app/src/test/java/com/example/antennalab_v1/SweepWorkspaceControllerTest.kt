@@ -183,6 +183,47 @@ class SweepWorkspaceControllerTest {
     }
 
     // ------------------------------------------------------------------
+    // App analysis collapse (slice 5f)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun toggleAppAnalysisExpanded_flipsBothWays() {
+        // Collapsed is the default, so the first tap must OPEN it — a toggle
+        // that only ever closed would still pass a one-direction test.
+        val collapsed = SweepWorkspaceState()
+        assertFalse(collapsed.appAnalysisExpanded)
+
+        val expanded = SweepWorkspaceController.toggleAppAnalysisExpanded(collapsed)
+        assertTrue(expanded.appAnalysisExpanded)
+
+        val reCollapsed = SweepWorkspaceController.toggleAppAnalysisExpanded(expanded)
+        assertFalse(reCollapsed.appAnalysisExpanded)
+    }
+
+    @Test
+    fun toggleAppAnalysisExpanded_changesOnlyThatField() {
+        // Same "exactly one field moved" shape as the tap-to-expand guard
+        // above, against a state that dirties the neighbouring session flags —
+        // collapsing an analysis panel must not disturb markers or the CSV
+        // preview it sits beside.
+        val before = SweepWorkspaceState(
+            currentSweep = valleySweep(),
+            displayMode = SweepDisplayMode.RETURN_LOSS,
+            traceCompareMode = TraceCompareMode.CURRENT_ONLY,
+            markerAIndex = 1,
+            markerBIndex = 3,
+            activeMarkerTarget = WorkspaceMarkerTarget.B,
+            expandedChartKind = ChartKind.PHASE,
+            showCsvPreview = true
+        )
+
+        val after = SweepWorkspaceController.toggleAppAnalysisExpanded(before)
+
+        assertTrue(after.appAnalysisExpanded)
+        assertEquals(before.copy(appAnalysisExpanded = after.appAnalysisExpanded), after)
+    }
+
+    // ------------------------------------------------------------------
     // ensureCompatibleState
     // ------------------------------------------------------------------
 

@@ -146,6 +146,14 @@ class AppSettingsTest {
     }
 
     @Test
+    fun appSettings_defaultsToAppAnalysisCollapsed() {
+        // Spec 2.3: the app's own interpretation is value-add ON TOP OF the
+        // familiar VNA layout, so it starts out of the way. A default of false
+        // here would silently invert the whole point of the slice.
+        assertTrue(AppSettings().appAnalysisCollapsedDefault)
+    }
+
+    @Test
     fun defaultInstrumentFromStoredName_fallsBackOnUnknownOrNull() {
         // A profile retired between builds, or a key never written.
         assertEquals(TestHardwareProfile.NANOVNA_H4, defaultInstrumentFromStoredName("NANOVNA_H5"))
