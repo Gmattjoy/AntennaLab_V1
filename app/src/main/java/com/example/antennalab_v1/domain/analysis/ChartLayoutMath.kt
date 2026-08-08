@@ -70,6 +70,28 @@ object ChartLayoutMath {
     }
 
     /*
+    --------------------------------------------------------------------
+    Which charts plot against frequency
+    EDIT SECTION 1000c
+    --------------------------------------------------------------------
+    The band overlay annotates a frequency axis, so it belongs on every
+    kind that has one and on no kind that does not. SMITH is the exception:
+    it plots reflection on the complex plane, where the sweep's frequency
+    is the path along the locus rather than a screen axis.
+
+    Stated here, once, rather than as `kind != SMITH` at a call site. The
+    exhaustive `when` means a fifth ChartKind cannot compile without
+    answering this question, whereas the call-site version would silently
+    default a new kind to "has an axis" and mis-draw it.
+    --------------------------------------------------------------------
+    */
+    fun hasFrequencyAxis(kind: ChartKind): Boolean =
+        when (kind) {
+            ChartKind.SWR, ChartKind.RETURN_LOSS, ChartKind.PHASE -> true
+            ChartKind.SMITH -> false
+        }
+
+    /*
     Reflection phase is bounded by definition, so the phase chart uses a
     fixed symmetric axis rather than auto-scaling to the data. An
     auto-scaled phase axis makes two sweeps incomparable and exaggerates

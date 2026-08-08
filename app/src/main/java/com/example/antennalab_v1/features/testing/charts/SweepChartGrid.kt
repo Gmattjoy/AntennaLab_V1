@@ -219,6 +219,36 @@ private fun ChartGridCell(
                     compact = true
                 )
             }
+
+            /*
+            Band strip, on the kinds that plot against frequency. Smith is
+            excluded by hasFrequencyAxis, not by a local `!= SMITH`.
+
+            Passing SCALAR is not a slip: since slice 3b-i the SCALAR and PHASE
+            compact insets are identical (50/10), so one value serves every cell
+            here and naming one renderer reads better than branching to prove
+            they match. plotInsets_phaseAndScalarCompactAreIdentical fails first
+            if that ever stops being true.
+
+            The overlay and the renderers are siblings in this Column, so both
+            measure from the same content edge and the inset lands on the plot.
+            Compact suppresses the scalar footer, so the strip sits directly
+            under the tick row — no need to thread it into the renderer.
+            */
+            if (ChartLayoutMath.hasFrequencyAxis(kind)) {
+                val bandInsets = ChartLayoutMath.plotInsetsFor(
+                    renderer = ChartLayoutMath.PlotRenderer.SCALAR,
+                    compact = true
+                )
+                BandAxisOverlay(
+                    axisStartMHz = result.startFrequencyMHz,
+                    axisEndMHz = result.endFrequencyMHz,
+                    modifier = Modifier.padding(
+                        start = bandInsets.startDp.dp,
+                        end = bandInsets.endDp.dp
+                    )
+                )
+            }
         }
     }
 }

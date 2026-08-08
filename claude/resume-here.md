@@ -244,12 +244,14 @@ sit outside the list and read as done.
 - **Phase 4 — Sweep Viewer. IN PROGRESS, sliced.** Landed: slice 1 the multi-chart
   grid + phase cell (`0d5eb60`), slice 2 the marker readout table (`e91b45d`),
   slice 3a the shared plot-inset contract + first band overlay (`8ef5520`), slice
-  3b-i grid-cell geometry unification + tick-row alignment. **Next: slice 3b-ii**
-  per-cell band overlays in the grid (SWR/RETURN_LOSS/PHASE, never SMITH — no
-  frequency axis), then slice 4 tap-to-expand (the grid's `onCellTap` hook is
-  already there, wired to `null`), then slice 5 the Simple/Full toggle (AUTO
-  default) — which is also where `ChartKind` + `SweepDisplayMode` unification and
-  "app analysis" collapsed-by-default get decided. §2.2: the toggle and
+  3b-i grid-cell geometry unification + tick-row alignment (`a3de767`), slice 3b-ii
+  per-cell band strips in the grid (SWR/RETURN_LOSS/PHASE, never SMITH — gated by
+  the pure `ChartLayoutMath.hasFrequencyAxis`). Suite 483 → 495 across the five.
+  **Next: slice 4** tap-to-expand — the grid's `onCellTap` hook is already there,
+  wired to `null`, so this is state plus a focused layout. Then **slice 5** the
+  Simple/Full toggle (AUTO default), which is also where `ChartKind` +
+  `SweepDisplayMode` unification and "app analysis" collapsed-by-default get
+  decided, and where spec open questions 1–3 land. §2.2: the toggle and
   tap-to-expand are two distinct controls, do not conflate them.
   **Off-bench — this does NOT need a bench session.** That claim (still in the
   spec's older text) predates the debug simulated-sweep route (`1089e32`), which

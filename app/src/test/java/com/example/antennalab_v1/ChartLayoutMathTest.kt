@@ -182,6 +182,23 @@ class ChartLayoutMathTest {
     }
 
     // ------------------------------------------------------------------
+    // Frequency axis — which kinds the band overlay belongs on
+    // ------------------------------------------------------------------
+
+    @Test
+    fun hasFrequencyAxis_isTrueForEveryKindExceptSmith() {
+        // Stated as one case so the true-set and the false-set are asserted
+        // together: adding a ChartKind must fail this test as well as the
+        // exhaustive `when`.
+        assertTrue(ChartLayoutMath.hasFrequencyAxis(ChartKind.SWR))
+        assertTrue(ChartLayoutMath.hasFrequencyAxis(ChartKind.RETURN_LOSS))
+        assertTrue(ChartLayoutMath.hasFrequencyAxis(ChartKind.PHASE))
+        // Smith plots reflection on the complex plane — frequency is the path
+        // along the locus, not a screen axis, so a band strip would be a lie.
+        assertFalse(ChartLayoutMath.hasFrequencyAxis(ChartKind.SMITH))
+    }
+
+    // ------------------------------------------------------------------
     // Plot insets — the shared alignment contract
     // ------------------------------------------------------------------
     // These are the numbers anything drawn alongside a trace must inset by

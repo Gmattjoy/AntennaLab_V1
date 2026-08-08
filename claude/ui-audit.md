@@ -175,8 +175,10 @@ interactive surface relies on Material defaults or bare literals.
 11. **Chart components** ✅ — P3-compliant and **all four now consumed by the viewer**:
     `SweepChartGrid` + `PhaseTraceCell` (P4 slice 1, `0d5eb60`), `MarkerReadoutTable`
     (slice 2, `e91b45d`), `BandAxisOverlay` (slice 3a, `8ef5520`). The Phase-3
-    built-but-unwired backlog is closed. Slice 3b-i then unified the grid-cell plot
-    geometry so every frequency-axis cell shares one inset (`ChartLayoutMath.plotInsetsFor`).
+    built-but-unwired backlog is closed. Slice 3b-i (`a3de767`) then unified the grid-cell
+    plot geometry so every frequency-axis cell shares one inset
+    (`ChartLayoutMath.plotInsetsFor`), and slice 3b-ii put a band strip on each of them —
+    SWR, Return loss and Phase, never Smith (`ChartLayoutMath.hasFrequencyAxis`).
 
 ---
 
@@ -226,7 +228,9 @@ Suite 482 → 483, 0 failures.
   first `BandAxisOverlay` under the legacy trace; slice 3b-i unified the grid-cell geometry
   (`PhaseTraceCell` restructured to the scalar Surface+padding pattern, so PHASE and
   SCALAR-compact both inset 50/10) and aligned the frequency-tick row to the true plot extent
-  on both sides. **Remaining:** slice 3b-ii per-cell overlays in the grid, slice 4
+  on both sides; slice 3b-ii put a band strip on each frequency-axis cell in the grid, gated
+  by the pure `hasFrequencyAxis` (Smith is excluded — it plots on the complex plane, so
+  frequency is the path along the locus, not a screen axis). **Remaining:** slice 4
   tap-to-expand, slice 5 the Simple/Full toggle — which is where the 4 `ChartKind`s vs 12
   `SweepDisplayMode`s fork finally gets decided, and where the F2 duplicate 50/48 dp
   primitives get consolidated.
@@ -299,3 +303,12 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
   started. **Known follow-up, deliberately not bundled:** `SweepScalarTraceView`'s y-label
   column has the same vertical version of the tick defect (labels ~10 dp off the plot they
   annotate, because the column is `heightDp` while the canvas pads inside it). Untouched.
+- 2026-08-08 — Slice 3b-ii. Band strips now render per-cell in the grid on SWR, Return loss
+  and Phase, all at the single 50/10 inset 3b-i produced — one value, no per-renderer branch.
+  Smith is excluded by the new pure `ChartLayoutMath.hasFrequencyAxis`, an exhaustive `when`
+  so a fifth `ChartKind` cannot compile without answering the question (a `!= SMITH` at the
+  call site would have silently defaulted it to "has an axis"). Suite 494 → 495.
+  **Observation, not actioned:** `PhaseTraceCell` has no frequency-tick row at all — it draws
+  only the ±180° y-labels — so its strip sits directly under the plot border while the scalar
+  cells' strips sit below their tick labels. Reads fine, but the phase cell has no x-axis
+  labels of any kind; worth a decision when slice 4/5 revisits the cells.

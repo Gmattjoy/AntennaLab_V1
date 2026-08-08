@@ -436,12 +436,17 @@ phases; commit per phase.
   pattern (Surface paints the background, Canvas padded inside — it cannot be a `drawRect`
   inside the Canvas, since padding shrinks the `DrawScope` and the fill with it), so PHASE and
   SCALAR-compact both inset **50/10** and the two traces in a row pair share one extent. Same
-  pass padded the frequency-tick row on both sides by the true plot insets. Suite 488 → 494.
-  **All four P3 chart components are now consumed.**
-  **Remaining:** slice 3b-ii per-cell overlays in the grid (SWR/RETURN_LOSS/PHASE, never
-  SMITH — now trivial on the uniform geometry), slice 4 tap-to-expand, slice 5 the Simple/Full
-  toggle — which is where **open question 1** and the `ChartKind` vs `SweepDisplayMode`
-  unification finally get decided. Open questions 2 and 3 are still open and now block slice 5.
+  pass padded the frequency-tick row on both sides by the true plot insets.
+  **Slice 3b-ii** spent that payoff: a band strip on each frequency-axis cell in the grid,
+  all at the one 50/10 inset, gated by the new pure `ChartLayoutMath.hasFrequencyAxis` —
+  true for SWR/RETURN_LOSS/PHASE, false for SMITH, which plots on the complex plane where
+  frequency is the path along the locus rather than a screen axis. Stated in the pure layer
+  rather than as `!= SMITH` at the call site, so a fifth `ChartKind` cannot compile without
+  answering it. Suite 488 → 495. **All four P3 chart components are now consumed.**
+  **Remaining:** slice 4 tap-to-expand (the grid's `onCellTap` hook is already in place,
+  wired to `null`), slice 5 the Simple/Full toggle — which is where **open question 1** and
+  the `ChartKind` vs `SweepDisplayMode` unification finally get decided. Open questions 2 and
+  3 are still open and now block slice 5.
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked
