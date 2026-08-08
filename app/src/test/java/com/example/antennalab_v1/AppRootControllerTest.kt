@@ -65,20 +65,50 @@ class AppRootControllerTest {
 
     @Test
     fun factories_buildExpectedStarterProjects() {
-        val empty = AppRootController.emptyProjectPlaceholder()
+        val empty = AppRootController.emptyProjectPlaceholder(
+            defaultTargetMHz = 146.0,
+            defaultInstrument = TestHardwareProfile.NANOVNA_H4
+        )
         assertEquals("", empty.meta.projectName)
         assertEquals(AntennaType.OTHER, empty.designInput.antennaType)
-        assertEquals(14.2, empty.designInput.targetFrequencyMHz, 0.0)
+        assertEquals(146.0, empty.designInput.targetFrequencyMHz, 0.0)
         assertEquals(TestHardwareProfile.NANOVNA_H4, empty.testHardwareProfile)
 
-        val rf = AppRootController.buildRfTestModeProject()
+        val rf = AppRootController.buildRfTestModeProject(
+            defaultTargetMHz = 146.0,
+            defaultInstrument = TestHardwareProfile.NANOVNA_H4
+        )
         assertEquals("RF Test Mode", rf.meta.projectName)
         assertEquals(AntennaType.OTHER, rf.designInput.antennaType)
 
-        val discovery = AppRootController.buildUnknownDiscoveryProject()
+        val discovery = AppRootController.buildUnknownDiscoveryProject(
+            defaultTargetMHz = 146.0,
+            defaultInstrument = TestHardwareProfile.NANOVNA_H4
+        )
         assertEquals("Unknown Antenna Discovery", discovery.meta.projectName)
         assertEquals(LabEntryMode.UNKNOWN_DISCOVERY, discovery.meta.labEntryMode)
         assertEquals(ProjectSource.LAB_UNKNOWN_DISCOVERY, discovery.versionInfo.appDataSource)
+    }
+
+    /**
+     * Proves the PARAMETER path, not just that the defaults happen to match.
+     * Passing non-defaults through every factory pins that the settings values
+     * actually reach the produced ProjectData — a factory that quietly kept a
+     * hardcoded 14.2 / NANOVNA_H4 would pass the test above and fail this one.
+     */
+    @Test
+    fun factories_seedWhateverDefaultsTheyAreGiven() {
+        val target = 7.1
+        val instrument = TestHardwareProfile.LITEVNA64_V0_3_3
+
+        listOf(
+            AppRootController.emptyProjectPlaceholder(target, instrument),
+            AppRootController.buildRfTestModeProject(target, instrument),
+            AppRootController.buildUnknownDiscoveryProject(target, instrument)
+        ).forEach { project ->
+            assertEquals(target, project.designInput.targetFrequencyMHz, 0.0)
+            assertEquals(instrument, project.testHardwareProfile)
+        }
     }
 
     // ------------------------------------------------------------------

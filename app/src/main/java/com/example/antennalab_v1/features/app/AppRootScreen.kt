@@ -17,13 +17,46 @@ import com.example.antennalab_v1.model.ProjectListItem
 import com.example.antennalab_v1.project.ProjectPageScreen
 import com.example.antennalab_v1.storage.ProjectIndexManager
 import com.example.antennalab_v1.storage.ProjectStorage
+import com.example.antennalab_v1.storage.SettingsRepository
 
 @Composable
 fun AppRootScreen() {
     val context = LocalContext.current
 
+    /*
+    Read once per composition and passed into the project factories, which stay
+    Context-free by design. SettingsRepository caches, so this is a field read
+    after the first call in the process.
+
+    KNOWN LIMITATION, correct for now: current() returns a plain value, not
+    observable state, so changing a default mid-session will not recompose this
+    screen. That is fine while the factories only seed NEW project-less sessions
+    and there is no settings UI to change them from — but whoever builds that UI
+    must revisit this, or a changed default will appear not to take effect until
+    the app restarts.
+    */
+    val appSettings = SettingsRepository.current(context)
+
+    fun newEmptyProject(): ProjectData =
+        AppRootController.emptyProjectPlaceholder(
+            defaultTargetMHz = appSettings.defaultTargetFrequencyMHz,
+            defaultInstrument = appSettings.defaultInstrument
+        )
+
+    fun newRfTestModeProject(): ProjectData =
+        AppRootController.buildRfTestModeProject(
+            defaultTargetMHz = appSettings.defaultTargetFrequencyMHz,
+            defaultInstrument = appSettings.defaultInstrument
+        )
+
+    fun newUnknownDiscoveryProject(): ProjectData =
+        AppRootController.buildUnknownDiscoveryProject(
+            defaultTargetMHz = appSettings.defaultTargetFrequencyMHz,
+            defaultInstrument = appSettings.defaultInstrument
+        )
+
     val screen = remember { mutableStateOf("home") }
-    val currentProject = remember { mutableStateOf<ProjectData?>(AppRootController.emptyProjectPlaceholder()) }
+    val currentProject = remember { mutableStateOf<ProjectData?>(newEmptyProject()) }
     val activeProjectOverride = remember { mutableStateOf<ProjectData?>(null) }
     val savedProjects = remember { mutableStateOf<List<ProjectListItem>>(emptyList()) }
     val selectedLabTemplateId = remember { mutableStateOf(LabTestTemplates.getDefaultTemplate().id) }
@@ -74,7 +107,7 @@ fun AppRootScreen() {
     // Navigation does not touch live calibration: the instrument is still the
     // instrument whichever screen the operator is on.
     fun enterWizardMode() {
-        currentProject.value = AppRootController.emptyProjectPlaceholder()
+        currentProject.value = newEmptyProject()
         activeProjectOverride.value = null
         testMode.value = false
         projectResumeIntoSweep.value = false
@@ -82,7 +115,7 @@ fun AppRootScreen() {
     }
 
     fun enterRfTestWizardMode() {
-        currentProject.value = AppRootController.buildRfTestModeProject()
+        currentProject.value = newRfTestModeProject()
         activeProjectOverride.value = null
         testMode.value = true
         projectResumeIntoSweep.value = false
@@ -104,14 +137,14 @@ fun AppRootScreen() {
     }
 
     fun enterUnknownDiscoveryMode() {
-        activeProjectOverride.value = AppRootController.buildUnknownDiscoveryProject()
+        activeProjectOverride.value = newUnknownDiscoveryProject()
         testMode.value = true
         projectResumeIntoSweep.value = true
         screen.value = "project"
     }
 
     fun enterProjectSweepMode() {
-        val resolvedProject = effectiveProject() ?: AppRootController.buildRfTestModeProject()
+        val resolvedProject = effectiveProject() ?: newRfTestModeProject()
         activeProjectOverride.value = resolvedProject
         testMode.value = true
         projectResumeIntoSweep.value = true
@@ -200,7 +233,7 @@ fun AppRootScreen() {
                 screen.value = "device_connections"
             },
             onOpenCalibration = {
-                val projectForCalibration = effectiveProject() ?: AppRootController.buildRfTestModeProject()
+                val projectForCalibration = effectiveProject() ?: newRfTestModeProject()
                 activeProjectOverride.value = projectForCalibration
                 testMode.value = true
                 projectResumeIntoSweep.value = false
@@ -278,7 +311,7 @@ fun AppRootScreen() {
         }
 
         "calibration_wizard" -> {
-            val project = effectiveProject() ?: AppRootController.buildRfTestModeProject()
+            val project = effectiveProject() ?: newRfTestModeProject()
             val calibrationSession = AppRootController.buildWizardCalibrationSession(project)
 
             CalibrationWizardScreen(

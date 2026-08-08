@@ -59,33 +59,54 @@ object AppRootController {
     PROJECT FACTORIES
     ------------------------------------------------------------
     */
-    fun emptyProjectPlaceholder(): ProjectData {
+    /*
+    The two defaults arrive as PARAMETERS, not read from a store in here.
+    This file avoids Compose and Android Context by design (see the header)
+    and AppRootControllerTest asserts on these factories as pure functions —
+    injecting a Context would break both. AppRootScreen does the reading and
+    passes the values down.
+
+    They SEED a project-less session and nothing more. Whatever lands in
+    designInput/testHardwareProfile here becomes that project's own value, so
+    a wizard-created or loaded project is never affected: those paths never
+    reach these factories.
+    */
+    fun emptyProjectPlaceholder(
+        defaultTargetMHz: Double,
+        defaultInstrument: TestHardwareProfile
+    ): ProjectData {
         return ProjectData(
             meta = ProjectMeta(
                 projectName = ""
             ),
             designInput = DesignInput(
                 antennaType = AntennaType.OTHER,
-                targetFrequencyMHz = 14.2
+                targetFrequencyMHz = defaultTargetMHz
             ),
-            testHardwareProfile = TestHardwareProfile.NANOVNA_H4
+            testHardwareProfile = defaultInstrument
         )
     }
 
-    fun buildRfTestModeProject(): ProjectData {
+    fun buildRfTestModeProject(
+        defaultTargetMHz: Double,
+        defaultInstrument: TestHardwareProfile
+    ): ProjectData {
         return ProjectData(
             meta = ProjectMeta(
                 projectName = "RF Test Mode"
             ),
             designInput = DesignInput(
                 antennaType = AntennaType.OTHER,
-                targetFrequencyMHz = 14.2
+                targetFrequencyMHz = defaultTargetMHz
             ),
-            testHardwareProfile = TestHardwareProfile.NANOVNA_H4
+            testHardwareProfile = defaultInstrument
         )
     }
 
-    fun buildUnknownDiscoveryProject(): ProjectData {
+    fun buildUnknownDiscoveryProject(
+        defaultTargetMHz: Double,
+        defaultInstrument: TestHardwareProfile
+    ): ProjectData {
         return ProjectData(
             meta = ProjectMeta(
                 projectName = "Unknown Antenna Discovery",
@@ -93,12 +114,12 @@ object AppRootController {
             ),
             designInput = DesignInput(
                 antennaType = AntennaType.OTHER,
-                targetFrequencyMHz = 14.2
+                targetFrequencyMHz = defaultTargetMHz
             ),
             versionInfo = VersionInfo(
                 appDataSource = ProjectSource.LAB_UNKNOWN_DISCOVERY
             ),
-            testHardwareProfile = TestHardwareProfile.NANOVNA_H4
+            testHardwareProfile = defaultInstrument
         )
     }
 
