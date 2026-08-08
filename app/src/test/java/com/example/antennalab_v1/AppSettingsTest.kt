@@ -3,10 +3,15 @@ package com.example.antennalab_v1
 import com.example.antennalab_v1.model.TestHardwareProfile
 import com.example.antennalab_v1.model.settings.AppSettings
 import com.example.antennalab_v1.model.settings.LayoutModePin
+import com.example.antennalab_v1.model.settings.ThemePreference
 import com.example.antennalab_v1.model.settings.defaultInstrumentFromStoredName
 import com.example.antennalab_v1.model.settings.defaultTargetFrequencyMHzFromStored
 import com.example.antennalab_v1.model.settings.layoutModePinFromStoredName
+import com.example.antennalab_v1.model.settings.resolveDarkTheme
+import com.example.antennalab_v1.model.settings.themePreferenceFromStoredName
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -92,6 +97,52 @@ class AppSettingsTest {
         TestHardwareProfile.entries.forEach { profile ->
             assertEquals(profile, defaultInstrumentFromStoredName(profile.name))
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Theme preference + resolution (slice 5d)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun appSettings_defaultsToSystemTheme() {
+        // SYSTEM is the only value that can be right without asking. DARK
+        // would preserve the app's historical look, but would also leave a
+        // light-mode device dark forever with no hint a choice exists.
+        assertEquals(ThemePreference.SYSTEM, AppSettings().themePreference)
+    }
+
+    @Test
+    fun themePreferenceFromStoredName_mapsEveryValidName() {
+        ThemePreference.entries.forEach { preference ->
+            assertEquals(preference, themePreferenceFromStoredName(preference.name))
+        }
+    }
+
+    @Test
+    fun themePreferenceFromStoredName_fallsBackToSystemOnUnknownOrNull() {
+        assertEquals(ThemePreference.SYSTEM, themePreferenceFromStoredName("HIGH_CONTRAST"))
+        assertEquals(ThemePreference.SYSTEM, themePreferenceFromStoredName(null))
+        assertEquals(ThemePreference.SYSTEM, themePreferenceFromStoredName(""))
+        assertEquals(ThemePreference.SYSTEM, themePreferenceFromStoredName("system"))
+    }
+
+    @Test
+    fun resolveDarkTheme_systemFollowsTheDevice() {
+        // Both directions, because "follows the system" is the only case with
+        // a second input — an implementation that ignored systemInDark would
+        // still pass one of these.
+        assertTrue(resolveDarkTheme(ThemePreference.SYSTEM, systemInDark = true))
+        assertFalse(resolveDarkTheme(ThemePreference.SYSTEM, systemInDark = false))
+    }
+
+    @Test
+    fun resolveDarkTheme_explicitChoicesOverrideTheDevice() {
+        // The override is the point: DARK stays dark on a light device and
+        // LIGHT stays light on a dark one.
+        assertTrue(resolveDarkTheme(ThemePreference.DARK, systemInDark = false))
+        assertTrue(resolveDarkTheme(ThemePreference.DARK, systemInDark = true))
+        assertFalse(resolveDarkTheme(ThemePreference.LIGHT, systemInDark = true))
+        assertFalse(resolveDarkTheme(ThemePreference.LIGHT, systemInDark = false))
     }
 
     @Test

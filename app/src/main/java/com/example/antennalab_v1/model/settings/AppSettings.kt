@@ -77,6 +77,31 @@ enum class LayoutModePin {
 
 /*
 --------------------------------------------------------------------
+Theme preference
+EDIT SECTION 1000b
+--------------------------------------------------------------------
+SYSTEM defers to the device's own dark-mode setting; DARK and LIGHT
+are the operator overriding it.
+
+SYSTEM is the default because it is the only value that can be right
+without asking. The app shipped dark-only before this, so DARK would
+preserve today's look — but it would also mean a device in light mode
+gets a dark app forever with no indication that a choice exists.
+
+Note this REVERSES a documented decision: the app used to force its own
+dark flag independent of the system (see SemanticColors' header, which
+5d rewrites). The light palette was always fully built; only the
+plumbing and a control were missing.
+--------------------------------------------------------------------
+*/
+enum class ThemePreference {
+    SYSTEM,
+    DARK,
+    LIGHT
+}
+
+/*
+--------------------------------------------------------------------
 The settings surface
 EDIT SECTION 1001
 --------------------------------------------------------------------
@@ -101,7 +126,14 @@ data class AppSettings(
     starts out claiming, and a live instrument still overrides it at
     resolver tiers 1-2.
     */
-    val defaultInstrument: TestHardwareProfile = DEFAULT_INSTRUMENT
+    val defaultInstrument: TestHardwareProfile = DEFAULT_INSTRUMENT,
+    /*
+    The first setting that must take effect LIVE. The others seed new
+    sessions, so a stale read is harmless; a theme the operator just
+    chose has to repaint immediately or the control looks broken.
+    That requirement is what makes SettingsRepository observable.
+    */
+    val themePreference: ThemePreference = DEFAULT_THEME_PREFERENCE
 )
 
 /*
@@ -111,7 +143,6 @@ FUTURE SURFACE — add each field WITH its consumer, never before
 These are known settings with an owning slice. They are listed rather
 than declared on purpose.
 
-  themePreference: ThemePreference           (5d)
   appAnalysisCollapsedDefault: Boolean       (5f)
   hasSeenProjectIntro: Boolean               (when an intro gate exists)
   readoutFormat: ReadoutFormat               (unscheduled)
@@ -184,9 +215,44 @@ fun defaultInstrumentFromStoredName(raw: String?): TestHardwareProfile {
         ?: DEFAULT_INSTRUMENT
 }
 
+fun themePreferenceFromStoredName(raw: String?): ThemePreference {
+    return ThemePreference.entries.firstOrNull { it.name == raw }
+        ?: DEFAULT_THEME_PREFERENCE
+}
+
+/*
+--------------------------------------------------------------------
+Theme resolution
+EDIT SECTION 1003
+--------------------------------------------------------------------
+Collapses the three-way preference onto the Boolean the theme actually
+takes. Extracted rather than written inline in MainActivity for two
+reasons: it is the one piece of real logic in the theme path, and
+AntennaLab_V1Theme's `darkTheme: Boolean` parameter is deliberately NOT
+becoming a ThemePreference — 18 call sites across 8 files pass it, and
+all but MainActivity are @Previews that have no business knowing about
+settings.
+
+`systemInDark` is supplied by the caller (isSystemInDarkTheme() at the
+composition root) so this stays pure and testable with no Android
+surface.
+--------------------------------------------------------------------
+*/
+fun resolveDarkTheme(
+    preference: ThemePreference,
+    systemInDark: Boolean
+): Boolean {
+    return when (preference) {
+        ThemePreference.SYSTEM -> systemInDark
+        ThemePreference.DARK -> true
+        ThemePreference.LIGHT -> false
+    }
+}
+
 /*
 Named so the fallback and the data-class default cannot drift apart — both
 read the same constant rather than restating the literal.
 */
 const val DEFAULT_TARGET_FREQUENCY_MHZ = 146.0
 val DEFAULT_INSTRUMENT = TestHardwareProfile.NANOVNA_H4
+val DEFAULT_THEME_PREFERENCE = ThemePreference.SYSTEM
