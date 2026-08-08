@@ -332,3 +332,43 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
   Grid total height unchanged. Suite 495 → 507 across 4a+4b.
   **Still open from the 3b-i entry:** `SweepScalarTraceView`'s y-label column vertical defect.
   `PhaseTraceCell` fixed its own version in 3b-i; the scalar view has not been touched.
+- 2026-08-08 — **Slice 4c — DONE. Tap-to-expand ships.** Two commits of geometry
+  (`d90873a`, `de192c2`) then one of wiring (`9712f58`). Suite 507 → 508.
+  **4c-i** added the pure `cellsAreCompact(chartCount)` = `gridColumnCount > 1` so a sole
+  chart and an expanded chart are one rule, made the per-cell band strip follow the cell's
+  `compact` flag and name its renderer (discharging 4b's marker), and **split the overloaded
+  chrome flag** — `SweepScalarTraceView.showHeaderAndFooter`, default `!compact`. The
+  header/footer were being suppressed for a HOSTING reason ("the cell already titles the
+  chart", "the grid always renders CURRENT_ONLY") that the code's own comments stated, but
+  keyed on a WIDTH flag; conflated, a full-width sole chart could not take the wide gutter
+  without also gaining a second title and a dead footer.
+  **Multi-chart grid verified byte-identical** — return-loss strip x=260..432, phase strip
+  x=726..899, the 4b baselines, both still on one line.
+  **4c-ii** wired `onCellTap → toggleExpandedChart` and added `ExpandedChartPanel` beside the
+  grid, with three return routes (tap the focused chart, a 56 dp "Back to grid"
+  `AppActionButton`, and the app's first `BackHandler`). Behavioural gate ran six rows on the
+  emulator against a sim sweep; the load-bearing pair both passed — system back while focused
+  collapses and keeps the app open, system back unexpanded still exits, unchanged.
+  **⚠ ARITHMETIC CORRECTION to `de192c2`'s commit message.** It records the sole-chart strip
+  as `291..819 → 328..827`. Those were PREDICTED, not measured, and the prediction used the
+  grid's 912 px content width instead of the **cell's inner width of 870 px** (the grid width
+  less `ChartGridCell`'s own 8 dp padding on both sides). The correct figures at 66/10 are
+  **307..806 → 345..814**. Verified twice, independently: the 4c-i sole-chart scratch capture
+  and 4c-ii's expanded SWR panel both measure **345..814**, and both share the same cell
+  shell. The code was always right; only the message's arithmetic was wrong. History was left
+  alone rather than force-pushed — this entry is the correction of record.
+  **⚠ Cosmetic blemish in `9712f58`'s commit message.** Backticks around a word were consumed
+  by shell substitution, so one line reads "and  is load-bearing" with `enabled` dropped. The
+  sentence should read "the `enabled` gate is load-bearing". Message only — code, behaviour
+  and the pushed tree are unaffected.
+  **Carried forward, still open and deliberately unbundled:**
+  (1) `SweepScalarTraceView`'s y-label column vertical offset — the twin of the tick-row
+  defect 3b-i fixed, and the version `PhaseTraceCell` fixed for itself. Untouched.
+  (2) The 3a legacy overlay slot: the band strip lives INSIDE the `else` branch of the legacy
+  `when` (`SweepGraphScreen`), so it appears only under a frequency-axis trace. There is no
+  general below-the-axis slot in the legacy chart, and the placement is coupled to that
+  branch rather than offered by the chart itself.
+  (3) Pre-existing navigation gap, now documented by 4c-ii's `BackHandler` comment but NOT
+  fixed: the Sweep Viewer has no `navigationIcon`, navigation is a `showSweep` boolean, so
+  system back exits the app instead of returning to the project page. Larger than any P4
+  slice; the in-content `onBack()` buttons are the only route back to the project.

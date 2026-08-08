@@ -349,9 +349,13 @@ phases; commit per phase.
   marker readout table, amateur-band axis overlay, .s1p export. Extract chart/marker math
   into pure helpers (building on `SweepGraphMath`) with tests. Foundation the sweep viewer
   consumes — big enough to precede it.
-- **Phase 4 — Sweep Viewer.** Trace-centric layout: Simple/Full toggle (AUTO default),
-  tap-to-expand, multi-chart grid from Phase 3, "app analysis" collapsed. The largest,
-  riskiest surface — done once tokens (P0) and chart primitives (P3) are proven.
+- **Phase 4 — Sweep Viewer. IN PROGRESS.** Trace-centric layout: Simple/Full toggle (AUTO
+  default), tap-to-expand, multi-chart grid from Phase 3, "app analysis" collapsed. The
+  largest, riskiest surface — done once tokens (P0) and chart primitives (P3) are proven.
+  **Multi-chart grid, marker table, band overlays and TAP-TO-EXPAND are shipped**
+  (slices 1–4c, through `9712f58`). **Remaining: slice 5, the Simple/Full toggle**, which is
+  also where the `ChartKind` ↔ `SweepDisplayMode` fork and "app analysis" collapsed-by-default
+  get decided, and where open questions 1–3 land.
 - **Phase 5 — Project workspace.** Re-flow `ProjectPageScreen` to the new IA/tokens and the
   shortened project→measure path.
 - **Phase 6 — Project manager + calibration wizard polish.** Per-project badges on the list;
@@ -461,12 +465,27 @@ phases; commit per phase.
   `ChartLayoutMath` so both renderers share one thinning rule. `compact` defaults to **true**
   — the opposite of `SweepScalarTraceView`'s default, because the phase cell's sole call site
   is a grid cell — so grid geometry is preserved byte-for-byte. Suite 495 → 507 across 4a+4b.
-  **Remaining:** slice 4c the expanded layout (`onCellTap` wiring, focused render,
-  `BackHandler`, return affordance) — and note the band-strip call site in `SweepChartGrid`
-  hardcodes `compact = true`, which 4c must make follow the cell's own flag or an expanded
-  cell's strip stays at 50 while its plot starts at 66. Then slice 5 the Simple/Full toggle —
-  which is where **open question 1** and the `ChartKind` vs `SweepDisplayMode` unification
-  finally get decided. Open questions 2 and 3 are still open and now block slice 5.
+  **Slice 4c-i (`d90873a`, `de192c2`)** made the band strip follow each cell's `compact` flag
+  and name its renderer, discharging 4b's marker, with the sole-chart case falling out of one
+  pure expression (`ChartLayoutMath.cellsAreCompact` = `gridColumnCount > 1`) so "expanded"
+  and "sole chart" are decided once. It also split `SweepScalarTraceView`'s overloaded flag
+  into `compact` (width) and `showHeaderAndFooter` (hosting) — the chrome was suppressed
+  because the cell titles the chart, which is true at any width, so conflated the two a
+  full-width sole chart could not take the wide gutter without gaining a second title.
+  **Slice 4c-ii (`9712f58`) — TAP-TO-EXPAND SHIPPED.** `onCellTap → toggleExpandedChart`, and
+  a new `ExpandedChartPanel` renders the focused chart full-width (`compact = false`,
+  `showHeaderAndFooter = false`, legacy heights 240/280). Three return routes: tap the focused
+  chart, a 56 dp "Back to grid" `AppActionButton`, and the app's first `BackHandler` — whose
+  `enabled` gate is critical, since this screen has no `navigationIcon` and system back
+  otherwise exits the app. Suite 495 → 508 across 4a–4c.
+  **Known gap, deferred to slice 5 by design:** switching focus directly from one expanded
+  chart to another has **no gesture surface**. The panel replaces the grid, so no second chart
+  is on screen to tap. The controller case is real and covered by 4a's tests
+  (`different → switch`); it needs a layout that shows the focused chart alongside the others,
+  which is slice 5's job. Not a defect in 4c — an affordance that layout has to create.
+  **Remaining:** slice 5 the Simple/Full toggle — where **open question 1** and the `ChartKind`
+  vs `SweepDisplayMode` unification finally get decided. Open questions 2 and 3 are still open
+  and now block slice 5.
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked

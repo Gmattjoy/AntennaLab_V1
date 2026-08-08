@@ -247,27 +247,47 @@ sit outside the list and read as done.
   3b-i grid-cell geometry unification + tick-row alignment (`a3de767`), slice 3b-ii
   per-cell band strips in the grid (SWR/RETURN_LOSS/PHASE, never SMITH — gated by
   the pure `ChartLayoutMath.hasFrequencyAxis`), slice 4a tap-to-expand state +
-  controller (`c5d0820`), slice 4b `PhaseTraceCell` full-width parity + tick row.
-  Suite 483 → 507 across the seven.
+  controller (`c5d0820`), slice 4b `PhaseTraceCell` full-width parity + tick row
+  (`5b25fe3`), slice 4c-i strip-follows-flag (`d90873a` + `de192c2`), slice 4c-ii the
+  expand layout (`9712f58`).
+  **TAP-TO-EXPAND IS COMPLETE.** Repo at `9712f58`, suite **508 / 0 fail / 0 err**.
   **4a** put `expandedChartKind: ChartKind?` on `SweepWorkspaceState` as a nullable
   OVERLAY on the layout mode, never a value of it, so §2.2's non-conflation holds by
-  construction. Nothing renders it — `onCellTap` is still `null`.
+  construction.
   **4b** made `plotInsetsFor(PHASE)` honour `compact` (50/10 grid, 66/10 full) so an
   expanded phase chart lands on the same gutter as an expanded scalar one, and gave
   `PhaseTraceCell` the frequency-tick row it never had. SCALAR and PHASE share one
   merged `when` arm now, so the 3b-i unification is guaranteed by construction — the
   two guard tests are true-by-construction and repurposed as re-split tripwires.
-  **Next: slice 4c** the expanded layout — `onCellTap` wiring, focused render,
-  `BackHandler`, return affordance. **Read the marker at `SweepChartGrid`'s band-strip
-  block first:** it hardcodes `compact = true`, correct while every cell is half-width,
-  but an expanded cell at `compact = false` would keep its strip at 50 while its plot
-  starts at 66 — a 16 dp misalignment on the focused chart. Same latent case already
-  live: a lone supported chart takes the full row yet still renders compact, so decide
-  "expanded" and "sole chart" together rather than twice. Then **slice 5** the
-  Simple/Full toggle (AUTO default), which is also where `ChartKind` +
-  `SweepDisplayMode` unification and "app analysis" collapsed-by-default get
-  decided, and where spec open questions 1–3 land. §2.2: the toggle and
-  tap-to-expand are two distinct controls, do not conflate them.
+  **4c-i (geometry)** added the pure `ChartLayoutMath.cellsAreCompact(chartCount)` =
+  `gridColumnCount > 1`, so "expanded" and "sole chart" are one expression rather than
+  two rules, and made the band strip follow the cell's own flag and name its renderer —
+  discharging the marker 4b left. It also **split the overloaded chrome flag**:
+  `SweepScalarTraceView.showHeaderAndFooter` (default `!compact`) separates cell-hosting
+  from width, because the header/footer are suppressed since THE CELL TITLES THE CHART,
+  which is true at any width. Without that split a full-width sole chart could not take
+  the wide gutter without gaining a second title.
+  **4c-ii (wiring)** wired `onCellTap → toggleExpandedChart` and added
+  `ExpandedChartPanel` in `SweepChartGrid.kt` (kept there to reuse the private
+  `chartTitle`/`scalarModeFor` and the colour plumbing rather than duplicate them into
+  the 45 KB screen). Three return routes: tap the focused chart, a "Back to grid"
+  `AppActionButton` (56 dp), and the **first `BackHandler` in the app**.
+  **⚠ The `BackHandler`'s `enabled` gate is load-bearing beyond the usual reason:** this
+  screen has no `navigationIcon` and navigation is a `showSweep` boolean in
+  `ProjectPageScreen`, so system back here EXITS THE APP (verified on device). An ungated
+  handler would swallow the only gesture that leaves. Gated, unexpanded back is unchanged.
+  **Next: slice 5 — the Simple/Full toggle. Wants its own scoping pass before planning.**
+  AUTO default; the `ChartKind` ↔ `SweepDisplayMode` fork finally gets decided here
+  (measured at `9712f58`: **192 `SweepDisplayMode` occurrences across 13 files**, 154 in
+  `main` alone, against 84 `ChartKind` — the reason slice 1 refused to extend the legacy
+  enum); "app analysis" collapsed-by-default; and spec open questions 1–3 land. §2.2: the
+  toggle and tap-to-expand are two distinct controls, do not conflate them — 4a's nullable
+  overlay is what keeps that true in the code, so slice 5's layout mode must be a SEPARATE
+  non-null field.
+  Slice 5 also owns the one behaviour 4c-ii could not give a gesture: switching focus
+  directly from one expanded chart to another. The controller case is real and 4a-tested
+  (`different → switch`), but the panel replaces the grid, so no second chart is on screen
+  to tap. It needs a layout that shows both.
   **Off-bench — this does NOT need a bench session.** That claim (still in the
   spec's older text) predates the debug simulated-sweep route (`1089e32`), which
   produces a full `SweepResult` with no VNA attached. Slices 1–3b-i were all built
