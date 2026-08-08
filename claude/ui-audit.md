@@ -372,3 +372,23 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
   fixed: the Sweep Viewer has no `navigationIcon`, navigation is a `showSweep` boolean, so
   system back exits the app instead of returning to the project page. Larger than any P4
   slice; the in-content `onBack()` buttons are the only route back to the project.
+- 2026-08-08 — **P5 slice 5d. The app is no longer dark-only.** `AppSettings.themePreference`
+  (SYSTEM/DARK/LIGHT, default SYSTEM) resolved by the pure `resolveDarkTheme` at
+  `MainActivity`'s composition root, with a three-way control in `SystemMenuScreen`'s App
+  Settings card — which had been a static placeholder whose subtitle already listed Theme
+  first. `AntennaLab_V1Theme(darkTheme: Boolean)` was left untouched on purpose: 18 call sites
+  across 8 files pass it and all but one are `@Preview`s.
+  **The real change is that settings became observable.** `SettingsRepository`'s cache is now
+  `by mutableStateOf`, so any composable reading `current()` recomposes on `update()` — the
+  app's first observable state, and it retroactively fixed the limitation 5c had to log.
+  Reverses a documented decision: the app used to force its own dark flag independent of the
+  system, and `SemanticColors`' header was rewritten rather than left asserting the opposite.
+  The light palette needed no work — it was fully built and preview-only since Phase 0, so the
+  glare-proof deep-amber `warning` token became reachable for the first time.
+  **NEW unbundled item (4): `ui/components/SegmentedChoiceButton` has no minimum height**, so
+  it renders at Material's default ~40 dp — **below the 48 dp `AntennaLabTouch.min` floor**
+  that `AppActionButton` respects. It was lifted verbatim out of `SweepGraphWidgets`
+  (`SweepWorkspaceModeButton`) as a pure move, and promoting it to a design-system primitive
+  arguably blesses the gap, so it is logged here rather than left silent. Fixing it resizes 12
+  sweep-stack buttons plus the new theme control — a pixel change that did not belong in a
+  theme slice, and one that wants its own predicted-change gate.
