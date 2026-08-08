@@ -84,7 +84,6 @@ data class ProjectData(
     val testData: TestData = TestData(),
     val discoverySnapshot: DiscoverySnapshot? = null,
     val sweepHistory: List<ProjectSweepHistoryEntry> = emptyList(),
-    val uiState: ProjectUiState = ProjectUiState(),
     val versionInfo: VersionInfo = VersionInfo(),
     val buildCostProfile: BuildCostProfile = BuildCostProfile.STANDARD,
     val availablePartsProfile: AvailablePartsProfile =
@@ -432,23 +431,6 @@ Do not reintroduce a stored-calibration field. Add provenance instead.
 
 /*
 ########################################################################
-UI STATE MODEL
-------------------------------------------------------------------------
-PURPOSE
-Stores lightweight project UI state.
-
-SAFE EDIT AREA
-- add new remember-last-view style fields
-########################################################################
-*/
-data class ProjectUiState(
-    val lastOpenedSection: ProjectSection = ProjectSection.OVERVIEW,
-    val lastExpandedCard: ProjectCard = ProjectCard.SUMMARY,
-    val hasSeenProjectIntro: Boolean = false
-)
-
-/*
-########################################################################
 VERSION INFO MODEL
 ------------------------------------------------------------------------
 PURPOSE
@@ -681,13 +663,6 @@ enum class ProjectSection {
     MATERIALS,
     TESTING,
     NOTES
-}
-
-enum class ProjectCard {
-    SUMMARY,
-    DESIGN_SNAPSHOT,
-    MATERIALS_SNAPSHOT,
-    TEST_STATUS
 }
 
 enum class ProjectSource {

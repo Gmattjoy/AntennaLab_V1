@@ -50,16 +50,13 @@ import com.example.antennalab_v1.model.FrequencyMode
 import com.example.antennalab_v1.model.LabEntryMode
 import com.example.antennalab_v1.model.MaterialConfig
 import com.example.antennalab_v1.model.PriorityMode
-import com.example.antennalab_v1.model.ProjectCard
 import com.example.antennalab_v1.model.ProjectData
 import com.example.antennalab_v1.model.ProjectListItem
 import com.example.antennalab_v1.model.ProjectMeta
-import com.example.antennalab_v1.model.ProjectSection
 import com.example.antennalab_v1.model.ProjectSource
 import com.example.antennalab_v1.model.ProjectStatus
 import com.example.antennalab_v1.model.ProjectSweepHistoryEntry
 import com.example.antennalab_v1.model.ProjectSweepHistoryMode
-import com.example.antennalab_v1.model.ProjectUiState
 import com.example.antennalab_v1.model.SupportMaterial
 import com.example.antennalab_v1.model.TestData
 import com.example.antennalab_v1.model.TestHardwareProfile
@@ -130,10 +127,6 @@ object ProjectStorage {
     private const val KEY_RETURN_LOSS = "return_loss"
     private const val KEY_MEASUREMENT_NOTES = "measurement_notes"
     private const val KEY_TRIM_HISTORY = "trim_history"
-
-    private const val KEY_LAST_OPENED_SECTION = "last_opened_section"
-    private const val KEY_LAST_EXPANDED_CARD = "last_expanded_card"
-    private const val KEY_HAS_SEEN_PROJECT_INTRO = "has_seen_project_intro"
 
     private const val KEY_DATA_SCHEMA_VERSION = "data_schema_version"
     private const val KEY_APP_DATA_SOURCE = "app_data_source"
@@ -515,7 +508,6 @@ object ProjectStorage {
                     put(historyEntry.toJson())
                 }
             })
-            put("uiState", project.uiState.toJson())
             put("versionInfo", project.versionInfo.toJson())
             put("buildCostProfile", project.buildCostProfile.name)
             put("availablePartsProfile", project.availablePartsProfile.name)
@@ -538,7 +530,13 @@ object ProjectStorage {
             testData = json.optJSONObject("testData")?.toTestData() ?: TestData(),
             discoverySnapshot = json.optJSONObject("discoverySnapshot")?.toDiscoverySnapshot(),
             sweepHistory = json.optJSONArray("sweepHistory").toSweepHistoryList(),
-            uiState = json.optJSONObject("uiState")?.toProjectUiState() ?: ProjectUiState(),
+            /*
+            No uiState arm since slice 5b. An older project file may still
+            carry the key; fromJson reads keys individually via opt*, so a key
+            nobody looks at is simply never read — org.json validates nothing
+            against a schema. The orphan disappears the next time the project
+            is saved. Nothing rewrites existing records.
+            */
             versionInfo = json.optJSONObject("versionInfo")?.toVersionInfo() ?: VersionInfo(),
             buildCostProfile = enumValueOrDefault(
                 json.optOptionalString("buildCostProfile"),
@@ -875,37 +873,6 @@ object ProjectStorage {
 
     /*
     ------------------------------------------------------------
-    EDIT SECTION 2007
-    UI STATE SERIALIZATION
-    ------------------------------------------------------------
-    PURPOSE
-    Converts ProjectUiState to and from JSON.
-    ------------------------------------------------------------
-    */
-    private fun ProjectUiState.toJson(): JSONObject {
-        return JSONObject().apply {
-            put("lastOpenedSection", lastOpenedSection.name)
-            put("lastExpandedCard", lastExpandedCard.name)
-            put("hasSeenProjectIntro", hasSeenProjectIntro)
-        }
-    }
-
-    private fun JSONObject.toProjectUiState(): ProjectUiState {
-        return ProjectUiState(
-            lastOpenedSection = enumValueOrDefault(
-                optOptionalString("lastOpenedSection"),
-                ProjectSection.OVERVIEW
-            ),
-            lastExpandedCard = enumValueOrDefault(
-                optOptionalString("lastExpandedCard"),
-                ProjectCard.SUMMARY
-            ),
-            hasSeenProjectIntro = optBoolean("hasSeenProjectIntro", false)
-        )
-    }
-
-    /*
-    ------------------------------------------------------------
     EDIT SECTION 2008
     VERSION INFO SERIALIZATION
     ------------------------------------------------------------
@@ -1181,17 +1148,6 @@ object ProjectStorage {
                 returnLossDb = prefs.getString(KEY_RETURN_LOSS, "0.0").toSafeDouble(),
                 measurementNotes = prefs.getString(KEY_MEASUREMENT_NOTES, "") ?: "",
                 trimHistory = decodeStringList(prefs.getString(KEY_TRIM_HISTORY, ""))
-            ),
-            uiState = ProjectUiState(
-                lastOpenedSection = enumValueOrDefault(
-                    prefs.getString(KEY_LAST_OPENED_SECTION, null),
-                    ProjectSection.OVERVIEW
-                ),
-                lastExpandedCard = enumValueOrDefault(
-                    prefs.getString(KEY_LAST_EXPANDED_CARD, null),
-                    ProjectCard.SUMMARY
-                ),
-                hasSeenProjectIntro = prefs.getBoolean(KEY_HAS_SEEN_PROJECT_INTRO, false)
             ),
             versionInfo = VersionInfo(
                 dataSchemaVersion = prefs.getInt(KEY_DATA_SCHEMA_VERSION, 1),
