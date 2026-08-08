@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 
 /*
 ########################################################################
@@ -29,6 +30,16 @@ wearing a sweep-specific name: public, no instrument* colour params, and
 every colour resolved from MaterialTheme.colorScheme. Pure move and
 rename, no behaviour change.
 
+SELECTED COLOUR
+The selected fill is AntennaLabTheme.semantic.selectedIndicator (neon
+orange #FF5C00), not colorScheme.primary. Primary is the general action
+accent shared with ~50 other call sites (Back to Home et al), so selection
+could not be re-tinted there without moving every action button too. The
+label is the paired onSelectedIndicator so it stays legible on the fill.
+UNSELECTED state is untouched and still resolves from colorScheme.
+The orange/warning-amber clash was reviewed and accepted; rationale and
+contrast numbers live in ui/theme/SemanticColors.kt.
+
 KNOWN GAP, deliberately not fixed in 5d
 No minimum height, so this renders at Material's default (~40 dp) —
 BELOW the 48 dp AntennaLabTouch.min accessibility floor that
@@ -44,23 +55,27 @@ fun SegmentedChoiceButton(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val selectedIndicator = AntennaLabTheme.semantic.selectedIndicator
+
     val fillColor =
         if (selected) {
-            MaterialTheme.colorScheme.primary
+            selectedIndicator
         } else {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
         }
 
     val contentColor =
         if (selected) {
-            MaterialTheme.colorScheme.onPrimary
+            AntennaLabTheme.semantic.onSelectedIndicator
         } else {
             MaterialTheme.colorScheme.onSurface
         }
 
+    // The border tracks the fill: a primary-green ring around an orange fill
+    // would just read as a rendering bug.
     val borderColor =
         if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f)
+            selectedIndicator.copy(alpha = 0.95f)
         } else {
             MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
         }

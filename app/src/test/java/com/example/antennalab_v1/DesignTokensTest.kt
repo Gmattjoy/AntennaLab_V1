@@ -1,9 +1,12 @@
 package com.example.antennalab_v1
 
+import androidx.compose.ui.graphics.Color
 import com.example.antennalab_v1.ui.theme.AntennaLabSpacing
 import com.example.antennalab_v1.ui.theme.AntennaLabTouch
 import com.example.antennalab_v1.ui.theme.DarkAntennaLabSemanticColors
+import com.example.antennalab_v1.ui.theme.DarkPrimary
 import com.example.antennalab_v1.ui.theme.LightAntennaLabSemanticColors
+import com.example.antennalab_v1.ui.theme.LightPrimary
 import com.example.antennalab_v1.ui.theme.StatusBad
 import com.example.antennalab_v1.ui.theme.StatusGood
 import com.example.antennalab_v1.ui.theme.StatusWarning
@@ -82,5 +85,64 @@ class DesignTokensTest {
     fun semanticSelector_followsThemeFlag() {
         assertEquals(DarkAntennaLabSemanticColors, antennaLabSemanticColors(darkTheme = true))
         assertEquals(LightAntennaLabSemanticColors, antennaLabSemanticColors(darkTheme = false))
+    }
+
+    // ---- Selected indicator: defined in both schemes, legible, not primary ----
+
+    @Test
+    fun selectedIndicator_isTheNeonOrangeInBothSchemes() {
+        val neonOrange = Color(0xFFFF5C00)
+        assertEquals(neonOrange, DarkAntennaLabSemanticColors.selectedIndicator)
+        assertEquals(neonOrange, LightAntennaLabSemanticColors.selectedIndicator)
+    }
+
+    @Test
+    fun selectedIndicator_isNotColorSchemePrimary() {
+        // The whole point of the token: selection can be re-tinted without
+        // dragging every primary-accented action button along with it.
+        assertNotEquals(DarkPrimary, DarkAntennaLabSemanticColors.selectedIndicator)
+        assertNotEquals(LightPrimary, LightAntennaLabSemanticColors.selectedIndicator)
+    }
+
+    @Test
+    fun selectedIndicator_clashesWithWarningButIsNotTheSameToken() {
+        // The visual clash with warning amber was reviewed and accepted; what
+        // must not happen is the two silently collapsing into one value.
+        for (set in listOf(LightAntennaLabSemanticColors, DarkAntennaLabSemanticColors)) {
+            assertNotEquals(set.warning, set.selectedIndicator)
+        }
+    }
+
+    @Test
+    fun selectedIndicatorLabel_meetsWcagAaOnTheFill() {
+        // If the orange is ever re-tinted, this fails and the LABEL is what
+        // gets adjusted — never the orange. 4.5:1 is the AA floor for normal
+        // text, which is what the button's SemiBold label counts as.
+        for (set in listOf(LightAntennaLabSemanticColors, DarkAntennaLabSemanticColors)) {
+            val ratio = contrastRatio(set.onSelectedIndicator, set.selectedIndicator)
+            assertTrue(
+                "label on selectedIndicator must clear WCAG AA, was $ratio",
+                ratio >= 4.5
+            )
+        }
+    }
+
+    /** WCAG 2.x contrast ratio; order-independent. */
+    private fun contrastRatio(a: Color, b: Color): Double {
+        val la = relativeLuminance(a)
+        val lb = relativeLuminance(b)
+        val lighter = maxOf(la, lb)
+        val darker = minOf(la, lb)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private fun relativeLuminance(color: Color): Double =
+        0.2126 * linearize(color.red) +
+            0.7152 * linearize(color.green) +
+            0.0722 * linearize(color.blue)
+
+    private fun linearize(channel: Float): Double {
+        val c = channel.toDouble()
+        return if (c <= 0.03928) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
     }
 }

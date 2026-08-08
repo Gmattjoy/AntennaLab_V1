@@ -23,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.antennalab_v1.ui.components.AppStatusLevel
+import com.example.antennalab_v1.ui.components.SegmentedChoiceButton
 import com.example.antennalab_v1.ui.components.StatusPill
 
 /*
@@ -65,6 +66,15 @@ private fun TokenSwatchSheet() {
             SemanticSwatch("danger", AntennaLabTheme.semantic.danger)
             SemanticSwatch("neutral", AntennaLabTheme.semantic.neutral)
             SemanticSwatch("info", AntennaLabTheme.semantic.info)
+
+            SectionLabel("Selected indicator")
+            SemanticSwatch("selectedIndicator", AntennaLabTheme.semantic.selectedIndicator)
+            // Label-on-fill legibility is the thing to eyeball here, so the
+            // on-colour gets shown where it is actually used, not as a swatch.
+            Row(horizontalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)) {
+                SegmentedChoiceButton(text = "Selected", selected = true, onClick = {})
+                SegmentedChoiceButton(text = "Unselected", selected = false, onClick = {})
+            }
 
             SectionLabel("StatusPill")
             Row(horizontalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)) {
