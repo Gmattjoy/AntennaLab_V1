@@ -147,6 +147,103 @@ interactive surface relies on Material defaults or bare literals.
 
 ---
 
+## 2b. Colour system (5d-adjacent) — `9a6b1b7`, `bec034e`, `f18b34e`
+
+Not a numbered phase. It landed alongside 5d because the theme selector was the first
+control that needed a selected state, and it ended up rewriting how colour is decided
+app-wide. Recorded here so the decisions — especially the reversal — do not evaporate.
+
+### One accent definition
+
+`AccentOrange` = `#FF5C00` and `OnAccentOrange` = `#3A1500`, declared first in
+`ui/theme/Color.kt` (top-level vals initialise in file order, so position is load-bearing).
+**Both `colorScheme.primary` and `semantic.selectedIndicator` alias them**, as do
+`onPrimary` / `onSelectedIndicator`. Re-tinting the app is a one-line edit.
+
+The two tokens stay separate despite resolving to the same hue because they answer different
+questions — "what is this app's accent" vs "which of these options is active" — and a future
+design could split them without hunting call sites. `DesignTokensTest` pins that they are one
+definition rather than two hexes that happen to match today.
+
+Contrast: the ink measures **5.27:1** on the orange (passes WCAG AA for normal text); white
+would have been ~2.6:1 and fails. The light scheme's old `onPrimary` was near-white
+(`#F7FEFE`), so it had to move too. `DesignTokensTest` recomputes both ratios — **if the
+orange is ever re-tinted, the INK is what gets adjusted, never the orange.**
+
+### ⚠ REVERSAL — deliberate, not an accident
+
+The previous instruction was explicit: **"Do NOT touch `colorScheme.primary`"**, and the first
+commit (`9a6b1b7`) honoured it by giving selection its own token and leaving primary alone.
+
+That was **reversed one commit later, on instruction, because the two goals are
+incompatible**: the requirement became "zero green anywhere", and the green *was* the primary
+role (`DarkPrimary` `#6F9792` / `LightPrimary` `#5E8884`, a metallic teal-green). Primary had
+**~50 call sites across 10 files**; re-tinting the role was the only way to reach all of them
+without leaving per-screen stragglers. Anything narrower would have left green in places no
+screen-by-screen sweep would reliably find.
+
+Stated plainly so a later reader does not "restore" the teal thinking it was lost by mistake:
+**the green was removed on purpose, and the earlier instruction protecting it was overridden
+on purpose.** A useful side effect — the chart traces drew from `primary`, so they went orange
+with everything else, which was reviewed and confirmed fine.
+
+Interaction with **F1**: this does *not* close F1. The three parallel colour systems still
+exist; what changed is that the Material scheme's accent and the semantic selection token now
+share one source. The `Instrument*` set is still theme-blind and still threaded as explicit
+parameters, and the wizard hex set is untouched except where chips were repointed.
+
+### The two fill rules
+
+**Selection rule** — solid fill = selected, orange outline (transparent fill, orange border
+AND orange label) = unselected. `ui/components/SelectionButtonStyle` is the single definition;
+**nine composables call through it** instead of each rolling its own colour logic:
+`SegmentedChoiceButton`, `AppActionButton`, `SweepWorkspaceActionButton`,
+`SweepWorkspaceDisplayButton`, `SweepWorkspaceControlButton`, `TabButton`,
+`ClassificationButton`, and `ProjectPageScreen`'s primary/secondary pair — plus the
+`FilterChip`s and `OutlinedButton`s that were still falling back to Material's grey outline.
+No button or chip anywhere keeps a grey or green border.
+
+**Hero rule** — solid also means a **standalone CTA**, one with no unselected sibling beside
+it. The discriminator is **GROUP MEMBERSHIP, not importance**: a lone CTA has nothing next to
+it that could read as "the unchosen one", which is exactly what makes solid ambiguous inside a
+group and safe outside one.
+
+The consequence worth remembering: **`AppActionVariant.PRIMARY` / `STANDARD` governs size and
+type weight only — it is NOT the solid/outline discriminator.** "New project" and "Identify
+antenna" are `STANDARD` yet are still hero CTAs, so every `AppActionButton` is solid. The rule
+is written into `SelectionButtonStyle.heroActionColors`'s doc block specifically to stop it
+being misused later as "make one option in a row stand out" — that is the ambiguity the
+selection split exists to prevent. The hero accessors delegate to the selected treatment
+rather than duplicating it, so the two solids cannot drift apart.
+
+### Headings
+
+Neutral, never accented, and **`FontWeight.Bold` → `Normal`**. `SharedInstrumentSectionHeader`
+**lost its `instrumentAccent` parameter entirely** — removed rather than ignored, so nothing
+can quietly pass an accent again — and all 13 call sites were updated. It had been fed green
+on some cards and brass-yellow on others; the brass went neutral too, which was a scope
+judgement, not an oversight. Sub-headers and the System-menu card titles dropped to `Normal`
+as well. A heading labels a group; it should not be the loudest thing on the card.
+
+Dead colour params were removed rather than left dangling, on the two sweep workspace button
+helpers as well as the section header.
+
+### KEPT green — load-bearing, not an oversight
+
+`InstrumentGreen` (`#43D17A`) and `semantic.success` (`StatusGood`) **still tint status text**
+— Live / OK / TRUSTED / Ready — at `SweepGraphWidgets.kt:151,180`, `SweepGraphScreen.kt:1248`
+and via `SweepChartGrid.kt:235,416`.
+
+This survived a "zero green anywhere" instruction **on purpose**. Green-means-good is the
+semantics the instrument status system runs on, and the calibration-honesty rule depends on
+status colour carrying meaning rather than brand. Removing it would have cost meaning, not
+just colour. Flagged at the time and confirmed as a keep. **Do not "finish the job" by
+removing it.**
+
+Orange chart traces were likewise reviewed and confirmed as a keep.
+
+---
+
 ## 3. Drift ranking
 
 ### Tier A — worst absolute drift (also the largest surfaces)
@@ -258,6 +355,41 @@ existing one. Same gap, smaller scale: `DesignWorkspaceScreen`, `SystemMenuScree
   the app now confirms before clearing a calibration but not before deleting a project. Also
   recorded in `CLAUDE.md` Known gaps.
 - **50/48 dp duplicate Sweep primitives** (F2) — consolidate under **P4**, not before.
+
+### OPEN — unbundled cleanups (refreshed after the colour work)
+
+Small, real, and each deliberately kept out of the slice that found it. None is blocked;
+they are unbundled because bundling them would have mixed a pixel or structural change into
+a colour or theme commit.
+
+1. **`SegmentedChoiceButton` has no minimum height** — renders at Material's default ~40 dp,
+   **below the 48 dp `AntennaLabTouch.min` floor** that `AppActionButton` respects. Logged in
+   5d, still open, and the colour work did NOT close it: `SelectionButtonStyle` sets colour
+   and elevation, never size. Fixing it resizes 12 sweep-stack buttons plus the theme control
+   — a pixel change wanting its own predicted-change gate. Documented in the file's own header
+   so promoting it to a design-system primitive does not silently bless the gap.
+2. **`project/ProjectSection.kt` is dead, not merely duplicated.** The `ProjectSection` enum
+   is declared twice with identical members — `project/ProjectSection.kt:38` and
+   `model/ProjectData.kt:660` — in different packages, so there is no clash and no compile
+   error to force the issue. `ProjectPageScreen.kt:81` imports the **`model`** one, so the
+   `project` copy has **zero consumers**. Same class as the F3 items that `be6f343` deleted:
+   dead code that will re-seed drift, and worse here because the two could silently diverge
+   while both look canonical. Delete the `project` copy; `model` is the correct home under
+   the layer rules.
+3. **`SweepScalarTraceView` y-label column vertical offset** — the twin of the tick-row defect
+   3b-i fixed, and the version `PhaseTraceCell` already fixed for itself. Carried forward
+   through 3b-i, 4b and 4c entries; still untouched.
+
+### OPEN — hardware-pending (cannot be closed on the emulator)
+
+- **Status green is code-verified only, never seen rendering.** The Live / OK / TRUSTED branch
+  needs a live instrument: with no device attached the status text reads "Simulated" / "ERROR",
+  which routes to the accent and magenta branches, so the green path never fires on the
+  emulator. Verified by reading the code instead — `InstrumentGreen` intact at
+  `SweepGraphWidgets.kt:151,180` and `SweepGraphScreen.kt:1248`, `semantic.success`
+  untouched. Confirming it visually is a bench item; fold it into the next LiteVNA64 session
+  and record the result in `claude/hardware-bringup-litevna64.md`. Until then, treat "green
+  still means good in the UI" as asserted, not demonstrated.
 
 ---
 
@@ -392,3 +524,12 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
   arguably blesses the gap, so it is logged here rather than left silent. Fixing it resizes 12
   sweep-stack buttons plus the new theme control — a pixel change that did not belong in a
   theme slice, and one that wants its own predicted-change gate.
+- 2026-08-08 — **Colour system, 5d-adjacent** (`9a6b1b7`, `bec034e`, `f18b34e`). Full entry in
+  **§2b**. One accent definition (`AccentOrange` / `OnAccentOrange`), a solid-selected /
+  outlined-unselected rule owned by `SelectionButtonStyle` and consumed by nine composables, a
+  hero-CTA rule keyed on group membership rather than importance, and neutral lighter section
+  headings. **Contains a deliberate reversal of the "don't touch `colorScheme.primary`"
+  instruction** — the accent role *was* the green, so "zero green" could not be met without
+  re-tinting it; see §2b before restoring anything teal. Status green was KEPT on purpose.
+  Verified on the emulator in both themes across dashboard, System menu and all four sweep
+  sections. Suite 546 → 547.
