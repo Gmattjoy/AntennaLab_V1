@@ -64,11 +64,12 @@ value would still be true after every project on the device were deleted, it is 
 - `load()` **must never throw** — it is on the launch path, so missing/corrupt/partial files
   return defaults. Corrupt *file* is handled in the store; corrupt *value* (unknown enum name)
   is handled in the pure model, so a parseable file is never discarded wholesale.
-- **Known violation, scheduled for teardown in P5 slice 5b:** `ProjectData.uiState`
-  (`ProjectUiState` — `lastOpenedSection`, `lastExpandedCard`, `hasSeenProjectIntro`) is
-  serialized on every project save and read by **zero** consumers. It is view/preference state
-  living in the project file; `hasSeenProjectIntro` is global onboarding state that is
-  per-project today, so the intro re-shows for every new project.
+- **`ProjectData.uiState` / `ProjectUiState` was removed in P5 slice 5b** — the one known
+  violation, serialized on every save and read by zero consumers. None of its three fields
+  moved to settings, because none had a consumer: `hasSeenProjectIntro` has no intro screen to
+  gate anywhere in the app, so it is on the deferred list rather than shipped inert. Old
+  project files keep the orphan `uiState` key; it is never read and disappears on next save
+  (`ProjectStorageRoundTripTest` pins both halves). No migration — nothing rewrites records.
 
 Hardware is capability-based, not hardcoded:
 `ProjectData.testHardwareProfile` → capability profile → controls which UI features show (Smith chart, S21 estimate, TDR preview, CSV export, marker types, sweep frequency limits, OSL calibration). Supports NanoVNA-H4 and LiteVNA64 v0.3.3. Add new hardware by extending the capability profile — do NOT branch the UI.

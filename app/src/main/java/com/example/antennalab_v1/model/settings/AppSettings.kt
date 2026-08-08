@@ -22,10 +22,14 @@ measurement, it belongs in ProjectData and must not appear here.
 
 The rule exists because the app grew without an app-wide store, so
 preferences leaked into the project file. ProjectUiState
-(lastOpenedSection / lastExpandedCard / hasSeenProjectIntro) is the
-live example: serialized on every project save, read by nothing, and
-per-project when it was never about a project. Scheduled for teardown
-in slice 5b, landing here.
+(lastOpenedSection / lastExpandedCard / hasSeenProjectIntro) was the
+worked example: serialized on every project save, read by nothing, and
+per-project when it was never about a project. REMOVED in slice 5b —
+along with the "SAFE EDIT AREA: add new remember-last-view style
+fields" comment that invited it, which was the actual drift mechanism.
+
+None of its three fields moved here, because none had a consumer to
+move. See the future-surface block below for hasSeenProjectIntro.
 
 MISSING FIELDS ARE TOLERATED, BY DESIGN
 --------------------------------------------------------------------
@@ -90,7 +94,7 @@ than declared on purpose.
   defaultTargetFrequencyMHz: Double          (5c)
   defaultInstrument: TestHardwareProfile     (5c)
   appAnalysisCollapsedDefault: Boolean       (5f)
-  hasSeenProjectIntro: Boolean               (5b — out of ProjectUiState)
+  hasSeenProjectIntro: Boolean               (when an intro gate exists)
   readoutFormat: ReadoutFormat               (unscheduled)
 
 WHY NOT DECLARE THEM NOW
@@ -100,8 +104,11 @@ honour — an operator editing themePreference would see nothing happen.
 This codebase has been bitten by exactly that twice:
 HardwareMeasurementCapabilities.supportsTdrPreview was TRUE on both
 profiles with nothing reading it (so the TDR velocity-factor fix had no
-reachable UI), and ProjectUiState is the same defect in the project
-file.
+reachable UI), and ProjectUiState was the same defect in the project
+file — which is why slice 5b deleted it rather than relocating it here.
+hasSeenProjectIntro in particular has NO consumer: there is no intro or
+onboarding screen anywhere in the app, so a field for it would be inert
+on arrival. It waits for the gate it is supposed to gate.
 
 Deferring costs nothing: fields are defaulted and absent keys already
 fall back, so adding one later is a field plus one put/opt pair, with
