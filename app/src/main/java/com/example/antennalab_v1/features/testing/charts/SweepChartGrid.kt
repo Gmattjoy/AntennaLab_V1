@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -24,6 +25,7 @@ import com.example.antennalab_v1.features.testing.SweepSmithChartView
 import com.example.antennalab_v1.features.testing.TraceCompareMode
 import com.example.antennalab_v1.model.testing.SweepPoint
 import com.example.antennalab_v1.model.testing.SweepResult
+import com.example.antennalab_v1.ui.components.AppActionButton
 import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 import com.example.antennalab_v1.ui.theme.AntennaLab_V1Theme
 
@@ -288,6 +290,165 @@ private fun ChartGridCell(
         }
     }
 }
+
+/*
+--------------------------------------------------------------------
+Tap-to-expand: the focused chart
+EDIT SECTION 1007
+--------------------------------------------------------------------
+Spec 2.2b — TRANSIENT focus that returns to the underlying layout. It
+is not a layout mode and must never be conflated with slice 5's
+Simple/Full toggle; the state field it renders is a nullable overlay
+for exactly that reason (SweepWorkspaceState.expandedChartKind).
+
+Lives HERE rather than in SweepGraphScreen so it can reuse chartTitle
+and scalarModeFor without making them public, and so the ~10 colour
+reads stay in one place. Same Surface/Column shell and the same
+when(kind) as ChartGridCell, so focusing reads as "the cell grew"
+rather than "a different screen appeared".
+
+Full-width geometry: compact = false gives the 56 dp gutter, the full
+tick set and a 66/10 band strip. showHeaderAndFooter stays FALSE at
+this width too — that flag is about hosting, not width, and this panel
+titles its own chart exactly as a cell does. Slice 4c-i split the two
+so this could be true.
+
+Heights are the legacy full-width values, omitted rather than restated
+so there is one source: 240.dp for the scalar renderer, 280.dp for
+Smith. PhaseTraceCell has no default, so it is passed 240 explicitly
+to match the scalar renderer — a focused phase chart should be the
+same height as a focused SWR one.
+--------------------------------------------------------------------
+*/
+@Composable
+internal fun ExpandedChartPanel(
+    kind: ChartKind,
+    result: SweepResult,
+    markerAIndex: Int,
+    markerBIndex: Int,
+    onCollapse: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val semantic = AntennaLabTheme.semantic
+    val scheme = MaterialTheme.colorScheme
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AntennaLabTheme.spacing.md),
+        color = scheme.surface,
+        border = BorderStroke(1.dp, scheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                /*
+                Return route (a): tapping the focused chart collapses it,
+                the mirror of the tap that expanded it. Safe to take the
+                whole panel — no renderer in this package handles pointer
+                input, and markers are placed from SweepMarkerControlPanel
+                (nudge / jump / manual entry), never by tapping a trace. So
+                there is no chart gesture for this to swallow.
+                */
+                .clickable { onCollapse() }
+                .padding(AntennaLabTheme.spacing.sm)
+        ) {
+            /*
+            Return route (b), and the only DISCOVERABLE one — tapping the
+            chart and system-back are both invisible. At the top rather
+            than below the chart so the way out is on screen the moment
+            focus starts, not past 240-280 dp of plot.
+
+            AppActionButton's STANDARD variant is already
+            AntennaLabTheme.touch.comfortable (56 dp), clearing the 48 dp
+            accessibility floor without any manual sizing.
+            */
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chartTitle(kind),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurfaceVariant
+                )
+                AppActionButton(
+                    text = "Back to grid",
+                    onClick = onCollapse
+                )
+            }
+
+            when (kind) {
+                ChartKind.SMITH -> SweepSmithChartView(
+                    result = result,
+                    markerAIndex = markerAIndex,
+                    markerBIndex = markerBIndex,
+                    instrumentSurfaceVariant = scheme.surfaceVariant,
+                    instrumentDivider = scheme.outlineVariant,
+                    instrumentAccent = scheme.primary,
+                    instrumentTextSecondary = scheme.onSurfaceVariant,
+                    markerAColor = semantic.info,
+                    markerBColor = semantic.warning
+                    // heightDp omitted: the legacy 280.dp full-width default.
+                )
+
+                ChartKind.PHASE -> PhaseTraceCell(
+                    result = result,
+                    markerAIndex = markerAIndex,
+                    markerBIndex = markerBIndex,
+                    cellHeight = EXPANDED_TRACE_HEIGHT,
+                    compact = false
+                )
+
+                ChartKind.SWR, ChartKind.RETURN_LOSS -> SweepScalarTraceView(
+                    result = result,
+                    referenceResult = null,
+                    traceCompareMode = TraceCompareMode.CURRENT_ONLY,
+                    mode = scalarModeFor(kind),
+                    markerAIndex = markerAIndex,
+                    markerBIndex = markerBIndex,
+                    instrumentSurfaceVariant = scheme.surfaceVariant,
+                    instrumentDivider = scheme.outlineVariant,
+                    instrumentAccent = scheme.primary,
+                    instrumentTextPrimary = scheme.onSurface,
+                    instrumentTextSecondary = scheme.onSurfaceVariant,
+                    instrumentBlue = semantic.info,
+                    instrumentMagenta = semantic.warning,
+                    instrumentGreen = semantic.success,
+                    // heightDp omitted: the legacy 240.dp full-width default.
+                    compact = false,
+                    // Hosting-driven, so false at this width too: the panel
+                    // above already titles the chart.
+                    showHeaderAndFooter = false
+                )
+            }
+
+            // Same expression ChartGridCell uses, at the other width.
+            if (ChartLayoutMath.hasFrequencyAxis(kind)) {
+                val bandInsets = ChartLayoutMath.plotInsetsFor(
+                    renderer =
+                        if (kind == ChartKind.PHASE) ChartLayoutMath.PlotRenderer.PHASE
+                        else ChartLayoutMath.PlotRenderer.SCALAR,
+                    compact = false
+                )
+                BandAxisOverlay(
+                    axisStartMHz = result.startFrequencyMHz,
+                    axisEndMHz = result.endFrequencyMHz,
+                    modifier = Modifier.padding(
+                        start = bandInsets.startDp.dp,
+                        end = bandInsets.endDp.dp
+                    )
+                )
+            }
+        }
+    }
+}
+
+/*
+Matches SweepScalarTraceView's legacy full-width default so a focused
+phase chart is the same height as a focused SWR one. PhaseTraceCell has
+no default of its own to inherit.
+*/
+private val EXPANDED_TRACE_HEIGHT = 240.dp
 
 /*
 --------------------------------------------------------------------

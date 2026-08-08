@@ -1,6 +1,7 @@
 package com.example.antennalab_v1.features.testing
 
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import com.example.antennalab_v1.features.app.AppTopRightMenu
 import com.example.antennalab_v1.features.app.BenchStateLog
 import com.example.antennalab_v1.features.app.InstrumentStatusCard
 import com.example.antennalab_v1.features.testing.charts.BandAxisOverlay
+import com.example.antennalab_v1.features.testing.charts.ExpandedChartPanel
 import com.example.antennalab_v1.features.testing.charts.MarkerReadoutTable
 import com.example.antennalab_v1.features.testing.charts.SweepChartGrid
 import com.example.antennalab_v1.model.AntennaClassification
@@ -193,14 +195,45 @@ fun SweepGraphScreen(
         debugSimulatedSweepEnabled = debugSimulatedSweepEnabled
     )
 
-    LaunchedEffect(availableDisplayModes) {
+    /*
+    Hoisted so ONE list feeds the strand-guard key, the guard call and the
+    grid. It used to be computed twice — inside the effect and again at the
+    grid call site — which made the key's correctness depend on the two
+    staying in step.
+    */
+    val availableChartKinds = ChartLayoutMath.availableChartKinds(measurementCapabilities)
+
+    /*
+    Keyed on the chart kinds as well as the display modes. Both derive from
+    the same resolved capabilities today, so this changes no behaviour — it
+    makes an implicit dependency explicit, since availableChartKinds is what
+    the guard actually consumes. A capability change must not leave the
+    operator expanded on a chart this instrument no longer produces.
+    */
+    LaunchedEffect(availableDisplayModes, availableChartKinds) {
         viewModel.ensureCompatibleState(
             availableDisplayModes = availableDisplayModes,
-            // Same resolver-derived capabilities the grid gates on, so a
-            // capability change cannot leave the operator expanded on a chart
-            // this instrument no longer produces.
-            availableChartKinds = ChartLayoutMath.availableChartKinds(measurementCapabilities)
+            availableChartKinds = availableChartKinds
         )
+    }
+
+    /*
+    FIRST BackHandler in the app, and the `enabled` gate is load-bearing well
+    beyond the usual reason. This screen's TopAppBar has no navigationIcon and
+    navigation is a `showSweep` boolean in ProjectPageScreen, so system back
+    here EXITS THE APP (verified on device). An ungated handler would swallow
+    the only gesture that leaves.
+
+    Disabled, the callback registers with isEnabled = false and the dispatcher
+    skips it entirely, so back falls through untouched — unexpanded behaviour
+    is exactly what it is today.
+
+    Declared at screen top level, deliberately OUTSIDE sweepResult?.let: focus
+    state lives on the workspace, so the handler must not be composed away by
+    a branch that depends on whether a sweep happens to be loaded.
+    */
+    BackHandler(enabled = workspaceState.expandedChartKind != null) {
+        viewModel.collapseExpandedChart()
     }
 
     val sweepResult = workspaceState.currentSweep
@@ -531,15 +564,39 @@ fun SweepGraphScreen(
                 */
                 InstrumentCard {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        /*
+                        Section header is unchanged while focused. It labels the
+                        SECTION, which is still the chart-grid section, and the
+                        panel titles its own chart exactly as a cell does — so
+                        focus shows one section label plus one chart title, the
+                        same structure the grid already has. Retitling here
+                        would either duplicate the chart name or lose the
+                        operator's sense of where they are.
+                        */
                         InstrumentSectionHeader("Chart grid")
 
-                        SweepChartGrid(
-                            result = result,
-                            kinds = ChartLayoutMath.availableChartKinds(measurementCapabilities),
-                            markerAIndex = markerAIndex,
-                            markerBIndex = markerBIndex,
-                            onCellTap = null
-                        )
+                        val expandedKind = workspaceState.expandedChartKind
+                        if (expandedKind != null) {
+                            ExpandedChartPanel(
+                                kind = expandedKind,
+                                result = result,
+                                markerAIndex = markerAIndex,
+                                markerBIndex = markerBIndex,
+                                onCollapse = { viewModel.collapseExpandedChart() }
+                            )
+                        } else {
+                            SweepChartGrid(
+                                result = result,
+                                kinds = availableChartKinds,
+                                markerAIndex = markerAIndex,
+                                markerBIndex = markerBIndex,
+                                // Toggle, not set: tapping the focused chart
+                                // collapses it and tapping a DIFFERENT one
+                                // switches focus. The controller owns all three
+                                // cases (slice 4a).
+                                onCellTap = { kind -> viewModel.toggleExpandedChart(kind) }
+                            )
+                        }
                     }
                 }
 
