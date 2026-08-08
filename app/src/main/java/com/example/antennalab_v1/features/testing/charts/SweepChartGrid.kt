@@ -224,16 +224,27 @@ private fun ChartGridCell(
             Band strip, on the kinds that plot against frequency. Smith is
             excluded by hasFrequencyAxis, not by a local `!= SMITH`.
 
-            Passing SCALAR is not a slip: since slice 3b-i the SCALAR and PHASE
-            compact insets are identical (50/10), so one value serves every cell
-            here and naming one renderer reads better than branching to prove
-            they match. plotInsets_phaseAndScalarCompactAreIdentical fails first
-            if that ever stops being true.
+            Passing SCALAR is not a slip: since slice 4b both renderers resolve
+            through ONE merged arm in plotInsetsFor, so they cannot differ — a
+            stronger guarantee than 3b-i's two constants agreeing. One value
+            serves every cell here, and naming one renderer reads better than
+            branching to prove they match.
+            plotInsets_phaseAndScalarCompactAreIdentical fails first if someone
+            re-splits that arm.
+
+            SLICE 4C MUST CHANGE THIS: `compact = true` is hardcoded, which is
+            correct while every cell is a half-width grid cell. The moment 4c
+            renders an expanded cell at compact = false, its plot starts at 66
+            while this strip stays at 50 — a 16 dp misalignment on the one
+            chart the operator is looking at. Thread the cell's own flag.
+            (Same latent case, already live: a lone supported chart takes the
+            full row via gridColumnCount(1) yet still renders compact.)
 
             The overlay and the renderers are siblings in this Column, so both
             measure from the same content edge and the inset lands on the plot.
             Compact suppresses the scalar footer, so the strip sits directly
-            under the tick row — no need to thread it into the renderer.
+            under the tick row — and since 4b the phase cell has a tick row
+            too, so the two strips in a row pair sit on one line.
             */
             if (ChartLayoutMath.hasFrequencyAxis(kind)) {
                 val bandInsets = ChartLayoutMath.plotInsetsFor(

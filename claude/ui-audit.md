@@ -312,3 +312,23 @@ Subtract the token layer (`ui/theme/`, `ui/components/`) for screen-level figure
   only the ±180° y-labels — so its strip sits directly under the plot border while the scalar
   cells' strips sit below their tick labels. Reads fine, but the phase cell has no x-axis
   labels of any kind; worth a decision when slice 4/5 revisits the cells.
+  **CLOSED by slice 4b (2026-08-08)** — see below.
+- 2026-08-08 — Slices 4a + 4b. 4a added tap-to-expand state (`expandedChartKind`) as a nullable
+  OVERLAY on the layout mode, never a layout-enum value, per §2.2; nothing renders it yet.
+  **4b closed the no-x-axis observation parked above.** `PhaseTraceCell` now takes
+  `compact: Boolean = true` and draws a frequency-tick row in both states, reusing
+  `buildFrequencyTicks` plus a `visibleFrequencyTicks` thinning rule extracted to
+  `ChartLayoutMath` so the two renderers cannot drift. `plotInsetsFor(PHASE)` honours `compact`
+  (50/10 grid, 66/10 full), which it had ignored because the cell had no full-width variant —
+  an expanded phase chart would have sat at 50 while an expanded scalar sat at 66. SCALAR and
+  PHASE now resolve through one merged `when` arm, so the 3b-i unification is guaranteed by
+  construction rather than by two constants agreeing; `PHASE_GUTTER_DP` deleted, gutters
+  renamed `TRACE_GUTTER_*` (values unchanged).
+  **This was a predicted-change slice, and the change was vertical only.** Pixel-measured on
+  the emulator: horizontal geometry byte-identical before/after (return-loss strip x=260..432,
+  phase strip x=726..899, both unmoved; legacy 3a overlay still 66/10). The phase cell was
+  32 dp shorter than its row-pair sibling because it had no tick row, so its band strip sat
+  ~30 dp high; it now fills height the row already reserved and the two strips share a line.
+  Grid total height unchanged. Suite 495 → 507 across 4a+4b.
+  **Still open from the 3b-i entry:** `SweepScalarTraceView`'s y-label column vertical defect.
+  `PhaseTraceCell` fixed its own version in 3b-i; the scalar view has not been touched.

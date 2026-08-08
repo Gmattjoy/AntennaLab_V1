@@ -239,12 +239,27 @@ class ChartLayoutMathTest {
     }
 
     @Test
+    fun plotInsets_phaseFullWidthUsesTheWiderGutter() {
+        // Slice 4b: PHASE honours compact, so an expanded phase chart lands on
+        // the same 56 dp gutter as an expanded scalar one. Before 4b this
+        // returned 50 — the gutter mismatch 4c would otherwise have shipped.
+        val insets = ChartLayoutMath.plotInsetsFor(
+            ChartLayoutMath.PlotRenderer.PHASE,
+            compact = false
+        )
+        assertEquals(66, insets.startDp)
+        assertEquals(10, insets.endDp)
+    }
+
+    @Test
     fun plotInsets_phaseAndScalarCompactAreIdentical() {
-        // The invariant the per-cell band overlay depends on: one inset serves
-        // every frequency-axis cell in the grid. They were 40/0 vs 50/10 before
-        // slice 3b-i, which put the two traces in a row pair 10 dp apart at
-        // each end. If these diverge again the overlay mis-aligns on half the
-        // cells, and nothing else would catch it.
+        // Since slice 4b both renderers resolve through ONE merged `when` arm,
+        // so this is true by construction rather than by two constants
+        // agreeing. That is the strengthening, not a weakening: what the test
+        // guards now is the arm itself. Re-splitting `SCALAR, PHASE ->` to give
+        // one renderer a different number fails here first — and SweepChartGrid
+        // still assumes this equality in prose, hardcoding SCALAR for every
+        // frequency-axis cell's band strip including the phase one.
         assertEquals(
             ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.SCALAR, compact = true),
             ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = true)
@@ -252,9 +267,11 @@ class ChartLayoutMathTest {
     }
 
     @Test
-    fun plotInsets_phaseIgnoresCompactBecauseItHasNoFullWidthVariant() {
+    fun plotInsets_phaseAndScalarFullWidthAreIdentical() {
+        // The same tripwire in the state slice 4c makes reachable: whichever
+        // renderer gets expanded, one band inset serves it.
         assertEquals(
-            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = true),
+            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.SCALAR, compact = false),
             ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = false)
         )
     }
@@ -269,6 +286,51 @@ class ChartLayoutMathTest {
                 assertTrue(insets.endDp >= 0)
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Frequency-tick thinning
+    // ------------------------------------------------------------------
+    // Extracted from SweepScalarTraceView in slice 4b so PhaseTraceCell could
+    // reuse it rather than restate it. Thinning is geometry: the tick row is
+    // SpaceBetween across the plot extent, so the count places every label.
+
+    private val fiveTicks =
+        listOf("14.00", "14.05", "14.10", "14.15", "14.20")
+
+    @Test
+    fun visibleFrequencyTicks_fullWidthKeepsEveryTick() {
+        assertEquals(
+            fiveTicks,
+            ChartLayoutMath.visibleFrequencyTicks(fiveTicks, compact = false)
+        )
+    }
+
+    @Test
+    fun visibleFrequencyTicks_compactKeepsOnlyTheSpanEndpoints() {
+        // ~160 dp of cell fits two labels; three wrap into digit fragments.
+        assertEquals(
+            listOf("14.00", "14.20"),
+            ChartLayoutMath.visibleFrequencyTicks(fiveTicks, compact = true)
+        )
+    }
+
+    @Test
+    fun visibleFrequencyTicks_compactCannotDuplicateALoneTick() {
+        // The reason this is not listOfNotNull(first, last), which would render
+        // the same label at both ends of the row.
+        assertEquals(
+            listOf("14.00"),
+            ChartLayoutMath.visibleFrequencyTicks(listOf("14.00"), compact = true)
+        )
+    }
+
+    @Test
+    fun visibleFrequencyTicks_emptyStaysEmpty() {
+        assertEquals(
+            emptyList<String>(),
+            ChartLayoutMath.visibleFrequencyTicks(emptyList(), compact = true)
+        )
     }
 
     // ------------------------------------------------------------------

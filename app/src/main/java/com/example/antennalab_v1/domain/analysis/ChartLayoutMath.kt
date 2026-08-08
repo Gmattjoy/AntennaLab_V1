@@ -243,39 +243,79 @@ object ChartLayoutMath {
     */
     const val SCALAR_CANVAS_PADDING_DP = 10
 
-    /* Y-axis label column widths. */
-    const val SCALAR_GUTTER_COMPACT_DP = 40
-    const val SCALAR_GUTTER_FULL_DP = 56
-    const val PHASE_GUTTER_DP = 40
+    /*
+    Y-axis label column widths. TRACE_, not SCALAR_: since slice 4b these
+    define the phase gutter too. (SCALAR_CANVAS_PADDING_DP keeps its name —
+    it still literally names the padding inside ScalarTraceGraphCanvas,
+    which is where the number originates and which PhaseTraceCell mirrors.)
+    */
+    const val TRACE_GUTTER_COMPACT_DP = 40
+    const val TRACE_GUTTER_FULL_DP = 56
 
     /*
-    `compact` is accepted for PHASE but deliberately ignored: PhaseTraceCell
-    has no full-width variant, so its gutter is fixed.
+    Both renderers resolve to the SAME insets in BOTH states — 50/10 compact,
+    66/10 full. That is not a coincidence of constants but a structural fact:
+    each paints its background with a Surface and pads a Canvas inside it by
+    the same amount, so two traces in a grid row pair share one plotting
+    extent and ONE overlay inset serves the whole grid.
 
-    PHASE and SCALAR-compact resolve to the SAME insets (50/10), and that is
-    the point — both renderers paint their background with a Surface and pad
-    the Canvas inside it by the same amount, so the two traces in a grid row
-    pair share one plotting extent and one overlay inset serves the whole
-    grid. They were 40/0 vs 50/10 until slice 3b-i; if they ever diverge
-    again, a band overlay silently mis-aligns on half the cells.
+    They were 40/0 vs 50/10 until slice 3b-i, and PHASE ignored `compact`
+    entirely until slice 4b (PhaseTraceCell had no full-width variant, so its
+    gutter was fixed at 40; an expanded phase chart would have sat at 50 while
+    an expanded scalar sat at 66). PhaseTraceCell now takes a compact flag, so
+    the two are one geometry and there is no divergence left to model — hence
+    no separate phase constant to keep in sync.
+
+    Merged arm rather than a collapsed expression, deliberately: `renderer`
+    stays load-bearing, and a third PlotRenderer (SMITH is the real candidate
+    — a square polar plot with genuinely different insets) cannot compile
+    without answering whether it shares this geometry. Same argument
+    hasFrequencyAxis makes at EDIT SECTION 1000c.
     */
     fun plotInsetsFor(
         renderer: PlotRenderer,
         compact: Boolean
     ): PlotInsets =
         when (renderer) {
-            PlotRenderer.SCALAR -> {
-                val gutter =
-                    if (compact) SCALAR_GUTTER_COMPACT_DP else SCALAR_GUTTER_FULL_DP
-                PlotInsets(
-                    startDp = gutter + SCALAR_CANVAS_PADDING_DP,
-                    endDp = SCALAR_CANVAS_PADDING_DP
-                )
-            }
-
-            PlotRenderer.PHASE -> PlotInsets(
-                startDp = PHASE_GUTTER_DP + SCALAR_CANVAS_PADDING_DP,
-                endDp = SCALAR_CANVAS_PADDING_DP
-            )
+            PlotRenderer.SCALAR, PlotRenderer.PHASE -> traceInsets(compact)
         }
+
+    private fun traceInsets(compact: Boolean): PlotInsets {
+        val gutter =
+            if (compact) TRACE_GUTTER_COMPACT_DP else TRACE_GUTTER_FULL_DP
+        return PlotInsets(
+            startDp = gutter + SCALAR_CANVAS_PADDING_DP,
+            endDp = SCALAR_CANVAS_PADDING_DP
+        )
+    }
+
+    /*
+    --------------------------------------------------------------------
+    How many frequency ticks a trace can actually show
+    EDIT SECTION 1006
+    --------------------------------------------------------------------
+    Presentational thinning only — the tick VALUES still come from
+    buildFrequencyTicks. A grid cell is ~160 dp wide, which fits the span
+    endpoints and nothing more: measured on device, even three labels wrap
+    ("14." / "45"). Start and end are also the honest minimum for orienting
+    a trace, since every intermediate value is linear between them.
+
+    This is geometry, not decoration, which is why it lives here beside
+    plotInsetsFor: the tick row is laid out with SpaceBetween across the
+    plot extent, so the COUNT is what determines where every label lands.
+    Two renderers consume it (SweepScalarTraceView and PhaseTraceCell) and
+    a rule duplicated into both would drift — the same argument EDIT
+    SECTION 1005 makes about the insets themselves.
+
+    The size guard is why this is not `listOfNotNull(first, last)`: on a
+    one-element list that expression yields the same label twice. Today
+    buildFrequencyTicks always returns five, so the case is unreachable and
+    this moves no pixels, but the pure function should not encode the bug.
+    */
+    fun visibleFrequencyTicks(
+        ticks: List<String>,
+        compact: Boolean
+    ): List<String> =
+        if (!compact || ticks.size < 2) ticks
+        else listOf(ticks.first(), ticks.last())
 }

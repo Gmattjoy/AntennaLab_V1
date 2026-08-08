@@ -246,9 +246,24 @@ sit outside the list and read as done.
   slice 3a the shared plot-inset contract + first band overlay (`8ef5520`), slice
   3b-i grid-cell geometry unification + tick-row alignment (`a3de767`), slice 3b-ii
   per-cell band strips in the grid (SWR/RETURN_LOSS/PHASE, never SMITH — gated by
-  the pure `ChartLayoutMath.hasFrequencyAxis`). Suite 483 → 495 across the five.
-  **Next: slice 4** tap-to-expand — the grid's `onCellTap` hook is already there,
-  wired to `null`, so this is state plus a focused layout. Then **slice 5** the
+  the pure `ChartLayoutMath.hasFrequencyAxis`), slice 4a tap-to-expand state +
+  controller (`c5d0820`), slice 4b `PhaseTraceCell` full-width parity + tick row.
+  Suite 483 → 507 across the seven.
+  **4a** put `expandedChartKind: ChartKind?` on `SweepWorkspaceState` as a nullable
+  OVERLAY on the layout mode, never a value of it, so §2.2's non-conflation holds by
+  construction. Nothing renders it — `onCellTap` is still `null`.
+  **4b** made `plotInsetsFor(PHASE)` honour `compact` (50/10 grid, 66/10 full) so an
+  expanded phase chart lands on the same gutter as an expanded scalar one, and gave
+  `PhaseTraceCell` the frequency-tick row it never had. SCALAR and PHASE share one
+  merged `when` arm now, so the 3b-i unification is guaranteed by construction — the
+  two guard tests are true-by-construction and repurposed as re-split tripwires.
+  **Next: slice 4c** the expanded layout — `onCellTap` wiring, focused render,
+  `BackHandler`, return affordance. **Read the marker at `SweepChartGrid`'s band-strip
+  block first:** it hardcodes `compact = true`, correct while every cell is half-width,
+  but an expanded cell at `compact = false` would keep its strip at 50 while its plot
+  starts at 66 — a 16 dp misalignment on the focused chart. Same latent case already
+  live: a lone supported chart takes the full row yet still renders compact, so decide
+  "expanded" and "sole chart" together rather than twice. Then **slice 5** the
   Simple/Full toggle (AUTO default), which is also where `ChartKind` +
   `SweepDisplayMode` unification and "app analysis" collapsed-by-default get
   decided, and where spec open questions 1–3 land. §2.2: the toggle and

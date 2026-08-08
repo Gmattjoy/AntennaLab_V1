@@ -1099,16 +1099,10 @@ fun SweepScalarTraceView(
         startMHz = result.startFrequencyMHz,
         endMHz = result.endFrequencyMHz
     )
-    /*
-    Presentational thinning only — the tick VALUES still come from
-    buildFrequencyTicks. A grid cell is ~160 dp wide, which fits the span
-    endpoints and nothing more: measured on device, even three labels wrap
-    ("14." / "45"). Start and end are also the honest minimum for orienting
-    a trace, since every intermediate value is linear between them.
-    */
+    // Shared with PhaseTraceCell since slice 4b; rationale lives with the
+    // rule, at ChartLayoutMath EDIT SECTION 1006.
     val visibleFrequencyTicks =
-        if (compact) listOfNotNull(frequencyTicks.firstOrNull(), frequencyTicks.lastOrNull())
-        else frequencyTicks
+        ChartLayoutMath.visibleFrequencyTicks(frequencyTicks, compact = compact)
 
     /*
     Gutter and the tick row's start padding are the same measurement; they
@@ -1119,12 +1113,6 @@ fun SweepScalarTraceView(
     plotting area (gutter + canvas padding), so the label column recovers its
     own width by subtracting the padding back off. Anything drawn ALONGSIDE
     this trace insets by startDp/endDp and lines up by construction.
-
-    The tick row below keeps axisGutter + axisGutterEnd (44 compact / 64 full)
-    rather than startDp (50/66) — deliberately unchanged, since that is what
-    it has always used. Worth knowing: the tick LABELS therefore sit ~6 dp
-    left of the plot start they annotate. Pre-existing, cosmetic, and not
-    touched here because this step must move no pixels.
     */
     val plotInsets = ChartLayoutMath.plotInsetsFor(
         renderer = ChartLayoutMath.PlotRenderer.SCALAR,

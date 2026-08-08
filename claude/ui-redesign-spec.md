@@ -443,10 +443,30 @@ phases; commit per phase.
   frequency is the path along the locus rather than a screen axis. Stated in the pure layer
   rather than as `!= SMITH` at the call site, so a fifth `ChartKind` cannot compile without
   answering it. Suite 488 → 495. **All four P3 chart components are now consumed.**
-  **Remaining:** slice 4 tap-to-expand (the grid's `onCellTap` hook is already in place,
-  wired to `null`), slice 5 the Simple/Full toggle — which is where **open question 1** and
-  the `ChartKind` vs `SweepDisplayMode` unification finally get decided. Open questions 2 and
-  3 are still open and now block slice 5.
+  **Slice 4a (`c5d0820`)** added tap-to-expand STATE: `expandedChartKind: ChartKind?` on
+  `SweepWorkspaceState` as a nullable overlay on the layout mode, never a value of it, so
+  §2.2's "two distinct controls, not to be conflated" holds by construction — collapse is
+  `copy(expandedChartKind = null)` with the mode untouched. Pure controller (toggle handles
+  none→focus / same→collapse / different→switch), and `ensureCompatibleState` gained a
+  REQUIRED `availableChartKinds` param that clears a focus the instrument can no longer
+  produce, wired live from the resolver rather than shipping dormant. Nothing renders it.
+  **Slice 4b** gave `PhaseTraceCell` full-width parity before 4c could expose the gap:
+  `plotInsetsFor(PHASE)` now honours `compact` (50/10 grid, **66/10 full**), identical to
+  SCALAR at both widths, via one merged `SCALAR, PHASE ->` arm over a shared
+  `traceInsets(compact)`. No divergent `PHASE_GUTTER_FULL_DP` — a second constant that must
+  equal an existing one is the defect 3a/3b-i killed, and the premise here is equality. The
+  `when` stays un-collapsed so a future third `PlotRenderer` (SMITH) cannot compile without
+  answering the geometry question. The cell also gained the frequency-tick row it never had,
+  in both states, closing the audit's parked observation; `visibleFrequencyTicks` moved to
+  `ChartLayoutMath` so both renderers share one thinning rule. `compact` defaults to **true**
+  — the opposite of `SweepScalarTraceView`'s default, because the phase cell's sole call site
+  is a grid cell — so grid geometry is preserved byte-for-byte. Suite 495 → 507 across 4a+4b.
+  **Remaining:** slice 4c the expanded layout (`onCellTap` wiring, focused render,
+  `BackHandler`, return affordance) — and note the band-strip call site in `SweepChartGrid`
+  hardcodes `compact = true`, which 4c must make follow the cell's own flag or an expanded
+  cell's strip stays at 50 while its plot starts at 66. Then slice 5 the Simple/Full toggle —
+  which is where **open question 1** and the `ChartKind` vs `SweepDisplayMode` unification
+  finally get decided. Open questions 2 and 3 are still open and now block slice 5.
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked
