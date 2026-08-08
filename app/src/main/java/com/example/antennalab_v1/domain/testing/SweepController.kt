@@ -297,14 +297,28 @@ object SweepController {
             ((spanMHz / stepMHz).toInt() + 1).coerceAtLeast(1)
         val safePointCount = estimatedPointCount.coerceAtMost(MAX_SIMULATED_POINTS)
 
+        /*
+        The synthetic antenna resonates at the CENTRE OF THE REQUESTED WINDOW,
+        not at a fixed band. This used to be a hardcoded 14.2 in each simulate*
+        helper while the window itself follows the project's target frequency
+        (resolveSweepWindow), so the two only agreed for 20 m work. Sweeping
+        anywhere else put the dip hundreds of MHz outside the window and drew a
+        flat line — e.g. at 146 MHz every point came out at SWR ~660, R ~5322 Ω,
+        X ~15816 Ω, with no resonance to find.
+
+        Latent until the default target frequency became a setting, which is why
+        the fix ships with it rather than after it.
+        */
+        val centerMHz = (startMHz + endMHz) / 2.0
+
         for (index in 0 until safePointCount) {
             val rawFrequency = startMHz + (index * stepMHz)
             val frequencyMHz = min(rawFrequency, endMHz)
 
-            val swr = simulateSWR(frequencyMHz)
+            val swr = simulateSWR(frequencyMHz, centerMHz)
             val returnLossDb = calculateReturnLossDb(swr)
-            val resistance = simulateResistance(frequencyMHz)
-            val reactance = simulateReactance(frequencyMHz)
+            val resistance = simulateResistance(frequencyMHz, centerMHz)
+            val reactance = simulateReactance(frequencyMHz, centerMHz)
 
             val basePoint = SweepPoint(
                 frequencyMHz = frequencyMHz,
@@ -373,10 +387,15 @@ object SweepController {
         )
     }
 
-    private fun simulateSWR(
-        freq: Double
+    /*
+    `center` is the sweep window's midpoint, supplied by runSimulatedSweep —
+    NOT a band constant. Internal rather than private so the pure simulation
+    tests can assert the dip lands where it is told to.
+    */
+    internal fun simulateSWR(
+        freq: Double,
+        center: Double
     ): Double {
-        val center = 14.2
         val distance = abs(freq - center)
 
         return 1.05 + (distance * 5.0)
@@ -391,19 +410,19 @@ object SweepController {
         return -20.0 * ln(safeGamma) / ln(10.0)
     }
 
-    private fun simulateResistance(
-        freq: Double
+    internal fun simulateResistance(
+        freq: Double,
+        center: Double
     ): Double {
-        val center = 14.2
         val distance = abs(freq - center)
 
         return 50.0 + (distance * 40.0)
     }
 
-    private fun simulateReactance(
-        freq: Double
+    internal fun simulateReactance(
+        freq: Double,
+        center: Double
     ): Double {
-        val center = 14.2
         val delta = freq - center
 
         return delta * 120.0
