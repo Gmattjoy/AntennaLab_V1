@@ -204,6 +204,21 @@ object ChartLayoutMath {
     }
 
     /*
+    Whether a cell in this grid is a half-width one. DERIVED from the column
+    count rather than restating it: a lone chart takes the full row, so it is
+    not compact, and that follows from gridColumnCount alone.
+
+    This is what lets "expanded" and "sole chart" be decided once. A single
+    supported chart already rendered full-row but at compact geometry — a
+    40 dp gutter, two tick labels and a 50/10 band strip on a full-width plot,
+    the same mismatch class an expanded cell would have.
+
+    chartCount <= 0 yields false, which is unreachable: SweepChartGrid returns
+    its empty state before any cell is composed.
+    */
+    fun cellsAreCompact(chartCount: Int): Boolean = gridColumnCount(chartCount) > 1
+
+    /*
     --------------------------------------------------------------------
     Plot inset — where the plotting area actually starts
     EDIT SECTION 1005

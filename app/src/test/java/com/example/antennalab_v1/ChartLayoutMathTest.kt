@@ -181,6 +181,24 @@ class ChartLayoutMathTest {
         assertEquals(3, ChartLayoutMath.gridRowCount(5))
     }
 
+    @Test
+    fun cellsAreCompact_onlyWhenTheGridActuallyPairsIntoColumns() {
+        // A lone chart takes the full row, so its cell is NOT compact — it gets
+        // the wide gutter and the full tick set, same as an expanded cell will.
+        assertFalse(ChartLayoutMath.cellsAreCompact(1))
+        listOf(2, 3, 4).forEach { assertTrue(ChartLayoutMath.cellsAreCompact(it)) }
+
+        // Tied to the column count rather than being a second opinion about it:
+        // if gridColumnCount's rule ever changes, this follows instead of
+        // silently disagreeing.
+        listOf(1, 2, 3, 4).forEach { count ->
+            assertEquals(
+                ChartLayoutMath.gridColumnCount(count) > 1,
+                ChartLayoutMath.cellsAreCompact(count)
+            )
+        }
+    }
+
     // ------------------------------------------------------------------
     // Frequency axis — which kinds the band overlay belongs on
     // ------------------------------------------------------------------
