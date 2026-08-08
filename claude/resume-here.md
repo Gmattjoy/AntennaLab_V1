@@ -1,14 +1,44 @@
 # Resume here — session snapshot
 
-Last updated: 2026-08-04 (office day). Updated in place each session; this is the
+Last updated: 2026-08-09 (office day). Updated in place each session; this is the
 cold-start entry point.
 
 ## State
 
-- `main` at **1089e32**, pushed, working tree clean.
-- Suite **506 tests / 0 failures / 0 errors / 0 skipped**.
-- Session type: **OFFICE DAY** — no VNA hardware attached. Off-bench export path
-  (debug-sim sweep, provenance headers, MediaStore MIME fix) + a latent crash fix.
+- `main` at **853ce0b**, pushed, working tree clean (`?? .claude/` is untracked
+  tooling config, not project work).
+- Suite **552 tests / 0 failures / 0 errors / 0 skipped**, counted from JUnit XML
+  after `--rerun` (see § Reading the suite total — the console line lies).
+- Session type: **OFFICE DAY** — no VNA hardware attached. **P5 closed out**, plus
+  the colour system and the app's first collapsible primitive.
+
+### P5 — COMPLETE
+
+Six pieces of work, all landed and pushed:
+
+| Piece | What it did |
+|---|---|
+| **5a** settings store | `model/settings/AppSettings` + `storage/AppSettingsStore` (`files/settings.json`, hand-rolled `org.json`, no DataStore) behind `SettingsRepository`. `load()` never throws — it is on the launch path. |
+| **5b** boundary teardown | Deleted `ProjectData.uiState` / `ProjectUiState` — serialized every save, read by zero consumers. **None of its three fields moved to settings**, because none had a consumer; shipping them inert would have repeated the defect. Established the boundary rule and the add-with-consumer discipline. |
+| **5c** defaults | `defaultTargetFrequencyMHz` + `defaultInstrument`; factories seed from settings (default target became 146.0). Also fixed the simulated dip to track the sweep window instead of sitting at 20 m. Tier-3 hardware default only partly addressed — see OPEN. |
+| **5d** theme toggle | `themePreference` SYSTEM/DARK/LIGHT resolved by the pure `resolveDarkTheme` at `MainActivity`. **The bigger change: settings became observable** — `SettingsRepository`'s cache is `by mutableStateOf`, the app's first observable state. Ended dark-only. |
+| **colour system** | `9a6b1b7` / `bec034e` / `f18b34e`. One accent definition (`AccentOrange` `#FF5C00` / `OnAccentOrange` `#3A1500`), solid-selected vs orange-outlined owned by `SelectionButtonStyle`, hero-CTA rule keyed on group membership, neutral lighter headings. **Contains a deliberate reversal of the "don't touch `colorScheme.primary`" instruction** — read `ui-audit.md` §2b before restoring anything teal. Status green KEPT on purpose. |
+| **5f** app-analysis collapse | `cb5b8b4` / `d6da85d` / `853ce0b`. Collapse state + settings seed, then **`CollapsibleSection`, the app's first collapsible primitive** (48 dp header), then the interpretation panels wrapped in "App analysis". |
+
+Also landed: `999f341` deleted the dead `project/ProjectSection.kt` duplicate —
+identical enum to `model/ProjectData.kt:660` with zero consumers, since
+`ProjectPageScreen` imports the `model` one. Closes the item `ui-audit.md` had
+just logged.
+
+### Forward planning now has three companion docs
+
+| Doc | Covers |
+|---|---|
+| `TESTING_ROADMAP.md` | hardening — test inventory, priorities, extraction backlog |
+| `claude/ui-redesign-spec.md` | P0–P6 UI phases |
+| **`claude/feature-backlog.md`** | **P7+ net-new capability** — the forward companion to the other two. Ranked ship-to-parity-first; P7 state-restore is the flagged top item. |
+
+### Landed 2026-08-04
 
 ### Landed 2026-08-04
 
@@ -64,6 +94,8 @@ them, so nothing here can drift out of sync with the source.
 | Working rules (one task, plan mode, Robolectric) | `TESTING_ROADMAP.md` § Working rules |
 | Architecture, layer rules, build/test, conventions | `CLAUDE.md` |
 | UI redesign: state, direction, phases, open questions | `claude/ui-redesign-spec.md` |
+| Measured per-screen drift + the colour system (§2b) | `claude/ui-audit.md` |
+| P7+ net-new capability backlog | `claude/feature-backlog.md` |
 
 ### Finding numbers → where they are
 
@@ -235,6 +267,54 @@ sit outside the list and read as done.
 
 ## NEXT — office day (no hardware needed)
 
+### ▶ Immediately next: slice 5e — the Simple/Full toggle
+
+**The last of the original slice 5**, and the only piece of it still outstanding
+now that 5f took "app analysis collapsed by default". **Plan mode** — it adds a
+field and spans several files.
+
+- A **layout-mode field**, and it must be a SEPARATE non-null field, never a value
+  of the tap-to-expand overlay. §2.2's non-conflation is currently true *by
+  construction* because 4a made `expandedChartKind` a nullable overlay; a
+  layout-mode that folded "expanded" into itself would destroy that.
+- **AUTO = 600 dp** breakpoint as the default.
+- **Simple = SWR + Smith**, capability-gated (Smith is not universal — route the
+  read through `EffectiveHardwareResolver`, do not branch the UI on profile).
+- **Global pin via the store** — a "how I like the app" preference, so it is a
+  settings field, not `ProjectData`. Add it with its consumer in the same slice.
+- **Lands the homeless gesture from 4c-ii:** switching focus directly from one
+  expanded chart to another. The controller case is real and 4a-tested
+  (`different → switch`), but the expand panel replaces the grid, so no second
+  chart is on screen to tap. Simple/Full is the layout that can show both.
+- The `ChartKind` ↔ `SweepDisplayMode` fork gets decided here (measured at
+  `9712f58`: **192 `SweepDisplayMode` occurrences across 13 files** vs 84
+  `ChartKind`), and spec open questions 1–3 land.
+
+**Then:** P6 (create-antenna wizard + project manager), then P7 from
+`claude/feature-backlog.md`.
+
+### Reusable now — check these before writing anything new
+
+- **`CollapsibleSection`** (`5f`) — the app's first collapsible primitive, 48 dp
+  header. Use it rather than a second collapse mechanism.
+- **`SegmentedChoiceButton`** — the segmented control, with the
+  solid-selected/orange-outlined rule already applied via `SelectionButtonStyle`.
+- **`SettingsRepository`** — now observable; composables reading `current()`
+  recompose on `update()`. No manual refresh plumbing needed.
+
+### Open cleanups — small, unbundled, none blocked
+
+- **`SegmentedChoiceButton` has no minimum height** — ~40 dp, below the 48 dp
+  `AntennaLabTouch.min` floor. The colour work did NOT close it
+  (`SelectionButtonStyle` sets colour and elevation, never size). Fixing it
+  resizes 12 sweep-stack buttons plus the theme control; wants its own
+  predicted-change gate.
+- **`SweepScalarTraceView` y-label column vertical offset** — twin of the tick-row
+  defect 3b-i fixed, and the version `PhaseTraceCell` already fixed for itself.
+  Carried forward through 3b-i, 4b and 4c; still untouched.
+
+### Older office-day items
+
 - **Slice C — CSV extraction.** CSV row building is still inline in the
   Composable (`SweepCsvPreviewPanel`, `SweepToolsWidgets.kt:572`, and
   `CsvPreviewCard` in `SweepGraphScreen.kt`). Extract to a pure helper beside
@@ -276,7 +356,10 @@ sit outside the list and read as done.
   screen has no `navigationIcon` and navigation is a `showSweep` boolean in
   `ProjectPageScreen`, so system back here EXITS THE APP (verified on device). An ungated
   handler would swallow the only gesture that leaves. Gated, unexpanded back is unchanged.
-  **Next: slice 5 — the Simple/Full toggle. Wants its own scoping pass before planning.**
+  **Next: slice 5e — the Simple/Full toggle. Scoped now; see § ▶ Immediately next above,
+  which supersedes the paragraph below.** Part of the original slice 5 has already
+  shipped: "app analysis" collapsed-by-default landed as **5f**, so only the toggle
+  itself remains.
   AUTO default; the `ChartKind` ↔ `SweepDisplayMode` fork finally gets decided here
   (measured at `9712f58`: **192 `SweepDisplayMode` occurrences across 13 files**, 154 in
   `main` alone, against 84 `ChartKind` — the reason slice 1 refused to extend the legacy
@@ -296,8 +379,23 @@ sit outside the list and read as done.
 ## NEXT — bench day (needs LiteVNA64 + NanoVNA-H4)
 
 Procedure and results log: `claude/hardware-bringup-litevna64.md`.
-**Build + reinstall first**, then: H4 identity / Block C, §10b re-run,
-`sweepPoints=101`.
+**Build + reinstall first**, then work this list:
+
+1. **Finding #7 remainder — the confident-wrong `NANOVNA_H4` factory default.**
+   Tier 3 of the calibration teardown is 3-of-4 closed; this is the sole open
+   item. The nullable-profile question is the shape of the fix (~10 files, plan
+   mode). See `claude/calibration-teardown-plan.md`.
+2. **OSL at 145 MHz.** Passed on a real LiteVNA64 at 14.2 MHz (correction applied,
+   VALID, "Live Ready"); 145 MHz is still unverified.
+3. **Status green — visual confirm.** Live / OK / TRUSTED is **code-verified
+   only**: with no device the status text reads "Simulated" / "ERROR", which
+   routes to the accent and magenta branches, so the green path never fires on the
+   emulator. `InstrumentGreen` intact at `SweepGraphWidgets.kt:151,180` and
+   `SweepGraphScreen.kt:1248`, `semantic.success` untouched. Until a bench run,
+   treat "green still means good in the UI" as asserted, not demonstrated.
+4. **Finding #10 / `sweepPoints=101`** — does the NanoVNA-H4 honour a host-set
+   point count, or free-run like the LiteVNA? Still unanswered, no independent
+   corroboration. Also H4 identity / Block C, and the §10b re-run.
 
 > **STRUCK 2026-08-08 — ~~A3 calibration restore~~ and ~~Block B cross-family
 > `CLEAR`~~ are dead items, not pending ones.** Both describe calibration-RESTORE

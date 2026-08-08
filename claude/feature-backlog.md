@@ -17,6 +17,11 @@ Ship these first — they're the connective tissue and the loudest complaints.
   NanoVNA-Saver complaint ("lose my markers, number of points, start/stop
   frequencies every restart"). Near-free now that the settings feature exists +
   ProjectData persistence is already built.
+  ⚠ Scope against the 5b settings boundary: global "how I like the app" state
+  lives in settings; project facts stay in ProjectData; no inert fields
+  (add-with-consumer). Markers/span on a specific sweep sit near the project-fact
+  line — classify each field global-vs-project before building, same discipline as
+  the 5b ProjectUiState teardown.
 - **Touchstone .s1p/.s2p import + export** — the RF interchange standard; unlocks
   NanoVNA-Saver / scikit-rf interop. Higher leverage than CSV alone.
 - **Band / frequency presets** — ham bands, ISM, etc. Trivial; high daily value.
@@ -88,6 +93,8 @@ underneath).
 
 ## Cross-references
 - Settings feature: home for state restore, axis prefs, cal notes, cal-kit sets.
+- Settings boundary rule (5b) + AppSettings/SettingsRepository (5a) — the mechanism
+  P7 state-restore builds on; see `CLAUDE.md` boundary subsection + `ui-audit.md`.
 - Finding #5 (wide-scan span) → P11 multi-segment.
 - Finding #10 (firmware free-run) → P12 firmware detection.
 - Restore-precedence collision (live-cal reset on project-open) → P7 "don't clobber
