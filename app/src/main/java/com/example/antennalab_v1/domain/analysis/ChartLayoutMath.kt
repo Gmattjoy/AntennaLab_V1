@@ -228,10 +228,14 @@ object ChartLayoutMath {
 
     /*
     `compact` is accepted for PHASE but deliberately ignored: PhaseTraceCell
-    has no full-width variant, its gutter is fixed, and it applies no canvas
-    padding — hence a 0 end inset. That leaves it 10 dp wider on each side
-    than a scalar cell beside it in the same grid; reconciling the two is a
-    later, visible change, not this contract's job to hide.
+    has no full-width variant, so its gutter is fixed.
+
+    PHASE and SCALAR-compact resolve to the SAME insets (50/10), and that is
+    the point — both renderers paint their background with a Surface and pad
+    the Canvas inside it by the same amount, so the two traces in a grid row
+    pair share one plotting extent and one overlay inset serves the whole
+    grid. They were 40/0 vs 50/10 until slice 3b-i; if they ever diverge
+    again, a band overlay silently mis-aligns on half the cells.
     */
     fun plotInsetsFor(
         renderer: PlotRenderer,
@@ -248,8 +252,8 @@ object ChartLayoutMath {
             }
 
             PlotRenderer.PHASE -> PlotInsets(
-                startDp = PHASE_GUTTER_DP,
-                endDp = 0
+                startDp = PHASE_GUTTER_DP + SCALAR_CANVAS_PADDING_DP,
+                endDp = SCALAR_CANVAS_PADDING_DP
             )
         }
 }

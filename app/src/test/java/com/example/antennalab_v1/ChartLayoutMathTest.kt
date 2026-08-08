@@ -211,16 +211,27 @@ class ChartLayoutMathTest {
     }
 
     @Test
-    fun plotInsets_phaseHasAFixedGutterAndNoCanvasPadding() {
-        // PhaseTraceCell draws straight to its canvas edges, so the end
-        // inset is 0 — 10 dp narrower each side than a scalar cell beside
-        // it. Recorded, not hidden; reconciling the two is a later change.
+    fun plotInsets_phaseUsesTheSameGeometryAsAScalarCell() {
+        // 40 dp label gutter + 10 dp canvas padding, matching a scalar cell.
         val insets = ChartLayoutMath.plotInsetsFor(
             ChartLayoutMath.PlotRenderer.PHASE,
             compact = true
         )
-        assertEquals(40, insets.startDp)
-        assertEquals(0, insets.endDp)
+        assertEquals(50, insets.startDp)
+        assertEquals(10, insets.endDp)
+    }
+
+    @Test
+    fun plotInsets_phaseAndScalarCompactAreIdentical() {
+        // The invariant the per-cell band overlay depends on: one inset serves
+        // every frequency-axis cell in the grid. They were 40/0 vs 50/10 before
+        // slice 3b-i, which put the two traces in a row pair 10 dp apart at
+        // each end. If these diverge again the overlay mis-aligns on half the
+        // cells, and nothing else would catch it.
+        assertEquals(
+            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.SCALAR, compact = true),
+            ChartLayoutMath.plotInsetsFor(ChartLayoutMath.PlotRenderer.PHASE, compact = true)
+        )
     }
 
     @Test

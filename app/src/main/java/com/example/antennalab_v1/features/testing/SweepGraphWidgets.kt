@@ -1209,10 +1209,24 @@ fun SweepScalarTraceView(
             )
         }
 
+        /*
+        Padded on BOTH sides by the true plot insets, so SpaceBetween
+        distributes across exactly the extent the trace occupies and the first
+        and last labels land ON the plot edges.
+
+        This used to pad start = axisGutter + axisGutterEnd (44 compact / 64
+        full) against a plot starting at 50/66, putting every label 6 dp (cell)
+        or 2 dp (full) left of the value it annotates; and with no end padding
+        the last label sat at the row's edge while the plot stopped 10 dp
+        inside, so the right-hand tick overhung. Both fixed here.
+        */
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = axisGutter + axisGutterEnd),
+                .padding(
+                    start = plotInsets.startDp.dp,
+                    end = plotInsets.endDp.dp
+                ),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             visibleFrequencyTicks.forEach { tick ->

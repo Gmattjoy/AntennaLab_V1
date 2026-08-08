@@ -1,14 +1,18 @@
 package com.example.antennalab_v1.features.testing.charts
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -64,24 +68,39 @@ internal fun PhaseTraceCell(
     }
 
     /*
-    Gutter comes from the shared alignment contract rather than a literal, so
-    anything drawn alongside this trace can inset by the same number. Note
-    endDp is 0 here: this cell draws to its canvas edges while a scalar cell
-    pads 10 dp, so the two are 10 dp apart on each side inside the same grid.
-    Recorded in plotInsetsFor, reconciled in a later slice.
+    Geometry comes from the shared alignment contract. This cell used to inset
+    40/0 while a scalar cell inset 50/10, so the two traces in a grid row pair
+    started and ended 10 dp apart. Both are 50/10 now — one geometry across the
+    whole grid, which is what lets a band overlay use a single inset.
+
+    That equality is structural, not a coincidence of constants: the plot below
+    is a Surface painting the background with the Canvas padded inside it,
+    exactly as ScalarTraceGraphCanvas does. The background CANNOT be a drawRect
+    inside the Canvas — padding shrinks the DrawScope, so the fill would shrink
+    with it and leave an unpainted margin.
     */
     val plotInsets = ChartLayoutMath.plotInsetsFor(
         renderer = ChartLayoutMath.PlotRenderer.PHASE,
         compact = true
     )
+    val axisGutter =
+        (plotInsets.startDp - ChartLayoutMath.SCALAR_CANVAS_PADDING_DP).dp
+    val plotPadding = ChartLayoutMath.SCALAR_CANVAS_PADDING_DP.dp
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(
                 modifier = Modifier
-                    .width(plotInsets.startDp.dp)
+                    .width(axisGutter)
                     .height(cellHeight)
-                    .padding(end = AntennaLabTheme.spacing.xs),
+                    // Vertical padding matches the plot's, so SpaceBetween
+                    // distributes across the same extent the trace occupies:
+                    // +180° lands on the plot top, -180° on the bottom.
+                    .padding(
+                        end = AntennaLabTheme.spacing.xs,
+                        top = plotPadding,
+                        bottom = plotPadding
+                    ),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
             ) {
@@ -95,40 +114,47 @@ internal fun PhaseTraceCell(
                 }
             }
 
-            Canvas(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(cellHeight)
+                    .border(1.dp, scheme.outlineVariant, RoundedCornerShape(14.dp)),
+                color = scheme.surfaceVariant,
+                shape = RoundedCornerShape(14.dp)
             ) {
-                drawRect(color = scheme.surfaceVariant)
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(plotPadding)
+                ) {
+                    // Zero-degree reference: the line an operator reads resonance
+                    // against, so it is drawn distinctly rather than as grid.
+                    val zeroY = size.height *
+                        (1f - ChartLayoutMath.phaseFraction(0.0).toFloat())
+                    drawLine(
+                        color = scheme.outlineVariant,
+                        start = Offset(0f, zeroY),
+                        end = Offset(size.width, zeroY),
+                        strokeWidth = 1f
+                    )
 
-                // Zero-degree reference: the line an operator reads resonance
-                // against, so it is drawn distinctly rather than as grid.
-                val zeroY = size.height *
-                    (1f - ChartLayoutMath.phaseFraction(0.0).toFloat())
-                drawLine(
-                    color = scheme.outlineVariant,
-                    start = Offset(0f, zeroY),
-                    end = Offset(size.width, zeroY),
-                    strokeWidth = 1f
-                )
+                    if (fractions.size < 2) return@Canvas
 
-                if (fractions.size < 2) return@Canvas
+                    val path = Path()
+                    fractions.forEachIndexed { index, fraction ->
+                        val x = size.width * index / (fractions.size - 1).toFloat()
+                        val y = size.height * (1f - fraction.toFloat())
+                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    drawPath(
+                        path = path,
+                        color = scheme.primary,
+                        style = Stroke(width = 2f)
+                    )
 
-                val path = Path()
-                fractions.forEachIndexed { index, fraction ->
-                    val x = size.width * index / (fractions.size - 1).toFloat()
-                    val y = size.height * (1f - fraction.toFloat())
-                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    drawPhaseMarker(fractions, markerAIndex, semantic.info)
+                    drawPhaseMarker(fractions, markerBIndex, semantic.warning)
                 }
-                drawPath(
-                    path = path,
-                    color = scheme.primary,
-                    style = Stroke(width = 2f)
-                )
-
-                drawPhaseMarker(fractions, markerAIndex, semantic.info)
-                drawPhaseMarker(fractions, markerBIndex, semantic.warning)
             }
         }
     }

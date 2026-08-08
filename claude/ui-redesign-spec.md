@@ -70,12 +70,15 @@ as two tiers: **API 29+** MediaStore public Downloads (`Download/AntennaLab`), s
 FileProvider. `Outcome.Saved.isPublicDownloads` carries which happened and the UI states it
 plainly — it must never claim a public save on the fallback tier.
 
-*Compose components* (previews only, NOT wired into the viewer — that is Phase 4):
+*Compose components* (~~previews only, NOT wired into the viewer — that is Phase 4~~ —
+**all four wired in as of 2026-08-08, Phase 4 slices 1–3a; the parenthesis above is the
+slice-B-era record, not current state**):
 `features/testing/charts/` — `SweepChartGrid` (capability-gated, wraps the EXISTING
 `SweepScalarTraceView` / `SweepSmithChartView` rather than redrawing), `PhaseTraceCell`
 (the only genuinely new renderer), `MarkerReadoutTable`, `BandAxisOverlay`. All thin: every
 value is computed in `domain/` first. `domain/analysis/ChartLayoutMath.kt` holds band-span
-fractions, the fixed phase axis, grid shape, and `availableChartKinds` capability gating.
+fractions, the fixed phase axis, grid shape, `availableChartKinds` capability gating, and —
+added in Phase 4 slice 3a — `plotInsetsFor`, the shared plot-inset contract.
 
 *One existing-UI touch:* an "Export .s1p" card in `SweepGraphScreen` beside the CSV preview,
 so save+share is reachable for device verification. Plus additive `heightDp` params on the two
@@ -420,10 +423,25 @@ phases; commit per phase.
   collapsed, illegible axis labels. Slice 2 wired `MarkerReadoutTable`, with the A/B→label
   pairing extracted to the pure `SweepMarkerMath.buildLabelledMarkerReadouts` and tested — the
   table labels positionally, so a lone marker B would otherwise have rendered as "Marker A".
-  Suite 483 → 488. **Remaining:** slice 3 `BandAxisOverlay`, slice 4 tap-to-expand, slice 5 the
-  Simple/Full toggle — which is where **open question 1** and the `ChartKind` vs
-  `SweepDisplayMode` unification finally get decided. Open questions 2 and 3 are still open and
-  now block slice 5, not slice 3.
+  Suite 483 → 488.
+  **Slice 3a (`8ef5520`)** established the shared plot-inset contract and drew the first
+  `BandAxisOverlay`. Three renderers had independently hardcoded where their plotting area
+  starts (scalar gutter, a canvas-padding literal, `PhaseTraceCell`'s 40 dp), so anything drawn
+  alongside a trace could not line up with it. New pure
+  `ChartLayoutMath.plotInsetsFor(PlotRenderer, compact)`; keyed on renderer rather than
+  `ChartKind` because SMITH has no frequency axis and the legacy chart is not a `ChartKind` at
+  all. Overlay sits in the `else`-branch of the legacy `when`, so it appears only under a
+  frequency-axis trace. Region fixed at `DEFAULT_REGION`, no picker.
+  **Slice 3b-i** unified the grid-cell geometry: `PhaseTraceCell` restructured to the scalar
+  pattern (Surface paints the background, Canvas padded inside — it cannot be a `drawRect`
+  inside the Canvas, since padding shrinks the `DrawScope` and the fill with it), so PHASE and
+  SCALAR-compact both inset **50/10** and the two traces in a row pair share one extent. Same
+  pass padded the frequency-tick row on both sides by the true plot insets. Suite 488 → 494.
+  **All four P3 chart components are now consumed.**
+  **Remaining:** slice 3b-ii per-cell overlays in the grid (SWR/RETURN_LOSS/PHASE, never
+  SMITH — now trivial on the uniform geometry), slice 4 tap-to-expand, slice 5 the Simple/Full
+  toggle — which is where **open question 1** and the `ChartKind` vs `SweepDisplayMode`
+  unification finally get decided. Open questions 2 and 3 are still open and now block slice 5.
 - 2026-07-29 — Initial spec: current-state inventory, agreed direction, dashboard-led rollout
   order, open questions. Doc only.
 - 2026-07-30 — Phase 3 slice A (pure helpers + tests) landed; open questions #4 and #5 marked

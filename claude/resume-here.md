@@ -153,9 +153,10 @@ Downloads without legacy `WRITE_EXTERNAL_STORAGE` is impossible on Android
   `res/xml/file_paths.xml`, scoped to the app-specific Downloads dir only.
   **No storage permission on any tier** — verified against the merged manifest.
 
-**Compose components — previews only, NOT wired into the viewer** (that is
-Phase 4). `features/testing/charts/`: `SweepChartGrid`, `PhaseTraceCell`,
-`MarkerReadoutTable`, `BandAxisOverlay`.
+**Compose components — ALL FOUR NOW WIRED INTO THE VIEWER** (Phase 4 slices 1–3a;
+this said "previews only" until 2026-08-08). `features/testing/charts/`:
+`SweepChartGrid` + `PhaseTraceCell` (`0d5eb60`), `MarkerReadoutTable` (`e91b45d`),
+`BandAxisOverlay` (`8ef5520`).
 
 - The grid **wraps** the existing `SweepScalarTraceView` / `SweepSmithChartView`
   rather than redrawing traces. `PhaseTraceCell` is the only new renderer.
@@ -169,9 +170,18 @@ Phase 4). `features/testing/charts/`: `SweepChartGrid`, `PhaseTraceCell`,
   preserve behaviour, no call site changed).
 - **`ChartKind` deliberately does NOT extend `SweepDisplayMode`.** That enum has
   no PHASE value and `SweepGraphMath.getDisplayValue` is an exhaustive `when`
-  over it, so adding one ripples through ~7 files and drags the axis math in
-  (phase wants a fixed symmetric axis, unlike every auto-scaled SWR/RL/R/X
-  axis). **Unification is deferred to Phase 4.**
+  over it (`:289-310`, no `else`), so adding one is an immediate compile break and
+  ripples through 11 main + 2 test files (183 occurrences), dragging the axis math
+  in (phase wants a fixed symmetric axis, unlike every auto-scaled SWR/RL/R/X
+  axis). **Unification is deferred to Phase 4 slice 5**, where the Simple/Full
+  toggle actually needs one chart list. Wiring the grid never required it:
+  `SweepChartGrid.scalarModeFor` already maps SWR/RETURN_LOSS onto the legacy
+  enum, while SMITH and PHASE bypass it entirely.
+- **Plot geometry is a shared contract now** — `ChartLayoutMath.plotInsetsFor`
+  (slice 3a, unified in 3b-i). Three renderers used to hardcode independently
+  where their plotting area starts; anything drawn alongside a trace must inset by
+  the same amount or it silently mis-aligns. PHASE and SCALAR-compact are
+  deliberately identical (50/10) — a test pins that equality.
 
 ---
 
@@ -231,18 +241,35 @@ sit outside the list and read as done.
   `TouchstoneExport` so both formats share one tested seam, and route it through
   `SweepExportWriter` so CSV becomes a real export too. **Touches an existing
   file → use plan mode.** Deliberately excluded from slice B.
-- **Phase 4 — Sweep Viewer.** Simple/Full toggle (AUTO default), tap-to-expand
-  (transient focus — §2.2 says these are two distinct controls, do not conflate
-  them), the multi-chart grid from Phase 3, "app analysis" collapsed by default,
-  and unifying `ChartKind` + `SweepDisplayMode`. Largest and riskiest surface;
-  wants real devices for data verification, so schedule its review against a
-  bench session rather than headless.
+- **Phase 4 — Sweep Viewer. IN PROGRESS, sliced.** Landed: slice 1 the multi-chart
+  grid + phase cell (`0d5eb60`), slice 2 the marker readout table (`e91b45d`),
+  slice 3a the shared plot-inset contract + first band overlay (`8ef5520`), slice
+  3b-i grid-cell geometry unification + tick-row alignment. **Next: slice 3b-ii**
+  per-cell band overlays in the grid (SWR/RETURN_LOSS/PHASE, never SMITH — no
+  frequency axis), then slice 4 tap-to-expand (the grid's `onCellTap` hook is
+  already there, wired to `null`), then slice 5 the Simple/Full toggle (AUTO
+  default) — which is also where `ChartKind` + `SweepDisplayMode` unification and
+  "app analysis" collapsed-by-default get decided. §2.2: the toggle and
+  tap-to-expand are two distinct controls, do not conflate them.
+  **Off-bench — this does NOT need a bench session.** That claim (still in the
+  spec's older text) predates the debug simulated-sweep route (`1089e32`), which
+  produces a full `SweepResult` with no VNA attached. Slices 1–3b-i were all built
+  and verified on a bare API 36 emulator. Only real-data *fidelity* wants hardware.
 
 ## NEXT — bench day (needs LiteVNA64 + NanoVNA-H4)
 
-Unchanged. Procedure and results log: `claude/hardware-bringup-litevna64.md`.
-**Build + reinstall first**, then: H4 identity / Block C, A3 calibration restore,
-Block B cross-family `CLEAR`, §10b re-run, `sweepPoints=101`.
+Procedure and results log: `claude/hardware-bringup-litevna64.md`.
+**Build + reinstall first**, then: H4 identity / Block C, §10b re-run,
+`sweepPoints=101`.
+
+> **STRUCK 2026-08-08 — ~~A3 calibration restore~~ and ~~Block B cross-family
+> `CLEAR`~~ are dead items, not pending ones.** Both describe calibration-RESTORE
+> behaviour that the teardown deleted (`227237b` / `02cc9ec`): there is no
+> `ProjectData.calibrationData`, no `CalibrationRestorePolicy`, no restore path.
+> `CalRestore` now survives only as prose in `BenchStateLog.kt` comments. They
+> cannot be verified because the behaviour no longer exists — do not schedule
+> bench time for them. Calibration is live-only; see
+> `claude/calibration-teardown-plan.md`.
 
 ---
 
