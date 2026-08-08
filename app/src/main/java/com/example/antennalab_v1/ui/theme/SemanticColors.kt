@@ -25,9 +25,16 @@ Usage model for pills/badges: the semantic colour is the FOREGROUND (dot +
 text/border) over a low-alpha tint of ITSELF, so no separate "on-semantic"
 colours are needed. See ui/components/StatusPill.kt.
 
-These vary by light/dark, and the app forces its own dark flag independent
-of the system, so the active set is chosen by the theme's flag and provided
-via LocalAntennaLabSemanticColors — not by isSystemInDarkTheme().
+These vary by light/dark. The active set is chosen by the theme's own flag
+and provided via LocalAntennaLabSemanticColors, so consumers read the
+CompositionLocal and never call isSystemInDarkTheme() themselves — that
+call belongs at the composition root and nowhere else.
+
+The flag used to be forced dark independent of the system. Slice 5d
+reversed that: it now comes from AppSettings.themePreference, resolved by
+resolveDarkTheme at MainActivity, where SYSTEM defers to
+isSystemInDarkTheme() while DARK and LIGHT override it. The indirection
+below is unchanged — only where the flag originates.
 ########################################################################
 */
 data class AntennaLabSemanticColors(

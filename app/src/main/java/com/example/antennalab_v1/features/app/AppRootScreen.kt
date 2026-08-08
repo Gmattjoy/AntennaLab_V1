@@ -282,7 +282,17 @@ fun AppRootScreen() {
                 instrumentDetailsReturnScreen.value = "settings"
                 screen.value = "instrument_details"
             },
-            onBackHome = { enterHome() }
+            onBackHome = { enterHome() },
+            /*
+            appSettings is the same observable read this screen already does,
+            so selecting a theme reassigns the repository's state and
+            recomposes from MainActivity down — including this control, which
+            is how the selection highlight moves.
+            */
+            themePreference = appSettings.themePreference,
+            onThemePreferenceSelected = { preference ->
+                SettingsRepository.update(context) { it.copy(themePreference = preference) }
+            }
         )
 
         "device_connections" -> DeviceConnectionsScreen(

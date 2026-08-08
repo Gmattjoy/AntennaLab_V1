@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -24,13 +25,23 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.antennalab_v1.model.settings.ThemePreference
+import com.example.antennalab_v1.ui.components.SegmentedChoiceButton
+import com.example.antennalab_v1.ui.theme.AntennaLabTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SystemMenuScreen(
     onOpenConnectionsDevices: () -> Unit,
     onOpenInstrumentDetails: () -> Unit,
-    onBackHome: () -> Unit
+    onBackHome: () -> Unit,
+    /*
+    Hoisted rather than read here. This screen's signature is callbacks-only
+    and it should stay that way — it has no business importing storage. The
+    caller already holds the settings and a Context.
+    */
+    themePreference: ThemePreference,
+    onThemePreferenceSelected: (ThemePreference) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -73,7 +84,10 @@ fun SystemMenuScreen(
             SystemMenuStaticCard("Hardware Settings", "Default instrument type, connection preferences, calibration restore policy, and future companion-device settings")
             SystemMenuStaticCard("Measurement Settings", "Default sweep ranges, point counts, graph behaviour, smoothing, markers, and future measurement preferences")
             SystemMenuStaticCard("Calculation Settings", "Default units, modelling assumptions, safety margins, and future advanced RF calculation options")
-            SystemMenuStaticCard("App Settings", "Theme, workflow mode, UI behaviour, performance options, and startup behaviour")
+            AppSettingsCard(
+                themePreference = themePreference,
+                onThemePreferenceSelected = onThemePreferenceSelected
+            )
             SystemMenuStaticCard("Advanced Diagnostics", "Future raw protocol tools, transport health, engineering capture tools, and development diagnostics")
             Button(
                 onClick = onBackHome,
@@ -130,6 +144,71 @@ private fun SystemMenuCard(title: String, subtitle: String, isPrimary: Boolean, 
         }
     }
 }
+
+/*
+The App Settings card, which was a SystemMenuStaticCard placeholder whose
+subtitle already named Theme first — this fills in the first of the things it
+promised. Kept as ONE card for ONE concern, matching the cards around it: the
+control sits inline rather than routing to a sub-screen, because a single
+three-way choice does not earn a screen.
+
+Reads AntennaLabTheme tokens and MaterialTheme.colorScheme, not the
+instrument* colour-param convention the sweep stack uses — that convention is
+pre-Phase-0 and confined to that stack.
+*/
+@Composable
+private fun AppSettingsCard(
+    themePreference: ThemePreference,
+    onThemePreferenceSelected: (ThemePreference) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.30f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
+        ) {
+            Text(
+                text = "App Settings",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Theme, workflow mode, UI behaviour, performance options, and startup behaviour",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                text = "Theme",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(AntennaLabTheme.spacing.sm)
+            ) {
+                // System first: it is the default, and the only option that can
+                // be right without the operator deciding anything.
+                ThemePreference.entries.forEach { preference ->
+                    SegmentedChoiceButton(
+                        text = themeOptionLabel(preference),
+                        selected = preference == themePreference,
+                        onClick = { onThemePreferenceSelected(preference) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun themeOptionLabel(preference: ThemePreference): String =
+    when (preference) {
+        ThemePreference.SYSTEM -> "System"
+        ThemePreference.DARK -> "Dark"
+        ThemePreference.LIGHT -> "Light"
+    }
 
 @Composable
 private fun SystemMenuStaticCard(title: String, subtitle: String) {
